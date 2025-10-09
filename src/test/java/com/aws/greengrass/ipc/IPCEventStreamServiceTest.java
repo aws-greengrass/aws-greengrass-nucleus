@@ -47,7 +47,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class IPCEventStreamServiceTest {
     private IPCEventStreamService ipcEventStreamService;
 
@@ -104,21 +106,26 @@ class IPCEventStreamServiceTest {
         CountDownLatch connectionLatch = new CountDownLatch(1);
         EventStreamRPCConnection connection = null;
         try (EventLoopGroup elg = new EventLoopGroup(1);
-             HostResolver hostResolver = new HostResolver(elg);
-             ClientBootstrap clientBootstrap = new ClientBootstrap(elg, hostResolver);
-             SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
+                HostResolver hostResolver = new HostResolver(elg);
+                ClientBootstrap clientBootstrap = new ClientBootstrap(elg, hostResolver);
+                SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
             String ipcPathStr = Coerce.toString(deviceConfiguration.getIpcSocketPath());
             Path ipcPath = Utils.isEmpty(ipcPathStr) ? null : Paths.get(ipcPathStr);
             String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath, ipcPath);
-            final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
-                    .connectMessageSupplier("authToken"));
+            final EventStreamRPCConnectionConfig config =
+                    new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath,
+                            DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier.connectMessageSupplier("authToken"));
             connection = new EventStreamRPCConnection(config);
-            final boolean disconnected[] = {false};
-            final int disconnectedCode[] = {-1};
-            //this is a bit cumbersome but does not prevent a convenience wrapper from exposing a sync
-            //connect() or a connect() that returns a CompletableFuture that errors
-            //this could be wrapped by utility methods to provide a more
+            final boolean disconnected[] = {
+                    false
+            };
+            final int disconnectedCode[] = {
+                    -1
+            };
+            // this is a bit cumbersome but does not prevent a convenience wrapper from exposing a sync
+            // connect() or a connect() that returns a CompletableFuture that errors
+            // this could be wrapped by utility methods to provide a more
             connection.connect(new EventStreamRPCConnection.LifecycleHandler() {
                 @Override
                 public void onConnect() {
@@ -131,10 +138,10 @@ class IPCEventStreamServiceTest {
                     disconnectedCode[0] = errorCode;
                 }
 
-                //This on error is for any errors that is connection level, including problems during connect()
+                // This on error is for any errors that is connection level, including problems during connect()
                 @Override
                 public boolean onError(Throwable t) {
-                    return true;    //hints at handler to disconnect due to this error
+                    return true; // hints at handler to disconnect due to this error
                 }
             });
             assertTrue(connectionLatch.await(2, TimeUnit.SECONDS));

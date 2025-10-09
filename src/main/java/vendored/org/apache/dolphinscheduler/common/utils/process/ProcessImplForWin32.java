@@ -21,6 +21,7 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
+
 package vendored.org.apache.dolphinscheduler.common.utils.process;
 
 import com.aws.greengrass.logging.api.Logger;
@@ -98,7 +99,8 @@ public class ProcessImplForWin32 extends Process {
 
     private static final int OFFSET_WRITE = 1;
 
-    // From https://github.com/java-native-access/jna/blob/cb98ab22196855933eb6315f2663d1b4a03ff261/contrib/platform/src/com/sun/jna/platform/win32/WinBase.java#L51-L53
+    // From
+    // https://github.com/java-native-access/jna/blob/cb98ab22196855933eb6315f2663d1b4a03ff261/contrib/platform/src/com/sun/jna/platform/win32/WinBase.java#L51-L53
     // 4294967295 is 2^32.
     // Pointer size 8 bytes means 64 bit. 4 bytes would mean 32 bit.
     private static final WinNT.HANDLE JAVA_INVALID_HANDLE_VALUE =
@@ -142,15 +144,11 @@ public class ProcessImplForWin32 extends Process {
     }
 
     /**
-     * Open a file for writing. If {@code append} is {@code true} then the file
-     * is opened for atomic append directly and a FileOutputStream constructed
-     * with the resulting handle. This is because a FileOutputStream created
-     * to append to a file does not open the file in a manner that guarantees
-     * that writes by the child process will be atomic.
+     * Open a file for writing. If {@code append} is {@code true} then the file is opened for atomic append directly and
+     * a FileOutputStream constructed with the resulting handle. This is because a FileOutputStream created to append to
+     * a file does not open the file in a manner that guarantees that writes by the child process will be atomic.
      */
-    private static FileOutputStream newFileOutputStream(File f, boolean append)
-            throws IOException
-    {
+    private static FileOutputStream newFileOutputStream(File f, boolean append) throws IOException {
         if (append) {
             String path = f.getPath();
             SecurityManager sm = System.getSecurityManager();
@@ -160,39 +158,31 @@ public class ProcessImplForWin32 extends Process {
             long handle = openForAtomicAppend(path);
             final FileDescriptor fd = new FileDescriptor();
             setHandle(fd, handle);
-            return AccessController.doPrivileged(
-                    new PrivilegedAction<FileOutputStream>() {
-                        @Override
-                        public FileOutputStream run() {
-                            return new FileOutputStream(fd);
-                        }
-                    }
-            );
+            return AccessController.doPrivileged(new PrivilegedAction<FileOutputStream>() {
+                @Override
+                public FileOutputStream run() {
+                    return new FileOutputStream(fd);
+                }
+            });
         } else {
             return new FileOutputStream(f);
         }
     }
 
     // System-dependent portion of ProcessBuilderForWindows.start()
-    static Process start(String username,
-                         char[] password,
-                         String[] cmdarray,
-                         java.util.Map<String,String> defaultEnv,
-                         java.util.Map<String,String> overrideEnv,
-                         String dir,
-                         ProcessBuilderForWin32.Redirect[] redirects,
-                         boolean redirectErrorStream,
-                         int processCreationFlags)
-            throws IOException
-    {
-        FileInputStream  f0 = null;
+    static Process start(String username, char[] password, String[] cmdarray, java.util.Map<String, String> defaultEnv,
+            java.util.Map<String, String> overrideEnv, String dir, ProcessBuilderForWin32.Redirect[] redirects,
+            boolean redirectErrorStream, int processCreationFlags) throws IOException {
+        FileInputStream f0 = null;
         FileOutputStream f1 = null;
         FileOutputStream f2 = null;
 
         try {
             long[] stdHandles;
             if (redirects == null) {
-                stdHandles = new long[] { -1L, -1L, -1L };
+                stdHandles = new long[] {
+                        -1L, -1L, -1L
+                };
             } else {
                 stdHandles = new long[3];
 
@@ -210,8 +200,7 @@ public class ProcessImplForWin32 extends Process {
                 } else if (redirects[1] == ProcessBuilderForWin32.Redirect.INHERIT) {
                     stdHandles[1] = getHandle(FileDescriptor.out);
                 } else {
-                    f1 = newFileOutputStream(redirects[1].file(),
-                            redirects[1].append());
+                    f1 = newFileOutputStream(redirects[1].file(), redirects[1].append());
                     stdHandles[1] = getHandle(f1.getFD());
                 }
 
@@ -220,8 +209,7 @@ public class ProcessImplForWin32 extends Process {
                 } else if (redirects[2] == ProcessBuilderForWin32.Redirect.INHERIT) {
                     stdHandles[2] = getHandle(FileDescriptor.err);
                 } else {
-                    f2 = newFileOutputStream(redirects[2].file(),
-                            redirects[2].append());
+                    f2 = newFileOutputStream(redirects[2].file(), redirects[2].append());
                     stdHandles[2] = getHandle(f2.getFD());
                 }
             }
@@ -231,18 +219,19 @@ public class ProcessImplForWin32 extends Process {
         } finally {
             // In theory, close() can throw IOException
             // (although it is rather unlikely to happen here)
-            try { if (f0 != null) {
-                f0.close();
-            }
-            }
-            finally {
-                try { if (f1 != null) {
-                    f1.close();
+            try {
+                if (f0 != null) {
+                    f0.close();
                 }
-                }
-                finally { if (f2 != null) {
-                    f2.close();
-                }
+            } finally {
+                try {
+                    if (f1 != null) {
+                        f1.close();
+                    }
+                } finally {
+                    if (f2 != null) {
+                        f2.close();
+                    }
                 }
             }
         }
@@ -251,17 +240,15 @@ public class ProcessImplForWin32 extends Process {
 
     private static class LazyPattern {
         // Escape-support version:
-        //    "(\")((?:\\\\\\1|.)+?)\\1|([^\\s\"]+)"
-        private static final Pattern PATTERN =
-                Pattern.compile("[^\\s\"]+|\"[^\"]*\"");
+        // "(\")((?:\\\\\\1|.)+?)\\1|([^\\s\"]+)"
+        private static final Pattern PATTERN = Pattern.compile("[^\\s\"]+|\"[^\"]*\"");
     }
 
-    /* Parses the command string parameter into the executable name and
-     * program arguments.
+    /*
+     * Parses the command string parameter into the executable name and program arguments.
      *
-     * The command string is broken into tokens. The token separator is a space
-     * or quota character. The space inside quotation is not a token separator.
-     * There are no escape sequences.
+     * The command string is broken into tokens. The token separator is a space or quota character. The space inside
+     * quotation is not a token separator. There are no escape sequences.
      */
     private static String[] getTokensFromCommand(String command) {
         ArrayList<String> matchList = new ArrayList<>(8);
@@ -280,17 +267,19 @@ public class ProcessImplForWin32 extends Process {
     // https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-xp/bb490954(v=technet.10)
     private static final char[][] ESCAPE_VERIFICATION = {
             // We guarantee the only command file execution for implicit [cmd.exe] run.
-            //    http://technet.microsoft.com/en-us/library/bb490954.aspx
-            {' ', '\t', '<', '>', '&', '|', '^'},
-            {' ', '\t', '<', '>'},
-            {' ', '\t', '<', '>'},
-            {' ', '\t'}
+            // http://technet.microsoft.com/en-us/library/bb490954.aspx
+            {
+                    ' ', '\t', '<', '>', '&', '|', '^'
+            }, {
+                    ' ', '\t', '<', '>'
+            }, {
+                    ' ', '\t', '<', '>'
+            }, {
+                    ' ', '\t'
+            }
     };
 
-    private static String createCommandLine(int verificationType,
-                                            final String executablePath,
-                                            final String[] cmd)
-    {
+    private static String createCommandLine(int verificationType, final String executablePath, final String[] cmd) {
         StringBuilder cmdbuf = new StringBuilder(80);
 
         cmdbuf.append(executablePath);
@@ -309,9 +298,9 @@ public class ProcessImplForWin32 extends Process {
                         if (c == DOUBLEQUOTE) {
                             int count = countLeadingBackslash(verificationType, s, j);
                             while (count-- > 0) {
-                                cmdbuf.append(BACKSLASH);   // double the number of backslashes
+                                cmdbuf.append(BACKSLASH); // double the number of backslashes
                             }
-                            cmdbuf.append(BACKSLASH);       // backslash to quote the quote
+                            cmdbuf.append(BACKSLASH); // backslash to quote the quote
                         }
                         cmdbuf.append(c);
                     }
@@ -321,7 +310,7 @@ public class ProcessImplForWin32 extends Process {
                 // The code protects the [java.exe] and console command line
                 // parser, that interprets the [\"] combination as an escape
                 // sequence for the ["] char.
-                //     http://msdn.microsoft.com/en-us/library/17w5ykft.aspx
+                // http://msdn.microsoft.com/en-us/library/17w5ykft.aspx
                 //
                 // If the argument is an FS path, doubling of the tail [\]
                 // char is not a problem for non-console applications.
@@ -332,7 +321,7 @@ public class ProcessImplForWin32 extends Process {
                 // procedure.
                 int count = countLeadingBackslash(verificationType, s, s.length());
                 while (count-- > 0) {
-                    cmdbuf.append(BACKSLASH);   // double the number of backslashes
+                    cmdbuf.append(BACKSLASH); // double the number of backslashes
                 }
                 cmdbuf.append('"');
             } else {
@@ -344,6 +333,7 @@ public class ProcessImplForWin32 extends Process {
 
     /**
      * Return the argument without quotes (1st and last) if present, else the arg.
+     * 
      * @param str a string
      * @return the string without 1st and last quotes
      */
@@ -358,7 +348,7 @@ public class ProcessImplForWin32 extends Process {
         // Switch off MS heuristic for internal ["].
         // Please, use the explicit [cmd.exe] call
         // if you need the internal ["].
-        //    Example: "cmd.exe", "/C", "Extended_MS_Syntax"
+        // Example: "cmd.exe", "/C", "Extended_MS_Syntax"
 
         // For [.exe] or [.com] file the unpaired/internal ["]
         // in the argument is not a problem.
@@ -367,20 +357,18 @@ public class ProcessImplForWin32 extends Process {
         boolean embeddedQuote = unquotedArg.indexOf(DOUBLEQUOTE) >= 0;
 
         switch (verificationType) {
-            case VERIFICATION_CMD_BAT:
-                if (embeddedQuote) {
-                    throw new IllegalArgumentException("Argument has embedded quote, " +
-                            "use the explicit CMD.EXE call.");
-                }
-                break;  // break determine whether to quote
-            case VERIFICATION_WIN32_SAFE:
-                if (argIsQuoted && embeddedQuote)  {
-                    throw new IllegalArgumentException("Malformed argument has embedded quote: "
-                            + unquotedArg);
-                }
-                break;
-            default:
-                break;
+        case VERIFICATION_CMD_BAT:
+            if (embeddedQuote) {
+                throw new IllegalArgumentException("Argument has embedded quote, " + "use the explicit CMD.EXE call.");
+            }
+            break; // break determine whether to quote
+        case VERIFICATION_WIN32_SAFE:
+            if (argIsQuoted && embeddedQuote) {
+                throw new IllegalArgumentException("Malformed argument has embedded quote: " + unquotedArg);
+            }
+            break;
+        default:
+            break;
         }
 
         if (!argIsQuoted) {
@@ -394,13 +382,10 @@ public class ProcessImplForWin32 extends Process {
         return false;
     }
 
-    private static String getExecutablePath(String path)
-            throws IOException
-    {
+    private static String getExecutablePath(String path) throws IOException {
         String name = unQuote(path);
         if (name.indexOf(DOUBLEQUOTE) >= 0) {
-            throw new IllegalArgumentException("Executable name has embedded quote, " +
-                    "split the arguments: " + name);
+            throw new IllegalArgumentException("Executable name has embedded quote, " + "split the arguments: " + name);
         }
         // Win32 CreateProcess requires path to be normalized
         File fileToRun = new File(name);
@@ -425,9 +410,9 @@ public class ProcessImplForWin32 extends Process {
     }
 
     /**
-     * An executable is any program that is an EXE or does not have an extension
-     * and the Windows createProcess will be looking for .exe.
-     * The comparison is case insensitive based on the name.
+     * An executable is any program that is an EXE or does not have an extension and the Windows createProcess will be
+     * looking for .exe. The comparison is case insensitive based on the name.
+     * 
      * @param executablePath the executable file
      * @return true if the path ends in .exe or does not have an extension.
      */
@@ -450,8 +435,7 @@ public class ProcessImplForWin32 extends Process {
 
     // Count backslashes before start index of string.
     // .bat files don't include backslashes as part of the quote
-    private static int countLeadingBackslash(int verificationType,
-                                             CharSequence input, int start) {
+    private static int countLeadingBackslash(int verificationType, CharSequence input, int start) {
         if (verificationType == VERIFICATION_CMD_BAT) {
             return 0;
         }
@@ -459,7 +443,7 @@ public class ProcessImplForWin32 extends Process {
         for (j = start - 1; j >= 0 && input.charAt(j) == BACKSLASH; j--) {
             // just scanning backwards
         }
-        return (start - 1) - j;  // number of BACKSLASHES
+        return (start - 1) - j; // number of BACKSLASHES
     }
 
     private static final char DOUBLEQUOTE = '\"';
@@ -470,18 +454,10 @@ public class ProcessImplForWin32 extends Process {
     private InputStream stdoutStream;
     private InputStream stderrStream;
 
-    private ProcessImplForWin32(
-            String username,
-            char[] password,
-            String[] cmd,
-            final java.util.Map<String,String> defaultEnv,
-            final java.util.Map<String,String> overrideEnv,
-            final String path,
-            final long[] stdHandles,
-            final boolean redirectErrorStream,
-            final int processCreationFlags)
-            throws IOException
-    {
+    private ProcessImplForWin32(String username, char[] password, String[] cmd,
+            final java.util.Map<String, String> defaultEnv, final java.util.Map<String, String> overrideEnv,
+            final String path, final long[] stdHandles, final boolean redirectErrorStream,
+            final int processCreationFlags) throws IOException {
         String cmdstr;
         final SecurityManager security = System.getSecurityManager();
         if (security == null) {
@@ -491,15 +467,13 @@ public class ProcessImplForWin32 extends Process {
             String executablePath = new File(cmd[0]).getPath();
 
             // No worry about internal, unpaired ["], and redirection/piping.
-            if (needsEscaping(VERIFICATION_LEGACY, executablePath) ) {
+            if (needsEscaping(VERIFICATION_LEGACY, executablePath)) {
                 executablePath = quoteString(executablePath);
             }
 
             cmdstr = createCommandLine(
-                    //legacy mode doesn't worry about extended verification
-                    VERIFICATION_LEGACY,
-                    executablePath,
-                    cmd);
+                    // legacy mode doesn't worry about extended verification
+                    VERIFICATION_LEGACY, executablePath, cmd);
         } else {
             String executablePath;
             try {
@@ -511,7 +485,7 @@ public class ProcessImplForWin32 extends Process {
                 // No chance to avoid CMD/BAT injection, except to do the work
                 // right from the beginning. Otherwise we have too many corner
                 // cases from
-                //    Runtime.getRuntime().exec(String[] cmd [, ...])
+                // Runtime.getRuntime().exec(String[] cmd [, ...])
                 // calls with internal ["] and escape sequences.
 
                 // Restore original command line.
@@ -537,45 +511,42 @@ public class ProcessImplForWin32 extends Process {
             boolean isShell = isShellFile(executablePath);
             cmdstr = createCommandLine(
                     // We need the extended verification procedures
-                    isShell ? VERIFICATION_CMD_BAT : VERIFICATION_WIN32,
-                    quoteString(executablePath),
-                    cmd);
+                    isShell ? VERIFICATION_CMD_BAT : VERIFICATION_WIN32, quoteString(executablePath), cmd);
         }
 
         handle = create(username, password, cmdstr, defaultEnv, overrideEnv, path, stdHandles, redirectErrorStream,
                 processCreationFlags);
 
-        AccessController.doPrivileged(
-                new PrivilegedAction<Void>() {
-                    @Override
-                    public Void run() {
-                        if (stdHandles[0] == -1L) {
-                            stdinStream = ProcessBuilderForWin32.NullOutputStream.INSTANCE;
-                        } else {
-                            FileDescriptor stdinFd = new FileDescriptor();
-                            setHandle(stdinFd, stdHandles[0]);
-                            stdinStream = new BufferedOutputStream(
-                                    new FileOutputStream(stdinFd));
-                        }
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                if (stdHandles[0] == -1L) {
+                    stdinStream = ProcessBuilderForWin32.NullOutputStream.INSTANCE;
+                } else {
+                    FileDescriptor stdinFd = new FileDescriptor();
+                    setHandle(stdinFd, stdHandles[0]);
+                    stdinStream = new BufferedOutputStream(new FileOutputStream(stdinFd));
+                }
 
-                        if (stdHandles[1] == -1L) {
-                            stdoutStream = ProcessBuilderForWin32.NullInputStream.INSTANCE;
-                        } else {
-                            FileDescriptor stdoutFd = new FileDescriptor();
-                            setHandle(stdoutFd, stdHandles[1]);
-                            stdoutStream = new BufferedInputStream(
-                                    new FileInputStream(stdoutFd));
-                        }
+                if (stdHandles[1] == -1L) {
+                    stdoutStream = ProcessBuilderForWin32.NullInputStream.INSTANCE;
+                } else {
+                    FileDescriptor stdoutFd = new FileDescriptor();
+                    setHandle(stdoutFd, stdHandles[1]);
+                    stdoutStream = new BufferedInputStream(new FileInputStream(stdoutFd));
+                }
 
-                        if (stdHandles[2] == -1L) {
-                            stderrStream = ProcessBuilderForWin32.NullInputStream.INSTANCE;
-                        } else {
-                            FileDescriptor stderrFd = new FileDescriptor();
-                            setHandle(stderrFd, stdHandles[2]);
-                            stderrStream = new FileInputStream(stderrFd);
-                        }
+                if (stdHandles[2] == -1L) {
+                    stderrStream = ProcessBuilderForWin32.NullInputStream.INSTANCE;
+                } else {
+                    FileDescriptor stderrFd = new FileDescriptor();
+                    setHandle(stderrFd, stdHandles[2]);
+                    stderrStream = new FileInputStream(stderrFd);
+                }
 
-                        return null; }});
+                return null;
+            }
+        });
     }
 
     @Override
@@ -616,9 +587,7 @@ public class ProcessImplForWin32 extends Process {
     }
 
     @Override
-    public boolean waitFor(long timeout, TimeUnit unit)
-            throws InterruptedException
-    {
+    public boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException {
         if (getExitCodeProcess(handle) != STILL_ACTIVE) {
             return true;
         }
@@ -626,8 +595,8 @@ public class ProcessImplForWin32 extends Process {
             return false;
         }
 
-        long remainingNanos  = unit.toNanos(timeout);
-        long deadline = System.nanoTime() + remainingNanos ;
+        long remainingNanos = unit.toNanos(timeout);
+        long deadline = System.nanoTime() + remainingNanos;
 
         do {
             // Round up to next millisecond
@@ -646,22 +615,23 @@ public class ProcessImplForWin32 extends Process {
     }
 
     @Override
-    public void destroy() { terminateProcess(handle); }
+    public void destroy() {
+        terminateProcess(handle);
+    }
 
     @Override
     public Process destroyForcibly() {
         destroy();
         return this;
     }
+
     @Override
     public boolean isAlive() {
         return isProcessAlive(handle);
     }
 
-    private static boolean initHolder(WinNT.HANDLEByReference pjhandles,
-                                      WinNT.HANDLEByReference[] pipe,
-                                      int offset,
-                                      WinNT.HANDLEByReference phStd) {
+    private static boolean initHolder(WinNT.HANDLEByReference pjhandles, WinNT.HANDLEByReference[] pipe, int offset,
+            WinNT.HANDLEByReference phStd) {
         if (!pjhandles.getValue().equals(JAVA_INVALID_HANDLE_VALUE)) {
             phStd.setValue(pjhandles.getValue());
             pjhandles.setValue(JAVA_INVALID_HANDLE_VALUE);
@@ -674,7 +644,8 @@ public class ProcessImplForWin32 extends Process {
                 pjhandles.setValue(thisProcessEnd);
             }
         }
-        Kernel32.INSTANCE.SetHandleInformation(phStd.getValue(), WinBase.HANDLE_FLAG_INHERIT, WinBase.HANDLE_FLAG_INHERIT);
+        Kernel32.INSTANCE.SetHandleInformation(phStd.getValue(), WinBase.HANDLE_FLAG_INHERIT,
+                WinBase.HANDLE_FLAG_INHERIT);
         return true;
     }
 
@@ -686,7 +657,7 @@ public class ProcessImplForWin32 extends Process {
     }
 
     private static void prepareIOEHandleState(WinNT.HANDLE[] stdIOE, Boolean[] inherit) {
-        for(int i = 0; i < HANDLE_STORAGE_SIZE; ++i) {
+        for (int i = 0; i < HANDLE_STORAGE_SIZE; ++i) {
             WinNT.HANDLE hstd = stdIOE[i];
             if (!WinBase.INVALID_HANDLE_VALUE.equals(hstd)) {
                 inherit[i] = Boolean.TRUE;
@@ -698,7 +669,8 @@ public class ProcessImplForWin32 extends Process {
     private static void restoreIOEHandleState(WinNT.HANDLE[] stdIOE, Boolean[] inherit) {
         for (int i = HANDLE_STORAGE_SIZE - 1; i >= 0; --i) {
             if (!WinBase.INVALID_HANDLE_VALUE.equals(stdIOE[i])) {
-                Kernel32.INSTANCE.SetHandleInformation(stdIOE[i], WinBase.HANDLE_FLAG_INHERIT, Boolean.TRUE.equals(inherit[i]) ? WinBase.HANDLE_FLAG_INHERIT : 0);
+                Kernel32.INSTANCE.SetHandleInformation(stdIOE[i], WinBase.HANDLE_FLAG_INHERIT,
+                        Boolean.TRUE.equals(inherit[i]) ? WinBase.HANDLE_FLAG_INHERIT : 0);
             }
         }
     }
@@ -706,28 +678,25 @@ public class ProcessImplForWin32 extends Process {
     /*
      * Method modified by Amazon to be able to call CreateProcessAsUser when running as a Windows service
      */
-    private WinNT.HANDLE processCreate(String username,
-                                       char[] password,
-                                       String cmd,
-                                       final String envblock,
-                                       final String path,
-                                       final WinNT.HANDLEByReference[] stdHandles,
-                                       final boolean redirectErrorStream,
-                                       final ProcessCreationExtras extraInfo,
-                                       final int processCreationFlags) throws ProcessCreationException {
+    private WinNT.HANDLE processCreate(String username, char[] password, String cmd, final String envblock,
+            final String path, final WinNT.HANDLEByReference[] stdHandles, final boolean redirectErrorStream,
+            final ProcessCreationExtras extraInfo, final int processCreationFlags) throws ProcessCreationException {
         WinNT.HANDLE ret = new WinNT.HANDLE(Pointer.createConstant(0));
 
         WinNT.HANDLE[] stdIOE = new WinNT.HANDLE[] {
-                WinBase.INVALID_HANDLE_VALUE, WinBase.INVALID_HANDLE_VALUE, WinBase.INVALID_HANDLE_VALUE,
-                stdHandles[0].getValue(), stdHandles[1].getValue(), stdHandles[2].getValue()
+                WinBase.INVALID_HANDLE_VALUE,
+                WinBase.INVALID_HANDLE_VALUE,
+                WinBase.INVALID_HANDLE_VALUE,
+                stdHandles[0].getValue(),
+                stdHandles[1].getValue(),
+                stdHandles[2].getValue()
         };
         stdIOE[0] = Kernel32.INSTANCE.GetStdHandle(Wincon.STD_INPUT_HANDLE);
         stdIOE[1] = Kernel32.INSTANCE.GetStdHandle(Wincon.STD_OUTPUT_HANDLE);
         stdIOE[2] = Kernel32.INSTANCE.GetStdHandle(Wincon.STD_ERROR_HANDLE);
 
         Boolean[] inherit = new Boolean[] {
-                Boolean.FALSE, Boolean.FALSE, Boolean.FALSE,
-                Boolean.FALSE, Boolean.FALSE, Boolean.FALSE
+                Boolean.FALSE, Boolean.FALSE, Boolean.FALSE, Boolean.FALSE, Boolean.FALSE, Boolean.FALSE
         };
 
         prepareIOEHandleState(stdIOE, inherit);
@@ -735,17 +704,23 @@ public class ProcessImplForWin32 extends Process {
         // input
         WinNT.HANDLEByReference hStdInput = new WinNT.HANDLEByReference();
         WinNT.HANDLEByReference[] pipeIn = new WinNT.HANDLEByReference[] {
-                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE), new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE) };
+                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE),
+                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE)
+        };
 
         // output
         WinNT.HANDLEByReference hStdOutput = new WinNT.HANDLEByReference();
         WinNT.HANDLEByReference[] pipeOut = new WinNT.HANDLEByReference[] {
-                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE), new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE) };
+                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE),
+                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE)
+        };
 
         // error
         WinNT.HANDLEByReference hStdError = new WinNT.HANDLEByReference();
         WinNT.HANDLEByReference[] pipeError = new WinNT.HANDLEByReference[] {
-                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE), new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE) };
+                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE),
+                new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE)
+        };
 
         boolean ioRedirectSuccess;
         if (initHolder(stdHandles[0], pipeIn, OFFSET_READ, hStdInput)) {
@@ -767,7 +742,7 @@ public class ProcessImplForWin32 extends Process {
                     WinBase.PROCESS_INFORMATION pi = new WinBase.PROCESS_INFORMATION();
                     pi.clear();
                     si.dwFlags = WinBase.STARTF_USESTDHANDLES | WinBase.STARTF_USESHOWWINDOW;
-                    si.wShowWindow = new WinDef.WORD(WinUser.SW_HIDE);  // hide new console window
+                    si.wShowWindow = new WinDef.WORD(WinUser.SW_HIDE); // hide new console window
                     si.write();
                     final boolean createProcSuccess;
                     final String createProcContext;
@@ -782,11 +757,12 @@ public class ProcessImplForWin32 extends Process {
                         // (such as a const variable or a literal string). If this parameter is a constant string,
                         // the function may cause an access violation.
                         WTypes.LPWSTR cmdWstr = new WTypes.LPWSTR(cmd);
-                        char[] cmdChars = cmdWstr.getPointer()
-                                .getCharArray(0, cmd.length() + 1);  // +1 terminating null char
-                        WTypes.LPWSTR lpEnvironment = envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
-                        createProcSuccess = Kernel32.INSTANCE.CreateProcessW(null, cmdChars, null, null,
-                                true, new WinDef.DWORD(processCreationFlags), lpEnvironment.getPointer(), path, si, pi);
+                        char[] cmdChars = cmdWstr.getPointer().getCharArray(0, cmd.length() + 1); // +1 terminating null
+                                                                                                  // char
+                        WTypes.LPWSTR lpEnvironment =
+                                envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
+                        createProcSuccess = Kernel32.INSTANCE.CreateProcessW(null, cmdChars, null, null, true,
+                                new WinDef.DWORD(processCreationFlags), lpEnvironment.getPointer(), path, si, pi);
                         createProcError = Kernel32.INSTANCE.GetLastError();
                     } else if (isService.get()) {
                         createProcContext = "CreateProcessAsUser";
@@ -796,20 +772,19 @@ public class ProcessImplForWin32 extends Process {
                         threadSa.bInheritHandle = false;
                         threadSa.write();
 
-                        createProcSuccess = Advapi32.INSTANCE.CreateProcessAsUser(extraInfo.primaryTokenHandle, null, cmd,
-                                extraInfo.processSa, threadSa, true, processCreationFlags,
-                                envblock, path, si, pi);
+                        createProcSuccess = Advapi32.INSTANCE.CreateProcessAsUser(extraInfo.primaryTokenHandle, null,
+                                cmd, extraInfo.processSa, threadSa, true, processCreationFlags, envblock, path, si, pi);
                         // track error since closeHandles will reset it
                         createProcError = Kernel32.INSTANCE.GetLastError();
                         Kernel32Util.closeHandles(extraInfo.primaryTokenHandle);
                     } else {
                         createProcContext = "CreateProcessWithLogonW";
 
-                        WTypes.LPWSTR lpEnvironment = envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
-                        createProcSuccess =
-                                Advapi32.INSTANCE.CreateProcessWithLogonW(username, null, new String(password),
-                                        Advapi32.LOGON_WITH_PROFILE, null, cmd, processCreationFlags,
-                                        lpEnvironment.getPointer(), path, si, pi);
+                        WTypes.LPWSTR lpEnvironment =
+                                envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
+                        createProcSuccess = Advapi32.INSTANCE.CreateProcessWithLogonW(username, null,
+                                new String(password), Advapi32.LOGON_WITH_PROFILE, null, cmd, processCreationFlags,
+                                lpEnvironment.getPointer(), path, si, pi);
                         createProcError = Kernel32.INSTANCE.GetLastError();
                     }
 
@@ -833,15 +808,9 @@ public class ProcessImplForWin32 extends Process {
     /*
      * Method modified by Amazon to be able to call CreateProcessAsUser when running as a Windows service
      */
-    private WinNT.HANDLE create(String username,
-                                             char[] password,
-                                             String cmd,
-                                             java.util.Map<String,String> defaultEnv,
-                                             java.util.Map<String,String> overrideEnv,
-                                             final String path,
-                                             final long[] stdHandles,
-                                             final boolean redirectErrorStream,
-                                             final int processCreationFlags) throws ProcessCreationException {
+    private WinNT.HANDLE create(String username, char[] password, String cmd, java.util.Map<String, String> defaultEnv,
+            java.util.Map<String, String> overrideEnv, final String path, final long[] stdHandles,
+            final boolean redirectErrorStream, final int processCreationFlags) throws ProcessCreationException {
         try (LockScope ls = LockScope.lock(lock)) {
             String envblock;
             ProcessCreationExtras extraInfo = new ProcessCreationExtras();
@@ -926,8 +895,7 @@ public class ProcessImplForWin32 extends Process {
     }
 
     /**
-     * Opens a file for atomic append. The file is created if it doesn't
-     * already exist.
+     * Opens a file for atomic append. The file is created if it doesn't already exist.
      *
      * @param path the file to open or create
      * @return the native HANDLE
@@ -940,7 +908,8 @@ public class ProcessImplForWin32 extends Process {
         if (path == null || path.isEmpty()) {
             return -1;
         } else {
-            WinNT.HANDLE handle = Kernel32.INSTANCE.CreateFile(path, access, sharing, null, disposition, flagsAndAttributes, null);
+            WinNT.HANDLE handle =
+                    Kernel32.INSTANCE.CreateFile(path, access, sharing, null, disposition, flagsAndAttributes, null);
             if (handle == WinBase.INVALID_HANDLE_VALUE) {
                 throw new Win32Exception(Kernel32.INSTANCE.GetLastError());
             }
@@ -949,7 +918,9 @@ public class ProcessImplForWin32 extends Process {
     }
 
     private static void waitForTimeoutInterruptibly(WinNT.HANDLE handle, long timeout) {
-        int result = Kernel32.INSTANCE.WaitForMultipleObjects(1, new WinNT.HANDLE[]{handle}, false, (int) timeout);
+        int result = Kernel32.INSTANCE.WaitForMultipleObjects(1, new WinNT.HANDLE[] {
+                handle
+        }, false, (int) timeout);
         if (result == WinBase.WAIT_FAILED) {
             throw new Win32Exception(Kernel32.INSTANCE.GetLastError());
         }
@@ -961,11 +932,11 @@ public class ProcessImplForWin32 extends Process {
 
     /**
      * Preparation for running process as another user. Populates the given extraInfo if applicable.
+     * 
      * @return environment block for CreateProcess* APIs
      */
     private String setupRunAsAnotherUser(String username, char[] password, Map<String, String> defaultEnv,
-                                         Map<String, String> overrideEnv, ProcessCreationExtras extraInfo)
-            throws ProcessCreationException {
+            Map<String, String> overrideEnv, ProcessCreationExtras extraInfo) throws ProcessCreationException {
         // Get and cache process token and isService state
         try (LockScope ls = LockScope.lock(globalLock)) {
             if (processToken.get() == null) {
@@ -978,8 +949,8 @@ public class ProcessImplForWin32 extends Process {
                 isService.set(checkIsService(processTokenHandle));
                 // If we are a service then we will need these privileges. Escalate now so we only do it once
                 if (isService.get()) {
-                    enablePrivileges(processTokenHandle.getValue(),
-                            Kernel32.SE_TCB_NAME, Kernel32.SE_ASSIGNPRIMARYTOKEN_NAME);
+                    enablePrivileges(processTokenHandle.getValue(), Kernel32.SE_TCB_NAME,
+                            Kernel32.SE_ASSIGNPRIMARYTOKEN_NAME);
                 }
             }
         }
@@ -988,8 +959,9 @@ public class ProcessImplForWin32 extends Process {
         // LogonUser
         boolean logonSuccess = false;
         WinNT.HANDLEByReference userTokenHandle = new WinNT.HANDLEByReference();
-        int[] logonTypes =
-                {Kernel32.LOGON32_LOGON_INTERACTIVE, Kernel32.LOGON32_LOGON_SERVICE, Kernel32.LOGON32_LOGON_BATCH};
+        int[] logonTypes = {
+                Kernel32.LOGON32_LOGON_INTERACTIVE, Kernel32.LOGON32_LOGON_SERVICE, Kernel32.LOGON32_LOGON_BATCH
+        };
         for (int logonType : logonTypes) {
             if (Advapi32.INSTANCE.LogonUser(username, null, new String(password), logonType,
                     Kernel32.LOGON32_PROVIDER_DEFAULT, userTokenHandle)) {
@@ -1007,7 +979,8 @@ public class ProcessImplForWin32 extends Process {
             // Init security descriptor. 64 KB is guaranteed large enough for SecurityDescriptor
             // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nf-fltkernel-fltquerysecurityobject#remarks
             final WinNT.SECURITY_DESCRIPTOR securityDescriptor = new WinNT.SECURITY_DESCRIPTOR(64 * 1024);
-            if (!Advapi32.INSTANCE.InitializeSecurityDescriptor(securityDescriptor, WinNT.SECURITY_DESCRIPTOR_REVISION)) {
+            if (!Advapi32.INSTANCE.InitializeSecurityDescriptor(securityDescriptor,
+                    WinNT.SECURITY_DESCRIPTOR_REVISION)) {
                 throw lastErrorProcessCreationException("InitializeSecurityDescriptor");
             }
 
@@ -1053,8 +1026,8 @@ public class ProcessImplForWin32 extends Process {
     }
 
     private static ProcessCreationException lastErrorProcessCreationException(String context, int errorCode) {
-        return new ProcessCreationException(String.format("[%s] %s", context,
-                Kernel32Util.formatMessageFromLastErrorCode(errorCode)));
+        return new ProcessCreationException(
+                String.format("[%s] %s", context, Kernel32Util.formatMessageFromLastErrorCode(errorCode)));
     }
 
     private static LastErrorException lastErrorRuntimeException() {
@@ -1103,7 +1076,8 @@ public class ProcessImplForWin32 extends Process {
         if (logger.isTraceEnabled()) {
             Arrays.stream(groups).forEach(g -> logger.atTrace().kv("token group", g.Sid.getSidString()).log());
         }
-        return Arrays.stream(groups).map(g -> g.Sid.getSidString())
+        return Arrays.stream(groups)
+                .map(g -> g.Sid.getSidString())
                 .anyMatch(g -> g.equalsIgnoreCase(SERVICE_GROUP_SID) || g.equalsIgnoreCase(SYSTEM_INTEGRITY_SID));
     }
 
@@ -1111,10 +1085,11 @@ public class ProcessImplForWin32 extends Process {
      * Convert environment Map to lpEnvironment block format.
      *
      * @return environment block for starting a process
-     * @see <a href="https://docs.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock">docs</a>
+     * @see <a href=
+     *      "https://docs.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock">docs</a>
      */
     private static String computeEnvironmentBlock(WinNT.HANDLE userTokenHandle, Map<String, String> defaultEnv,
-                                                  Map<String, String> overrideEnv) throws ProcessCreationException {
+            Map<String, String> overrideEnv) throws ProcessCreationException {
         PointerByReference lpEnv = new PointerByReference();
         // Get user's env vars, inheriting current process env
         // It returns pointer to a block of null-terminated strings. It ends with two nulls (\0\0).

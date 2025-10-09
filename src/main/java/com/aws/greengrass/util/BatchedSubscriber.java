@@ -18,27 +18,36 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 
 /**
- * {@link BatchedSubscriber} is a subscriber that fires once for a <i>batch</i> of changes
- * (and on subscription initialization).
+ * {@link BatchedSubscriber} is a subscriber that fires once for a <i>batch</i> of changes (and on subscription
+ * initialization).
  *
- * <br><br><p>A <i>batch</i> is defined as all the elements in a {@link Topic} or {@link Topics}' publish queue,
- * with the last <i>batch</i> element being the most recent topic change.
+ * <br>
+ * <br>
+ * <p>
+ * A <i>batch</i> is defined as all the elements in a {@link Topic} or {@link Topics}' publish queue, with the last
+ * <i>batch</i> element being the most recent topic change.
  *
- * <br><br><p>By default, commonly ignored changes, like {@link WhatHappened#timestampUpdated} and
- * {@link WhatHappened#interiorAdded}, will NOT be added to a <i>batch</i>
- * (see {@link BatchedSubscriber#BASE_EXCLUSION}).
+ * <br>
+ * <br>
+ * <p>
+ * By default, commonly ignored changes, like {@link WhatHappened#timestampUpdated} and
+ * {@link WhatHappened#interiorAdded}, will NOT be added to a <i>batch</i> (see
+ * {@link BatchedSubscriber#BASE_EXCLUSION}).
  *
- * <br><br><p>To be precise, a {@link BatchedSubscriber} will trigger its {@link BatchedSubscriber#callback}
- * after the following events:
+ * <br>
+ * <br>
+ * <p>
+ * To be precise, a {@link BatchedSubscriber} will trigger its {@link BatchedSubscriber#callback} after the following
+ * events:
  * <ul>
- *     <li>when {@link WhatHappened#initialized} is fired on initial subscription</li>
- *     <li>when the last <i>batch</i> element is popped from the topic's publish queue</li>
+ * <li>when {@link WhatHappened#initialized} is fired on initial subscription</li>
+ * <li>when the last <i>batch</i> element is popped from the topic's publish queue</li>
  * </ul>
  */
 public final class BatchedSubscriber implements ChildChanged, Subscriber {
 
-    public static final BiPredicate<WhatHappened, Node> BASE_EXCLUSION = (what, child) ->
-            what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded;
+    public static final BiPredicate<WhatHappened, Node> BASE_EXCLUSION =
+            (what, child) -> what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded;
 
     private final AtomicInteger numRequestedChanges = new AtomicInteger();
 
@@ -49,9 +58,10 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     /**
      * Constructs a new BatchedSubscriber.
      *
-     * <p>Defaults to using {@link BatchedSubscriber#BASE_EXCLUSION} for excluding changes from a <i>batch</i>.
+     * <p>
+     * Defaults to using {@link BatchedSubscriber#BASE_EXCLUSION} for excluding changes from a <i>batch</i>.
      *
-     * @param topic    topic to subscribe to
+     * @param topic topic to subscribe to
      * @param callback action to perform after a <i>batch</i> of changes and on initialization
      */
     public BatchedSubscriber(Topic topic, Consumer<WhatHappened> callback) {
@@ -61,22 +71,21 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     /**
      * Constructs a new BatchedSubscriber.
      *
-     * @param topic      topic to subscribe to
+     * @param topic topic to subscribe to
      * @param exclusions predicate for ignoring a subset topic changes
-     * @param callback   action to perform after a <i>batch</i> of changes and on initialization
+     * @param callback action to perform after a <i>batch</i> of changes and on initialization
      */
-    public BatchedSubscriber(Topic topic,
-                             BiPredicate<WhatHappened, Node> exclusions,
-                             Consumer<WhatHappened> callback) {
+    public BatchedSubscriber(Topic topic, BiPredicate<WhatHappened, Node> exclusions, Consumer<WhatHappened> callback) {
         this((Node) topic, exclusions, callback);
     }
 
     /**
      * Constructs a new BatchedSubscriber.
      *
-     * <p>Defaults to using {@link BatchedSubscriber#BASE_EXCLUSION} for excluding changes from a <i>batch</i>.
+     * <p>
+     * Defaults to using {@link BatchedSubscriber#BASE_EXCLUSION} for excluding changes from a <i>batch</i>.
      *
-     * @param topics   topics to subscribe to
+     * @param topics topics to subscribe to
      * @param callback action to perform after a <i>batch</i> of changes and on initialization
      */
     public BatchedSubscriber(Topics topics, Consumer<WhatHappened> callback) {
@@ -86,13 +95,12 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     /**
      * Constructs a new BatchedSubscriber.
      *
-     * @param topics     topics to subscribe to
+     * @param topics topics to subscribe to
      * @param exclusions predicate for ignoring a subset topics changes
-     * @param callback   action to perform after a <i>batch</i> of changes and on initialization
+     * @param callback action to perform after a <i>batch</i> of changes and on initialization
      */
-    public BatchedSubscriber(Topics topics,
-                             BiPredicate<WhatHappened, Node> exclusions,
-                             Consumer<WhatHappened> callback) {
+    public BatchedSubscriber(Topics topics, BiPredicate<WhatHappened, Node> exclusions,
+            Consumer<WhatHappened> callback) {
         this((Node) topics, exclusions, callback);
     }
 
@@ -100,23 +108,21 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      * Constructs a new BatchedSubscriber.
      *
      * @param exclusions predicate for ignoring a subset topic(s) changes
-     * @param callback   action to perform after a <i>batch</i> of changes and on initialization
+     * @param callback action to perform after a <i>batch</i> of changes and on initialization
      */
-    public BatchedSubscriber(BiPredicate<WhatHappened, Node> exclusions,
-                             Consumer<WhatHappened> callback) {
+    public BatchedSubscriber(BiPredicate<WhatHappened, Node> exclusions, Consumer<WhatHappened> callback) {
         this((Node) null, exclusions, callback);
     }
 
     /**
      * Constructs a new BatchedSubscriber.
      *
-     * @param node       topic or topics to subscribe to
+     * @param node topic or topics to subscribe to
      * @param exclusions predicate for ignoring a subset topic(s) changes
-     * @param callback   action to perform after a <i>batch</i> of changes and on initialization
+     * @param callback action to perform after a <i>batch</i> of changes and on initialization
      */
-    private BatchedSubscriber(Node node,
-                              BiPredicate<WhatHappened, Node> exclusions,
-                              @NonNull Consumer<WhatHappened> callback) {
+    private BatchedSubscriber(Node node, BiPredicate<WhatHappened, Node> exclusions,
+            @NonNull Consumer<WhatHappened> callback) {
         this.node = node;
         this.exclusions = exclusions;
         this.callback = callback;

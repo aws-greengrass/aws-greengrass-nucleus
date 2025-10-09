@@ -20,8 +20,8 @@ public final class LoaderLogsSummarizer {
      * Summarizes loader logs that can be published as part of the deployment status FSS message when deployment fails
      * with NRF.
      *
-     * @param blob  string blob containing loader logs
-     * @return      string containing summarized logs
+     * @param blob string blob containing loader logs
+     * @return string containing summarized logs
      */
     public static String summarizeLogs(String blob) {
         try (Scanner scanner = new Scanner(blob)) {

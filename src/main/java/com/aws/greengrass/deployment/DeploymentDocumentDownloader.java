@@ -71,28 +71,30 @@ public class DeploymentDocumentDownloader {
      * Constructor.
      *
      * @param greengrassServiceClientFactory greengrassServiceClientFactory for lazily initialize the client.
-     * @param deviceConfiguration            deviceConfiguration for getting the thing name topic.
-     * @param httpClientProvider             httpClientProvider for making calls to presigned url.
+     * @param deviceConfiguration deviceConfiguration for getting the thing name topic.
+     * @param httpClientProvider httpClientProvider for making calls to presigned url.
      */
     @Inject
     public DeploymentDocumentDownloader(GreengrassServiceClientFactory greengrassServiceClientFactory,
-                                        DeviceConfiguration deviceConfiguration,
-                                        HttpClientProvider httpClientProvider) {
+            DeviceConfiguration deviceConfiguration, HttpClientProvider httpClientProvider) {
         this.greengrassServiceClientFactory = greengrassServiceClientFactory;
         this.deviceConfiguration = deviceConfiguration;
         this.httpClientProvider = httpClientProvider;
 
-        RetryUtils.RetryConfig infiniteRetryConfig =
-                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
-                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
-                        .retryableExceptions(Arrays.asList(RetryableDeploymentDocumentDownloadException.class,
-                                DeviceConfigurationException.class, RetryableServerErrorException.class)).build();
+        RetryUtils.RetryConfig infiniteRetryConfig = RetryUtils.RetryConfig.builder()
+                .initialRetryInterval(Duration.ofMinutes(1))
+                .maxRetryInterval(Duration.ofMinutes(1))
+                .maxAttempt(Integer.MAX_VALUE)
+                .retryableExceptions(Arrays.asList(RetryableDeploymentDocumentDownloadException.class,
+                        DeviceConfigurationException.class, RetryableServerErrorException.class))
+                .build();
 
-        RetryUtils.RetryConfig finiteRetryConfig =
-                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
-                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(MAX_CLIENT_ERROR_RETRY_COUNT)
-                        .retryableExceptions(Collections.singletonList(RetryableClientErrorException.class)).build();
-
+        RetryUtils.RetryConfig finiteRetryConfig = RetryUtils.RetryConfig.builder()
+                .initialRetryInterval(Duration.ofMinutes(1))
+                .maxRetryInterval(Duration.ofMinutes(1))
+                .maxAttempt(MAX_CLIENT_ERROR_RETRY_COUNT)
+                .retryableExceptions(Collections.singletonList(RetryableClientErrorException.class))
+                .build();
 
         this.clientExceptionRetryConfig = RetryUtils.DifferentiatedRetryConfig.builder()
                 .retryConfigList(Arrays.asList(infiniteRetryConfig, finiteRetryConfig))
@@ -107,7 +109,9 @@ public class DeploymentDocumentDownloader {
      * @throws DeploymentTaskFailureException if failed to download the full deployment document.
      * @throws InterruptedException if interrupted.
      */
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     public DeploymentDocument download(String deploymentId)
             throws InterruptedException, DeploymentTaskFailureException {
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
@@ -119,8 +123,7 @@ public class DeploymentDocumentDownloader {
         String configurationString;
         try {
             configurationString = RetryUtils.runWithRetry(clientExceptionRetryConfig,
-                    () -> downloadDeploymentDocument(deploymentId), "download-large-configuration",
-                    logger);
+                    () -> downloadDeploymentDocument(deploymentId), "download-large-configuration", logger);
         } catch (InterruptedException e) {
             throw e;
         } catch (Exception e) {
@@ -130,10 +133,9 @@ public class DeploymentDocumentDownloader {
         return deserializeDeploymentDoc(configurationString);
     }
 
-    protected String downloadDeploymentDocument(String deploymentId)
-            throws DeploymentTaskFailureException, RetryableDeploymentDocumentDownloadException,
-            DeviceConfigurationException, HashingAlgorithmUnavailableException, RetryableServerErrorException,
-            RetryableClientErrorException {
+    protected String downloadDeploymentDocument(String deploymentId) throws DeploymentTaskFailureException,
+            RetryableDeploymentDocumentDownloadException, DeviceConfigurationException,
+            HashingAlgorithmUnavailableException, RetryableServerErrorException, RetryableClientErrorException {
         // 1. Get url, digest, and algorithm by calling gg data plane
         GetDeploymentConfigurationResponse response = getDeploymentConfiguration(deploymentId);
 
@@ -156,8 +158,7 @@ public class DeploymentDocumentDownloader {
                 .build();
 
         // url is not logged for security concerns
-        logger.atDebug().kv("DeploymentId", deploymentId)
-                .log("Making HTTP request to the presigned url");
+        logger.atDebug().kv("DeploymentId", deploymentId).log("Making HTTP request to the presigned url");
 
         try (SdkHttpClient client = httpClientProvider.getSdkHttpClient()) {
 
@@ -188,29 +189,36 @@ public class DeploymentDocumentDownloader {
             DeploymentTaskFailureException, RetryableServerErrorException, RetryableClientErrorException {
         String thingName = Coerce.toString(deviceConfiguration.getThingName());
         GetDeploymentConfigurationRequest getDeploymentConfigurationRequest =
-                GetDeploymentConfigurationRequest.builder().deploymentId(deploymentId).coreDeviceThingName(thingName)
-                        .s3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType())).build();
+                GetDeploymentConfigurationRequest.builder()
+                        .deploymentId(deploymentId)
+                        .coreDeviceThingName(thingName)
+                        .s3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()))
+                        .build();
 
         GetDeploymentConfigurationResponse deploymentConfiguration;
 
         try {
-            logger.atInfo().kv("DeploymentId", deploymentId).kv("ThingName", thingName)
+            logger.atInfo()
+                    .kv("DeploymentId", deploymentId)
+                    .kv("ThingName", thingName)
                     .log("Calling Greengrass cloud to get full deployment configuration");
 
             deploymentConfiguration = greengrassServiceClientFactory.fetchGreengrassV2DataClient()
-                            .getDeploymentConfiguration(getDeploymentConfigurationRequest);
+                    .getDeploymentConfiguration(getDeploymentConfigurationRequest);
 
         } catch (GreengrassV2DataException e) {
             if (RetryUtils.retryErrorCodes(e.statusCode())) {
-                throw new RetryableServerErrorException("Failed with retryable error: " + e.statusCode()
-                        + " while calling getDeploymentConfiguration", e);
+                throw new RetryableServerErrorException(
+                        "Failed with retryable error: " + e.statusCode() + " while calling getDeploymentConfiguration",
+                        e);
             }
             // also retry on 404s because sometimes querying DDB may fail initially due to its eventual consistency
             if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
-                throw new RetryableClientErrorException("Failed with retryable error: " + e.statusCode()
-                        + " while calling getDeploymentConfiguration", e);
+                throw new RetryableClientErrorException(
+                        "Failed with retryable error: " + e.statusCode() + " while calling getDeploymentConfiguration",
+                        e);
             }
-            if (e.statusCode() == HttpStatusCode.FORBIDDEN)  {
+            if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 throw new DeploymentTaskFailureException(
                         "Access denied when calling GetDeploymentConfiguration. Ensure "
                                 + "certificate policy grants greengrass:GetDeploymentConfiguration",
@@ -223,9 +231,9 @@ public class DeploymentDocumentDownloader {
         } catch (SdkClientException e) {
             throw new RetryableDeploymentDocumentDownloadException(
                     "Failed to contact Greengrass cloud or unable to parse response", e);
-        }  catch (TLSAuthException e) {
-            throw new RetryableClientErrorException(
-                    "Failed to contact Greengrass cloud or unable to parse response", e);
+        } catch (TLSAuthException e) {
+            throw new RetryableClientErrorException("Failed to contact Greengrass cloud or unable to parse response",
+                    e);
         }
         return deploymentConfiguration;
     }
@@ -238,16 +246,18 @@ public class DeploymentDocumentDownloader {
                     executeResponse.httpResponse().statusCode(),
                     executeResponse.httpResponse().statusText().orElse(StringUtils.EMPTY)));
         }
-        Optional<String> deploymentDocumentSizeOptional = executeResponse.httpResponse()
-                .firstMatchingHeader(CONTENT_LENGTH_HEADER);
+        Optional<String> deploymentDocumentSizeOptional =
+                executeResponse.httpResponse().firstMatchingHeader(CONTENT_LENGTH_HEADER);
 
-        //this should never happen as GGC cloud supports max 10 MB documents due to API GW payload limit,
-        //but adding a check as deployment document is read into process memory.
+        // this should never happen as GGC cloud supports max 10 MB documents due to API GW payload limit,
+        // but adding a check as deployment document is read into process memory.
         if (deploymentDocumentSizeOptional.isPresent()
                 && Long.parseLong(deploymentDocumentSizeOptional.get()) > MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES) {
-            throw new DeploymentTaskFailureException(String.format("Requested deployment document exceeded size limit."
-                    + " The requested document is %s bytes, but the size limit is %s bytes",
-                    deploymentDocumentSizeOptional.get(), MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES),
+            throw new DeploymentTaskFailureException(
+                    String.format(
+                            "Requested deployment document exceeded size limit."
+                                    + " The requested document is %s bytes, but the size limit is %s bytes",
+                            deploymentDocumentSizeOptional.get(), MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES),
                     DeploymentErrorCode.DEPLOYMENT_DOCUMENT_SIZE_EXCEEDED);
         }
 
@@ -260,15 +270,15 @@ public class DeploymentDocumentDownloader {
     private DeploymentDocument deserializeDeploymentDoc(String configurationInString)
             throws DeploymentTaskFailureException {
         try {
-            Configuration configuration =  SerializerFactory.getFailSafeJsonObjectMapper()
+            Configuration configuration = SerializerFactory.getFailSafeJsonObjectMapper()
                     .readValue(configurationInString, Configuration.class);
             return DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
         } catch (IOException e) {
-            throw new DeploymentTaskFailureException("Failed to deserialize deployment document", e)
-                    .withErrorContext(e, DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
+            throw new DeploymentTaskFailureException("Failed to deserialize deployment document", e).withErrorContext(e,
+                    DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
         } catch (InvalidRequestException e) {
-            throw new DeploymentTaskFailureException("Invalid component metadata from deployment document",
-                    e).withErrorContext(e, DeploymentErrorCode.COMPONENT_METADATA_NOT_VALID_IN_DEPLOYMENT);
+            throw new DeploymentTaskFailureException("Invalid component metadata from deployment document", e)
+                    .withErrorContext(e, DeploymentErrorCode.COMPONENT_METADATA_NOT_VALID_IN_DEPLOYMENT);
         }
 
     }
@@ -280,7 +290,8 @@ public class DeploymentDocumentDownloader {
             if (!calculatedDigest.equals(digest)) {
                 throw new RetryableDeploymentDocumentDownloadException(String.format(
                         "Integrity check failed because the calculated digest is different from provided digest.%n"
-                                + "Provided digest: '%s'. %nCalculated digest: '%s'", digest, calculatedDigest));
+                                + "Provided digest: '%s'. %nCalculated digest: '%s'",
+                        digest, calculatedDigest));
             }
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider

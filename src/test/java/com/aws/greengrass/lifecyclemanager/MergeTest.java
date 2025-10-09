@@ -53,8 +53,9 @@ class MergeTest {
         }
     }
 
-    // GG_NEEDS_REVIEW: TODO : following tests need to go into the unit tests for DeploymentConfigMerger class when we add it
-    //  and should be tested through the available method mergeNewConfig instead
+    // GG_NEEDS_REVIEW: TODO : following tests need to go into the unit tests for DeploymentConfigMerger class when we
+    // add it
+    // and should be tested through the available method mergeNewConfig instead
     @Test
     void GIVEN_deployment_WHEN_all_service_are_running_THEN_waitForServicesToStart_completes_without_exception()
             throws Exception {
@@ -85,13 +86,12 @@ class MergeTest {
         when(mockMainService.reachedDesiredState()).thenReturn(true);
         when(mockServiceA.reachedDesiredState()).thenReturn(true);
         when(mockServiceB.reachedDesiredState()).thenReturn(true);
-        Set<GreengrassService>
-                greengrassServices = new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
+        Set<GreengrassService> greengrassServices =
+                new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
         CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
 
         ServiceUpdateException ex = assertThrows(ServiceUpdateException.class,
-                () -> DeploymentConfigMerger.waitForServicesToStart(greengrassServices, curTime - 10L,
-                        kernel, future));
+                () -> DeploymentConfigMerger.waitForServicesToStart(greengrassServices, curTime - 10L, kernel, future));
 
         assertEquals("Service main in broken state after deployment", ex.getMessage());
         assertFalse(future.isDone());

@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
-
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.NETWORK_ERROR;
 
 public class ConnectionException extends DockerImageDownloadException {

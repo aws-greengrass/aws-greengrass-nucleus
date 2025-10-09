@@ -84,8 +84,8 @@ public class IotJobsHelper implements InjectionActions {
     public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
     public static final String UPDATE_DEPLOYMENT_STATUS_ACCEPTED = "Job status update was accepted";
     public static final String STATUS_LOG_KEY_NAME = "Status";
-    public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS Iot cloud. IOT job "
-            + "deployment is offline";
+    public static final String DEVICE_OFFLINE_MESSAGE =
+            "Device not configured to talk to AWS Iot cloud. IOT job " + "deployment is offline";
     public static final String SUBSCRIBING_TO_TOPICS_MESSAGE = "Subscribing to Iot Jobs Topics";
     protected static final String SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE =
             "No connection available during subscribing to Iot Jobs descriptions topic. Will retry in sometime";
@@ -153,11 +153,9 @@ public class IotJobsHelper implements InjectionActions {
 
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
-         * This message is received when either of these things happen
-         * 1. Last job completed (successful/failed)
-         * 2. A new job was queued
-         * 3. A job was cancelled
-         * This message receives the list of Queued and InProgress jobs at the time of this message
+         * This message is received when either of these things happen 1. Last job completed (successful/failed) 2. A
+         * new job was queued 3. A job was cancelled This message receives the list of Queued and InProgress jobs at the
+         * time of this message
          */
         Map<JobStatus, List<JobExecutionSummary>> jobs = event.jobs;
         if (jobs.containsKey(JobStatus.QUEUED)) {
@@ -165,8 +163,8 @@ public class IotJobsHelper implements InjectionActions {
             // each new job QUEUED.
             unprocessedJobs.incrementAndGet();
             logger.atInfo().log("Received new deployment notification. Requesting details");
-            //Do not wait on the future in this async handler,
-            //as it will block the thread which establishes
+            // Do not wait on the future in this async handler,
+            // as it will block the thread which establishes
             // the MQTT connection. This will result in frozen MQTT connection
             requestNextPendingJobDocument();
             return;
@@ -180,9 +178,8 @@ public class IotJobsHelper implements InjectionActions {
         logger.atInfo().kv("jobs", jobs).log("Received other deployment notification. Not supported yet");
     };
     /**
-     * Handler that gets invoked when a job description is received.
-     * Next pending job description is requested when an mqtt message
-     * is published using {@code requestNextPendingJobDocument} in {@link IotJobsHelper}
+     * Handler that gets invoked when a job description is received. Next pending job description is requested when an
+     * mqtt message is published using {@code requestNextPendingJobDocument} in {@link IotJobsHelper}
      */
     private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
         if (response.execution == null) {
@@ -199,10 +196,14 @@ public class IotJobsHelper implements InjectionActions {
         }
         JobExecutionData jobExecutionData = response.execution;
 
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).kv(STATUS_LOG_KEY_NAME, jobExecutionData.status)
-                .kv("queueAt", jobExecutionData.queuedAt).log("Received Iot job description");
+        logger.atInfo()
+                .kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId)
+                .kv(STATUS_LOG_KEY_NAME, jobExecutionData.status)
+                .kv("queueAt", jobExecutionData.queuedAt)
+                .log("Received Iot job description");
         if (!latestQueuedJobs.addNewJobIfAbsent(jobExecutionData.queuedAt.toInstant(), jobExecutionData.jobId)) {
-            logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId)
+            logger.atInfo()
+                    .kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId)
                     .log("Duplicate or outdated job notification. Ignoring.");
             return;
         }
@@ -213,7 +214,9 @@ public class IotJobsHelper implements InjectionActions {
                     SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
         } catch (JsonProcessingException e) {
             // This should not happen as we are converting a HashMap
-            logger.atError().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).setCause(e)
+            logger.atError()
+                    .kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId)
+                    .setCause(e)
                     .log("Failed to serialize job document");
             return;
         }
@@ -226,8 +229,7 @@ public class IotJobsHelper implements InjectionActions {
         evaluateCancellationAndCancelDeploymentIfNeeded();
 
         // Add the job queued in cloud to the deployment queue so it's picked up on its turn
-        Deployment deployment =
-                new Deployment(documentString, DeploymentType.IOT_JOBS, jobExecutionData.jobId);
+        Deployment deployment = new Deployment(documentString, DeploymentType.IOT_JOBS, jobExecutionData.jobId);
 
         if (deploymentQueue.offer(deployment)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).log("Added the job to the queue");
@@ -251,15 +253,10 @@ public class IotJobsHelper implements InjectionActions {
     /**
      * Constructor for unit testing.
      */
-    IotJobsHelper(DeviceConfiguration deviceConfiguration,
-                  IotJobsClientFactory iotJobsClientFactory,
-                  DeploymentQueue deploymentQueue,
-                  DeploymentStatusKeeper deploymentStatusKeeper,
-                  ExecutorService executorService,
-                  Kernel kernel,
-                  WrapperMqttConnectionFactory wrapperMqttConnectionFactory,
-                  MqttClient mqttClient,
-                  FleetStatusService fleetStatusService) {
+    IotJobsHelper(DeviceConfiguration deviceConfiguration, IotJobsClientFactory iotJobsClientFactory,
+            DeploymentQueue deploymentQueue, DeploymentStatusKeeper deploymentStatusKeeper,
+            ExecutorService executorService, Kernel kernel, WrapperMqttConnectionFactory wrapperMqttConnectionFactory,
+            MqttClient mqttClient, FleetStatusService fleetStatusService) {
         this.deviceConfiguration = deviceConfiguration;
         this.iotJobsClientFactory = iotJobsClientFactory;
         this.deploymentQueue = deploymentQueue;
@@ -329,19 +326,20 @@ public class IotJobsHelper implements InjectionActions {
         }
 
         // only one consumer per service name will be registered
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
-                this::deploymentStatusChanged, IotJobsHelper.class.getName());
-        logger.dfltKv("ThingName", (Supplier<String>) () ->
-                Coerce.toString(deviceConfiguration.getThingName()));
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS, this::deploymentStatusChanged,
+                IotJobsHelper.class.getName());
+        logger.dfltKv("ThingName", (Supplier<String>) () -> Coerce.toString(deviceConfiguration.getThingName()));
         this.thingName = Coerce.toString(deviceConfiguration.getThingName());
         if (subscriptionFuture == null || subscriptionFuture.isDone()) {
             subscriptionFuture = executorService.submit(() -> {
                 try {
                     // Wait for all node updates to come through before we subscribe to the topics
-                    Throwable ex = kernel.getContext().runOnPublishQueueAndWait(() -> {});
+                    Throwable ex = kernel.getContext().runOnPublishQueueAndWait(() -> {
+                    });
                     if (ex instanceof InterruptedException) {
-                        logger.atDebug().log("Got interrupted while waiting for publish queue to clear, during Iot "
-                                + "Jobs subscriptions");
+                        logger.atDebug()
+                                .log("Got interrupted while waiting for publish queue to clear, during Iot "
+                                        + "Jobs subscriptions");
                         return;
                     }
                     subscribeToJobsTopics();
@@ -375,43 +373,53 @@ public class IotJobsHelper implements InjectionActions {
                 }
             }
         });
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
-                .kv("StatusDetails", statusDetails).log("Updating status of persisted deployment");
+        logger.atInfo()
+                .kv(JOB_ID_LOG_KEY_NAME, jobId)
+                .kv(STATUS_LOG_KEY_NAME, status)
+                .kv("StatusDetails", statusDetails)
+                .log("Updating status of persisted deployment");
         try {
             updateJobStatus(jobId, JobStatus.valueOf(status), jobStatusDetails);
             return true;
         } catch (ExecutionException e) {
             if (e.getCause() instanceof MqttException) {
-                //caused due to connectivity issue
-                logger.atError().setCause(e).kv(STATUS_LOG_KEY_NAME, status)
+                // caused due to connectivity issue
+                logger.atError()
+                        .setCause(e)
+                        .kv(STATUS_LOG_KEY_NAME, status)
                         .log(UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG);
                 return false;
             }
             // This happens when job status update gets rejected from the Iot Cloud
             // Want to remove this job from the list and continue updating others
-            logger.atError().kv(STATUS_LOG_KEY_NAME, status).kv(JOB_ID_LOG_KEY_NAME, jobId).setCause(e)
+            logger.atError()
+                    .kv(STATUS_LOG_KEY_NAME, status)
+                    .kv(JOB_ID_LOG_KEY_NAME, jobId)
+                    .setCause(e)
                     .log("Job status update rejected");
             return true;
         } catch (TimeoutException e) {
             // assuming this is due to network issue
             logger.info(UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG);
         } catch (InterruptedException e) {
-            logger.atError().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+            logger.atError()
+                    .kv(JOB_ID_LOG_KEY_NAME, jobId)
+                    .kv(STATUS_LOG_KEY_NAME, status)
                     .log("Got interrupted while updating the job status");
         }
         return false;
     }
 
     /**
-     * Subscribes to the topic which receives confirmation message of Job update for a given JobId.
-     * Updates the status of an Iot Job with given JobId to a given status.
+     * Subscribes to the topic which receives confirmation message of Job update for a given JobId. Updates the status
+     * of an Iot Job with given JobId to a given status.
      *
-     * @param jobId            The jobId to be updated
-     * @param status           The {@link JobStatus} to which to update
+     * @param jobId The jobId to be updated
+     * @param status The {@link JobStatus} to which to update
      * @param statusDetailsMap map with job status details
-     * @throws ExecutionException   if update fails
+     * @throws ExecutionException if update fails
      * @throws InterruptedException if the thread gets interrupted
-     * @throws TimeoutException     if the operation does not complete within the given time
+     * @throws TimeoutException if the operation does not complete within the given time
      */
     @SuppressWarnings("PMD.LooseCoupling")
     public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap)
@@ -422,14 +430,18 @@ public class IotJobsHelper implements InjectionActions {
         CompletableFuture<Void> gotResponse = new CompletableFuture<>();
         iotJobsClientWrapper.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                    logger.atInfo()
+                            .kv(JOB_ID_LOG_KEY_NAME, jobId)
+                            .kv(STATUS_LOG_KEY_NAME, status)
                             .log(UPDATE_DEPLOYMENT_STATUS_ACCEPTED);
                     gotResponse.complete(null);
                 });
 
         iotJobsClientWrapper.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                    logger.atWarn()
+                            .kv(JOB_ID_LOG_KEY_NAME, jobId)
+                            .kv(STATUS_LOG_KEY_NAME, status)
                             .log("Job status updated rejected");
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
@@ -464,15 +476,15 @@ public class IotJobsHelper implements InjectionActions {
     }
 
     /**
-     * Request the job description of the next available job for this Iot Thing.
-     * It publishes on the $aws/things/{thingName}/jobs/$next/get topic.
+     * Request the job description of the next available job for this Iot Thing. It publishes on the
+     * $aws/things/{thingName}/jobs/$next/get topic.
      */
     public void requestNextPendingJobDocument() {
         DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();
         describeJobExecutionRequest.thingName = this.thingName;
         describeJobExecutionRequest.jobId = NEXT_JOB_LITERAL;
         describeJobExecutionRequest.includeJobDocument = true;
-        //This method is specifically called from an async event notification handler. Async handler cannot block on
+        // This method is specifically called from an async event notification handler. Async handler cannot block on
         // this future as that will freeze the MQTT connection.
         iotJobsClientWrapper.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
         logger.atDebug().log("Requesting the next deployment");
@@ -481,7 +493,7 @@ public class IotJobsHelper implements InjectionActions {
     /**
      * Subscribe to the mqtt topics needed for getting Iot Jobs notifications.
      *
-     * @throws InterruptedException           When operation is interrupted
+     * @throws InterruptedException When operation is interrupted
      */
     public void subscribeToJobsTopics() throws InterruptedException {
 
@@ -505,20 +517,18 @@ public class IotJobsHelper implements InjectionActions {
     }
 
     /**
-     * Subscribes to the describe job topic to get the job details for the next available pending job
-     * It also publishes a message to get the next pending job.
-     * It returns an empty message if nothing is available
+     * Subscribes to the describe job topic to get the job details for the next available pending job It also publishes
+     * a message to get the next pending job. It returns an empty message if nothing is available
      *
      * @param consumerAccept Consumer for when the job is accepted
      * @param consumerReject Consumer for when the job is rejected
-     * @throws ExecutionException   if subscribing fails
+     * @throws ExecutionException if subscribing fails
      * @throws InterruptedException if the thread gets interrupted
-     * @throws TimeoutException     if the operation does not complete within the given time
+     * @throws TimeoutException if the operation does not complete within the given time
      */
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected void subscribeToGetNextJobDescription(Consumer<DescribeJobExecutionResponse> consumerAccept,
-                                                    Consumer<RejectedError> consumerReject)
-            throws InterruptedException {
+            Consumer<RejectedError> consumerReject) throws InterruptedException {
 
         logger.atDebug().log("Subscribing to deployment job execution update.");
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
@@ -529,14 +539,12 @@ public class IotJobsHelper implements InjectionActions {
         while (true) {
             CompletableFuture<Integer> subscribed;
             try {
-                subscribed = iotJobsClientWrapper
-                        .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
-                                QualityOfService.AT_LEAST_ONCE, consumerAccept);
+                subscribed = iotJobsClientWrapper.SubscribeToDescribeJobExecutionAccepted(
+                        describeJobExecutionSubscriptionRequest, QualityOfService.AT_LEAST_ONCE, consumerAccept);
 
                 subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
-                subscribed = iotJobsClientWrapper
-                        .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
-                                QualityOfService.AT_LEAST_ONCE, consumerReject);
+                subscribed = iotJobsClientWrapper.SubscribeToDescribeJobExecutionRejected(
+                        describeJobExecutionSubscriptionRequest, QualityOfService.AT_LEAST_ONCE, consumerReject);
                 subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
 
                 logger.atDebug().log("Subscribed to deployment job execution update.");
@@ -572,12 +580,10 @@ public class IotJobsHelper implements InjectionActions {
 
     private void unsubscribeFromJobDescription() {
         if (connection != null) {
-            String topic = String.format(JOB_DESCRIBE_ACCEPTED_TOPIC,
-                    this.thingName, NEXT_JOB_LITERAL);
+            String topic = String.format(JOB_DESCRIBE_ACCEPTED_TOPIC, this.thingName, NEXT_JOB_LITERAL);
             connection.unsubscribe(topic);
 
-            topic = String.format(JOB_DESCRIBE_REJECTED_TOPIC,
-                    this.thingName, NEXT_JOB_LITERAL);
+            topic = String.format(JOB_DESCRIBE_REJECTED_TOPIC, this.thingName, NEXT_JOB_LITERAL);
             connection.unsubscribe(topic);
         }
     }
@@ -586,9 +592,9 @@ public class IotJobsHelper implements InjectionActions {
      * Subscribe to $aws/things/{thingName}/jobs/notify topic.
      *
      * @param eventHandler The handler which run when an event is received
-     * @throws ExecutionException   When subscribe failed with an exception
+     * @throws ExecutionException When subscribe failed with an exception
      * @throws InterruptedException When this thread was interrupted
-     * @throws TimeoutException     if the operation does not complete within the given time
+     * @throws TimeoutException if the operation does not complete within the given time
      */
     protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
             throws InterruptedException {
@@ -635,8 +641,7 @@ public class IotJobsHelper implements InjectionActions {
 
     private void unsubscribeFromEventNotifications() {
         if (connection != null) {
-            String topic = String.format(JOB_EXECUTIONS_CHANGED_TOPIC,
-                    Coerce.toString(this.thingName));
+            String topic = String.format(JOB_EXECUTIONS_CHANGED_TOPIC, Coerce.toString(this.thingName));
             connection.unsubscribe(topic);
         }
     }
@@ -687,7 +692,7 @@ public class IotJobsHelper implements InjectionActions {
          * Track IoT jobs with the latest timestamp.
          *
          * @param queueAt QueueAt timestamp in IoT Job Execution Data
-         * @param jobId   IoT job ID
+         * @param jobId IoT job ID
          * @return true if IoT job with the given ID is a new job yet to be processed, false otherwise
          */
         public boolean addNewJobIfAbsent(Instant queueAt, String jobId) {

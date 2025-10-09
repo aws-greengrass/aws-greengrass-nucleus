@@ -54,20 +54,18 @@ public class RunWithPathOwnershipHandler {
      * Update the owner of the artifacts and work path in the component on the local filesystem. The user and group of
      * from the RunWith parameter are used.
      *
-     * @param id      the component to update.
+     * @param id the component to update.
      * @param runWith the user/group that should own the files.
      * @throws IOException if an error occurs while updating. This can occur if the user running the kernel does not
-     *                     have the correct permissions or capabilities to change file ownership to another user.
+     *         have the correct permissions or capabilities to change file ownership to another user.
      */
     public void updateOwner(ComponentIdentifier id, RunWith runWith) throws IOException {
         Path artifacts = nucleusPaths.artifactPath(id);
         Path unarchived = nucleusPaths.unarchiveArtifactPath(id);
         Path workPath = nucleusPaths.workPath(id.getName());
 
-        FileSystemPermission permission = FileSystemPermission.builder()
-                .ownerUser(runWith.getUser())
-                .ownerGroup(runWith.getGroup())
-                .build();
+        FileSystemPermission permission =
+                FileSystemPermission.builder().ownerUser(runWith.getUser()).ownerGroup(runWith.getGroup()).build();
 
         // change ownership of files within the artifact dirs, but don't change the artifact dir itself as that would
         // make it writable to the user
@@ -79,7 +77,7 @@ public class RunWithPathOwnershipHandler {
     }
 
     @SuppressWarnings("PMD.ForLoopCanBeForeach")
-    void setPermissions(Path p, FileSystemPermission permission,  boolean applyToRoot) throws IOException {
+    void setPermissions(Path p, FileSystemPermission permission, boolean applyToRoot) throws IOException {
         if (Files.notExists(p)) {
             return;
         }
@@ -87,7 +85,7 @@ public class RunWithPathOwnershipHandler {
             platform.setPermissions(permission, p, Recurse, SetOwner);
         } else {
             try (Stream<Path> files = Files.list(p)) {
-                for (Iterator<Path> it = files.iterator(); it.hasNext(); ) {
+                for (Iterator<Path> it = files.iterator(); it.hasNext();) {
                     platform.setPermissions(permission, it.next(), Recurse, SetOwner);
                 }
             }

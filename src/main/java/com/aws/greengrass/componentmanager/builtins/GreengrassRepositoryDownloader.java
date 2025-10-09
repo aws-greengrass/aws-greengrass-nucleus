@@ -46,12 +46,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     static final String CONTENT_LENGTH_HEADER = "content-length";
-    private static final List<DeploymentErrorCode> HTTP_DOWNLOAD_ERROR_CODE =
-            Arrays.asList(DeploymentErrorCode.DOWNLOAD_GREENGRASS_ARTIFACT_ERROR,
-                    DeploymentErrorCode.HTTP_REQUEST_ERROR);
+    private static final List<DeploymentErrorCode> HTTP_DOWNLOAD_ERROR_CODE = Arrays
+            .asList(DeploymentErrorCode.DOWNLOAD_GREENGRASS_ARTIFACT_ERROR, DeploymentErrorCode.HTTP_REQUEST_ERROR);
     private final ComponentStore componentStore;
     private final GreengrassServiceClientFactory clientFactory;
     private Long artifactSize = null;
@@ -60,16 +58,17 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     // Setter for unit test
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
-    private RetryUtils.RetryConfig clientExceptionRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
-                    .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class,
-                            DeviceConfigurationException.class, RetryableServerErrorException.class)).build();
+    private RetryUtils.RetryConfig clientExceptionRetryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofMinutes(1L))
+            .maxRetryInterval(Duration.ofMinutes(1L))
+            .maxAttempt(Integer.MAX_VALUE)
+            .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class,
+                    DeviceConfigurationException.class, RetryableServerErrorException.class))
+            .build();
 
     protected GreengrassRepositoryDownloader(GreengrassServiceClientFactory clientFactory,
-                                             ComponentIdentifier identifier, ComponentArtifact artifact,
-                                             Path artifactDir, ComponentStore componentStore,
-                                             DeviceConfiguration deviceConfiguration) {
+            ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir, ComponentStore componentStore,
+            DeviceConfiguration deviceConfiguration) {
         super(identifier, artifact, artifactDir, componentStore);
         this.clientFactory = clientFactory;
         this.componentStore = componentStore;
@@ -92,15 +91,16 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     public Long getDownloadSize() throws PackageDownloadException, InterruptedException {
         if (artifactSize != null) {
             return artifactSize;
         }
         try {
-            artifactSize = RetryUtils
-                    .runWithRetry(clientExceptionRetryConfig, () -> getDownloadSizeWithoutRetry(), "get-artifact-size",
-                            logger);
+            artifactSize = RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> getDownloadSizeWithoutRetry(),
+                    "get-artifact-size", logger);
             return artifactSize;
         } catch (InterruptedException e) {
             throw e;
@@ -109,9 +109,11 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
-    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"})
-    private Long getDownloadSizeWithoutRetry() throws InterruptedException, PackageDownloadException, IOException,
-            RetryableServerErrorException {
+    @SuppressWarnings({
+            "PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"
+    })
+    private Long getDownloadSizeWithoutRetry()
+            throws InterruptedException, PackageDownloadException, IOException, RetryableServerErrorException {
         String url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
         try (SdkHttpClient client = getSdkHttpClient()) {
@@ -130,8 +132,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 }
                 return length;
             } else if (RetryUtils.retryErrorCodes(responseCode)) {
-                throw new RetryableServerErrorException("Failed to get download size with retryable error. Error code"
-                        + responseCode);
+                throw new RetryableServerErrorException(
+                        "Failed to get download size with retryable error. Error code" + responseCode);
             } else {
                 throw new PackageDownloadException(
                         getErrorString("Failed to get download size. HTTP response: " + responseCode),
@@ -141,7 +143,9 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     @Override
     protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws PackageDownloadException, InterruptedException {
@@ -150,11 +154,13 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         try {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
                 try (SdkHttpClient client = getSdkHttpClient()) {
-                    HttpExecuteRequest executeRequest = HttpExecuteRequest.builder().request(
-                                    SdkHttpFullRequest.builder().uri(URI.create(url)).method(SdkHttpMethod.GET)
-                                            .putHeader(HTTP_RANGE_HEADER_KEY,
-                                                    String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd))
-                                            .build())
+                    HttpExecuteRequest executeRequest = HttpExecuteRequest.builder()
+                            .request(SdkHttpFullRequest.builder()
+                                    .uri(URI.create(url))
+                                    .method(SdkHttpMethod.GET)
+                                    .putHeader(HTTP_RANGE_HEADER_KEY,
+                                            String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd))
+                                    .build())
                             .build();
                     HttpExecuteResponse executeResponse = client.prepareRequest(executeRequest).call();
 
@@ -220,7 +226,9 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         return Optional.ofNullable(clientFactory.getConfigValidationError());
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     private String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws InterruptedException, PackageDownloadException {
         String arn;
@@ -235,9 +243,11 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
                 try {
                     GetComponentVersionArtifactRequest getComponentArtifactRequest =
-                            GetComponentVersionArtifactRequest.builder().artifactName(artifactName)
+                            GetComponentVersionArtifactRequest.builder()
+                                    .artifactName(artifactName)
                                     .s3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()))
-                                    .arn(arn).build();
+                                    .arn(arn)
+                                    .build();
                     GetComponentVersionArtifactResponse getComponentArtifactResult =
                             clientFactory.fetchGreengrassV2DataClient()
                                     .getComponentVersionArtifact(getComponentArtifactRequest);
@@ -254,16 +264,16 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             throw e;
         } catch (GreengrassV2DataException e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
-                throw new PackageDownloadException(getErrorString("Access denied when calling "
-                        + "GetComponentVersionArtifact. Ensure certificate policy grants "
-                        + "greengrass:GetComponentVersionArtifact"),
+                throw new PackageDownloadException(getErrorString(
+                        "Access denied when calling " + "GetComponentVersionArtifact. Ensure certificate policy grants "
+                                + "greengrass:GetComponentVersionArtifact"),
                         e).withErrorContext(e, DeploymentErrorCode.GET_COMPONENT_VERSION_ARTIFACT_ACCESS_DENIED);
             }
-            throw new PackageDownloadException(getErrorString("Failed to call GetComponentVersionArtifact and get "
-                    + "component artifact's pre-signed url"), e);
+            throw new PackageDownloadException(getErrorString(
+                    "Failed to call GetComponentVersionArtifact and get " + "component artifact's pre-signed url"), e);
         } catch (Exception e) {
-            throw new PackageDownloadException(getErrorString("Failed to call GetComponentVersionArtifact and get "
-                    + "component artifact's pre-signed url"), e);
+            throw new PackageDownloadException(getErrorString(
+                    "Failed to call GetComponentVersionArtifact and get " + "component artifact's pre-signed url"), e);
         }
     }
 

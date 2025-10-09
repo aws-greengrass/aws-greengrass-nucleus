@@ -65,7 +65,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class LifecycleIPCEventStreamAgentTest {
 
     private static final String TEST_SERVICE = "TestService";
@@ -105,8 +107,8 @@ class LifecycleIPCEventStreamAgentTest {
         updateStateRequest.setState(ReportedLifecycleState.ERRORED);
         GreengrassService mockTestService = mock(GreengrassService.class);
         when(kernel.locate(TEST_SERVICE)).thenReturn(mockTestService);
-        UpdateStateResponse response =
-                lifecycleIPCEventStreamAgent.getUpdateStateOperationHandler(mockContext).handleRequest(updateStateRequest);
+        UpdateStateResponse response = lifecycleIPCEventStreamAgent.getUpdateStateOperationHandler(mockContext)
+                .handleRequest(updateStateRequest);
         assertNotNull(response);
     }
 
@@ -117,7 +119,8 @@ class LifecycleIPCEventStreamAgentTest {
         updateStateRequest.setState(ReportedLifecycleState.ERRORED);
         when(kernel.locate(TEST_SERVICE)).thenThrow(new ServiceLoadException("error"));
         assertThrows(ResourceNotFoundError.class,
-                () -> lifecycleIPCEventStreamAgent.getUpdateStateOperationHandler(mockContext).handleRequest(updateStateRequest));
+                () -> lifecycleIPCEventStreamAgent.getUpdateStateOperationHandler(mockContext)
+                        .handleRequest(updateStateRequest));
     }
 
     @Test
@@ -161,8 +164,8 @@ class LifecycleIPCEventStreamAgentTest {
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setMessage("Test defer");
         deferComponentUpdateRequest.setRecheckAfterMs(1000L);
-        assertThrows(InvalidArgumentsError.class, () ->
-                lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
+        assertThrows(InvalidArgumentsError.class,
+                () -> lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
                         .handleRequest(deferComponentUpdateRequest));
     }
 
@@ -187,8 +190,7 @@ class LifecycleIPCEventStreamAgentTest {
         assertEquals("A", request.getDeploymentId());
         assertEquals("Test defer", request.getMessage());
         assertEquals(1000L, request.getRecheckAfterMs());
-        assertFalse(lifecycleIPCEventStreamAgent.getDeferUpdateFuturesMap()
-                .containsKey(new Pair<>(TEST_SERVICE, "A")));
+        assertFalse(lifecycleIPCEventStreamAgent.getDeferUpdateFuturesMap().containsKey(new Pair<>(TEST_SERVICE, "A")));
     }
 
     @Test
@@ -213,8 +215,9 @@ class LifecycleIPCEventStreamAgentTest {
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setMessage("Test defer");
         deferComponentUpdateRequest.setRecheckAfterMs(1000L);
-        assertThrows(InvalidArgumentsError.class, () -> lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
-                .handleRequest(deferComponentUpdateRequest));
+        assertThrows(InvalidArgumentsError.class,
+                () -> lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
+                        .handleRequest(deferComponentUpdateRequest));
     }
 
     // Pause component tests
@@ -272,8 +275,8 @@ class LifecycleIPCEventStreamAgentTest {
     @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_name_input_not_present_THEN_return_invalid_error()
             throws AuthorizationException, ServiceException {
-        assertThrows(InvalidArgumentsError.class, () ->
-                lifecycleIPCEventStreamAgent.getPauseComponentHandler(mockContext)
+        assertThrows(InvalidArgumentsError.class,
+                () -> lifecycleIPCEventStreamAgent.getPauseComponentHandler(mockContext)
                         .handleRequest(new PauseComponentRequest()));
 
         verify(authorizationHandler, never()).isAuthorized(any(), any());
@@ -364,8 +367,8 @@ class LifecycleIPCEventStreamAgentTest {
 
         PauseComponentRequest request = new PauseComponentRequest();
         request.setComponentName(TEST_TARGET_COMPONENT);
-        assertThrows(InvalidArgumentsError.class, () ->
-                lifecycleIPCEventStreamAgent.getPauseComponentHandler(mockContext).handleRequest(request));
+        assertThrows(InvalidArgumentsError.class,
+                () -> lifecycleIPCEventStreamAgent.getPauseComponentHandler(mockContext).handleRequest(request));
 
         ArgumentCaptor<Permission> permissionArg = ArgumentCaptor.forClass(Permission.class);
         verify(authorizationHandler).isAuthorized(eq(LIFECYCLE_SERVICE_NAME), permissionArg.capture());
@@ -446,8 +449,8 @@ class LifecycleIPCEventStreamAgentTest {
     void GIVEN_resume_component_request_WHEN_component_name_input_not_present_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
         ResumeComponentRequest request = new ResumeComponentRequest();
-        assertThrows(InvalidArgumentsError.class, () ->
-                lifecycleIPCEventStreamAgent.getResumeComponentHandler(mockContext).handleRequest(request));
+        assertThrows(InvalidArgumentsError.class,
+                () -> lifecycleIPCEventStreamAgent.getResumeComponentHandler(mockContext).handleRequest(request));
 
         verify(authorizationHandler, never()).isAuthorized(any(), any());
         verify(kernel, never()).locate(TEST_TARGET_COMPONENT);
@@ -537,8 +540,8 @@ class LifecycleIPCEventStreamAgentTest {
 
         ResumeComponentRequest request = new ResumeComponentRequest();
         request.setComponentName(TEST_TARGET_COMPONENT);
-        assertThrows(InvalidArgumentsError.class, () ->
-                lifecycleIPCEventStreamAgent.getResumeComponentHandler(mockContext).handleRequest(request));
+        assertThrows(InvalidArgumentsError.class,
+                () -> lifecycleIPCEventStreamAgent.getResumeComponentHandler(mockContext).handleRequest(request));
 
         ArgumentCaptor<Permission> permissionArg = ArgumentCaptor.forClass(Permission.class);
         verify(authorizationHandler).isAuthorized(eq(LIFECYCLE_SERVICE_NAME), permissionArg.capture());

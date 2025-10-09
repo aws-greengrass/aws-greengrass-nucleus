@@ -30,32 +30,31 @@ public final class ConfigurationReader {
     /**
      * Merge the given transaction log into the given configuration.
      *
-     * @param config         configuration to merge into
-     * @param reader         reader of the transaction log to read from
+     * @param config configuration to merge into
+     * @param reader reader of the transaction log to read from
      * @param forceTimestamp should ignore if the proposed timestamp is older than current
      * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
      * @throws IOException if reading fails
      */
     public static void mergeTLogInto(Configuration config, Reader reader, boolean forceTimestamp,
-                                     Predicate<Node> mergeCondition) throws IOException {
+            Predicate<Node> mergeCondition) throws IOException {
         mergeTLogInto(config, reader, forceTimestamp, mergeCondition, ConfigurationMode.WITH_VALUES);
     }
 
     /**
      * Merge the given transaction log into the given configuration.
      *
-     * @param config            configuration to merge into
-     * @param reader            reader of the transaction log to read from
-     * @param forceTimestamp    should ignore if the proposed timestamp is older than current
-     * @param mergeCondition    Predicate that returns true if the provided Topic should be merged and false if not
+     * @param config configuration to merge into
+     * @param reader reader of the transaction log to read from
+     * @param forceTimestamp should ignore if the proposed timestamp is older than current
+     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
      * @param configurationMode Configuration mode
      * @throws IOException if reading fails
      */
     private static void mergeTLogInto(Configuration config, Reader reader, boolean forceTimestamp,
-                                      Predicate<Node> mergeCondition, ConfigurationMode configurationMode)
-            throws IOException {
-        try (BufferedReader in = reader instanceof BufferedReader ? (BufferedReader) reader
-                : new BufferedReader(reader)) {
+            Predicate<Node> mergeCondition, ConfigurationMode configurationMode) throws IOException {
+        try (BufferedReader in =
+                reader instanceof BufferedReader ? (BufferedReader) reader : new BufferedReader(reader)) {
             String l;
 
             for (l = in.readLine(); l != null; l = in.readLine()) {
@@ -102,14 +101,14 @@ public final class ConfigurationReader {
     /**
      * Merge the given transaction log into the given configuration.
      *
-     * @param config         configuration to merge into
-     * @param tlogPath       path of the tlog file to read to-be-merged config from
+     * @param config configuration to merge into
+     * @param tlogPath path of the tlog file to read to-be-merged config from
      * @param forceTimestamp should ignore if the proposed timestamp is older than current
      * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
      * @throws IOException if reading fails
      */
     public static void mergeTLogInto(Configuration config, Path tlogPath, boolean forceTimestamp,
-                                     Predicate<Node> mergeCondition) throws IOException {
+            Predicate<Node> mergeCondition) throws IOException {
         try (BufferedReader bufferedReader = Files.newBufferedReader(tlogPath)) {
             mergeTLogInto(config, bufferedReader, forceTimestamp, mergeCondition);
         }
@@ -126,15 +125,15 @@ public final class ConfigurationReader {
      * tree and without losing listeners. Config listeners fire asynchronously as nodes update so if you need the
      * listeners to wait before all nodes are updated, run this on the context thread to synchronize.
      *
-     * @param config         configuration to merge into
-     * @param tlogPath       path of the tlog file to read to-be-replaced config from
+     * @param config configuration to merge into
+     * @param tlogPath path of the tlog file to read to-be-replaced config from
      * @param forceTimestamp should ignore if the proposed timestamp is older than current
      * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
-     * @param tree           Merge behavior hierarchy for the update
+     * @param tree Merge behavior hierarchy for the update
      * @throws IOException if update fails
      */
     public static void updateFromTLog(Configuration config, Path tlogPath, boolean forceTimestamp,
-                                      Predicate<Node> mergeCondition, UpdateBehaviorTree tree) throws IOException {
+            Predicate<Node> mergeCondition, UpdateBehaviorTree tree) throws IOException {
 
         // Merge tlog into configuration so that nodes to retain get replaced
         ConfigurationReader.mergeTLogInto(config, tlogPath, forceTimestamp, mergeCondition);
@@ -151,7 +150,8 @@ public final class ConfigurationReader {
 
             config.deepForEach((n, b) -> {
                 if (UpdateBehaviorTree.UpdateBehavior.REPLACE.equals(b) && tlogMirror.findNode(n.path()) == null) {
-                    logger.atTrace().kv("node-to-remove", n.getFullName())
+                    logger.atTrace()
+                            .kv("node-to-remove", n.getFullName())
                             .log("Removing config node not in source tlog");
                     n.remove();
                 }
@@ -163,13 +163,15 @@ public final class ConfigurationReader {
      * Validate the tlog contents at the given path.
      *
      * @param tlogPath path to the file to validate.
-     * @return true if all entries in the file are valid;
-     *         false if file doesn't exist, is empty, or contains invalid entry
+     * @return true if all entries in the file are valid; false if file doesn't exist, is empty, or contains invalid
+     *         entry
      */
     public static boolean validateTlog(Path tlogPath) {
         try {
             if (!Files.exists(tlogPath)) {
-                logger.atDebug().setEventType("validate-tlog").kv("path", tlogPath)
+                logger.atDebug()
+                        .setEventType("validate-tlog")
+                        .kv("path", tlogPath)
                         .log("Transaction log file does not exist at given path");
                 return false;
             }
@@ -193,7 +195,9 @@ public final class ConfigurationReader {
                 String l = in.readLine();
                 // if file is empty, return false
                 if (l == null) {
-                    logger.atError().setEventType("validate-tlog").kv("path", tlogPath)
+                    logger.atError()
+                            .setEventType("validate-tlog")
+                            .kv("path", tlogPath)
                             .log("Empty transaction log file");
                     return false;
                 }
@@ -205,7 +209,10 @@ public final class ConfigurationReader {
                 }
             }
         } catch (IOException e) {
-            logger.atError().setCause(e).setEventType("validate-tlog").kv("path", tlogPath)
+            logger.atError()
+                    .setCause(e)
+                    .setEventType("validate-tlog")
+                    .kv("path", tlogPath)
                     .log("Unable to validate the transaction log content");
             return false;
         }
@@ -216,7 +223,7 @@ public final class ConfigurationReader {
      * Create a Configuration based on a transaction log's path.
      *
      * @param context root context for the configuration
-     * @param p       path to the transaction log
+     * @param p path to the transaction log
      * @return Configuration from the transaction log
      * @throws IOException if reading the transaction log fails
      */
@@ -229,8 +236,8 @@ public final class ConfigurationReader {
     /**
      * Create a Configuration based on a transaction log's path.
      *
-     * @param context           root context for the configuration
-     * @param p                 path to the transaction log
+     * @param context root context for the configuration
+     * @param p path to the transaction log
      * @param configurationMode Configuration mode
      * @return Configuration from the transaction log
      * @throws IOException if reading the transaction log fails

@@ -104,17 +104,16 @@ public class CredentialRequestHandler implements HttpHandler {
     /**
      * Constructor.
      *
-     * @param cloudHelper           {@link IotCloudHelper} for making http requests to cloud.
-     * @param connectionManager     {@link IotConnectionManager} underlying connection manager for cloud.
+     * @param cloudHelper {@link IotCloudHelper} for making http requests to cloud.
+     * @param connectionManager {@link IotConnectionManager} underlying connection manager for cloud.
      * @param authenticationHandler {@link AuthenticationHandler} authN module for authenticating requests.
-     * @param authZHandler          {@link AuthorizationHandler} authZ module for authorizing requests.
-     * @param deviceConfiguration   {@link DeviceConfiguration} for getting device configuration.
+     * @param authZHandler {@link AuthorizationHandler} authZ module for authorizing requests.
+     * @param deviceConfiguration {@link DeviceConfiguration} for getting device configuration.
      */
     @Inject
     public CredentialRequestHandler(final IotCloudHelper cloudHelper, final IotConnectionManager connectionManager,
-                                    final AuthenticationHandler authenticationHandler,
-                                    final AuthorizationHandler authZHandler,
-                                    final DeviceConfiguration deviceConfiguration) {
+            final AuthenticationHandler authenticationHandler, final AuthorizationHandler authZHandler,
+            final DeviceConfiguration deviceConfiguration) {
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
         this.authNHandler = authenticationHandler;
@@ -152,8 +151,7 @@ public class CredentialRequestHandler implements HttpHandler {
                 return;
             }
             if (!exchange.getRequestURI().getPath().equals(URL)) {
-                LOGGER.atWarn().log("Unexpected URI: {}.",
-                        exchange.getRequestURI().getPath());
+                LOGGER.atWarn().log("Unexpected URI: {}.", exchange.getRequestURI().getPath());
                 generateError(exchange, HttpURLConnection.HTTP_BAD_REQUEST);
                 return;
             }
@@ -173,8 +171,8 @@ public class CredentialRequestHandler implements HttpHandler {
         } catch (Throwable e) {
             // Broken pipe is ignorable; it just means that the client went away
             if ("Broken pipe".equalsIgnoreCase(e.getMessage())
-                    || "An established connection was aborted by the software in your host machine".equalsIgnoreCase(
-                    e.getMessage())) {
+                    || "An established connection was aborted by the software in your host machine"
+                            .equalsIgnoreCase(e.getMessage())) {
                 LOGGER.atDebug().log("Client gave up before we could respond");
             } else {
                 // Don't let the server crash, swallow problems with a 5xx
@@ -200,7 +198,8 @@ public class CredentialRequestHandler implements HttpHandler {
             }
         }
         if (future != null) {
-            LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+            LOGGER.atDebug()
+                    .kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("IAM credentials not found in cache or already expired. A request to fetch new credentials "
                             + "is already ongoing, waiting for it to complete.");
             try {
@@ -219,7 +218,8 @@ public class CredentialRequestHandler implements HttpHandler {
         }
 
         // Get new credentials from cloud
-        LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+        LOGGER.atDebug()
+                .kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                 .log("IAM credentials not found in cache or already expired. Fetching new ones from TES");
         return getCredentialsBypassCache();
     }
@@ -252,12 +252,13 @@ public class CredentialRequestHandler implements HttpHandler {
         Instant newExpiry = tesCache.get(iotCredentialsPath).expiry;
 
         try {
-            final IotCloudResponse cloudResponse = iotCloudHelper
-                    .sendHttpRequest(iotConnectionManager, thingName,
-                            iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null);
+            final IotCloudResponse cloudResponse = iotCloudHelper.sendHttpRequest(iotConnectionManager, thingName,
+                    iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null);
             final String credentials = cloudResponse.toString();
             final int cloudResponseCode = cloudResponse.getStatusCode();
-            LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).kv("statusCode", cloudResponseCode)
+            LOGGER.atDebug()
+                    .kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                    .kv("statusCode", cloudResponseCode)
                     .log("Received response from cloud: {}",
                             cloudResponseCode == 200 ? "response code 200, not logging credentials" : credentials);
 
@@ -278,19 +279,22 @@ public class CredentialRequestHandler implements HttpHandler {
                         String responseString = "TES responded with credentials that expired at " + expiry;
                         response = responseString.getBytes(StandardCharsets.UTF_8);
                         tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
-                        LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                        LOGGER.atError()
+                                .kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                 .log("Unable to cache expired credentials which expired at {}", expiry);
                     } else {
                         newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
                         tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_OK;
 
                         if (newExpiry.isBefore(Instant.now(clock))) {
-                            LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                            LOGGER.atWarn()
+                                    .kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Can't cache credentials as new credentials {} will "
-                                                    + "expire in less than {} minutes", expiry,
+                                            + "expire in less than {} minutes", expiry,
                                             TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
                         } else {
-                            LOGGER.atInfo().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                            LOGGER.atInfo()
+                                    .kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Received IAM credentials that will be cached until {}", newExpiry);
                         }
                     }
@@ -302,9 +306,8 @@ public class CredentialRequestHandler implements HttpHandler {
                 }
             } else {
                 // Cloud errors should be cached
-                String responseString =
-                        String.format("TES responded with status code: %d. Caching response. %s", cloudResponseCode,
-                                credentials);
+                String responseString = String.format("TES responded with status code: %d. Caching response. %s",
+                        cloudResponseCode, credentials);
                 response = responseString.getBytes(StandardCharsets.UTF_8);
                 newExpiry = getExpiryPolicyForErr(cloudResponseCode);
                 tesCache.get(iotCredentialsPath).responseCode = cloudResponseCode;
@@ -322,7 +325,8 @@ public class CredentialRequestHandler implements HttpHandler {
             tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
-            LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+            LOGGER.atWarn()
+                    .kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered error while fetching credentials", e);
         } finally {
             try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
@@ -375,11 +379,11 @@ public class CredentialRequestHandler implements HttpHandler {
     private AwsCredentials getCredentialsFromByte(byte[] data) {
         try {
             Map<String, String> credentials = OBJECT_MAPPER.readValue(data, Map.class);
-            return AwsSessionCredentials
-                    .create(credentials.get(ACCESS_KEY_DOWNSTREAM_STR), credentials.get(SECRET_ACCESS_DOWNSTREAM_STR),
-                            credentials.get(SESSION_TOKEN_DOWNSTREAM_STR));
+            return AwsSessionCredentials.create(credentials.get(ACCESS_KEY_DOWNSTREAM_STR),
+                    credentials.get(SECRET_ACCESS_DOWNSTREAM_STR), credentials.get(SESSION_TOKEN_DOWNSTREAM_STR));
         } catch (IOException e) {
-            LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+            LOGGER.atError()
+                    .kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .kv("credentialData", new String(data, StandardCharsets.UTF_8))
                     .log("Error in retrieving AwsCredentials from TES");
             return null;
@@ -406,8 +410,11 @@ public class CredentialRequestHandler implements HttpHandler {
         String authNToken = exchange.getRequestHeaders().getFirst(AUTH_HEADER);
         String clientService = authNHandler.doAuthentication(authNToken);
         authZHandler.isAuthorized(TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS,
-                Permission.builder().principal(clientService).operation(TokenExchangeService.AUTHZ_TES_OPERATION)
-                        .resource(null).build());
+                Permission.builder()
+                        .principal(clientService)
+                        .operation(TokenExchangeService.AUTHZ_TES_OPERATION)
+                        .resource(null)
+                        .build());
     }
 
     private String parseExpiryFromResponse(final String credentials) throws AWSIotException {

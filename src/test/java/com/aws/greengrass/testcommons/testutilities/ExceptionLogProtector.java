@@ -47,8 +47,8 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
 
     private static Collection<Predicate<Throwable>> getThrowablePredicates(ExtensionContext context) {
         ExtensionContext.Store store = context.getStore(getNs(context));
-        return (Collection<Predicate<Throwable>>) store
-                .getOrComputeIfAbsent("throwablePredicates", (k) -> new CopyOnWriteArraySet());
+        return (Collection<Predicate<Throwable>>) store.getOrComputeIfAbsent("throwablePredicates",
+                (k) -> new CopyOnWriteArraySet());
     }
 
     private static List<Throwable> getExceptions(ExtensionContext context) {
@@ -59,8 +59,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
     private static Consumer<GreengrassLogMessage> getListener(ExtensionContext context) {
         ExtensionContext.Store store = context.getStore(getNs(context));
         return (Consumer<GreengrassLogMessage>) store.getOrComputeIfAbsent("listener",
-                (k) -> (Consumer<GreengrassLogMessage>) (GreengrassLogMessage m) -> listener
-                        .accept(context, m));
+                (k) -> (Consumer<GreengrassLogMessage>) (GreengrassLogMessage m) -> listener.accept(context, m));
     }
 
     private static ExtensionContext.Namespace getNs(ExtensionContext context) {
@@ -97,7 +96,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
     }
 
     public static void ignoreExceptionWithStackTraceContaining(ExtensionContext context,
-                                                               Class<? extends Throwable> clazz, String trace) {
+            Class<? extends Throwable> clazz, String trace) {
         getThrowablePredicates(context).add(t -> {
             if (!Objects.equals(t.getClass(), clazz)) {
                 return false;

@@ -47,7 +47,9 @@ public class SdkTlsSocketFactory extends SSLConnectionSocketFactory {
         // BEGIN GG MODIFICATIONS
         try {
             SSLParameters params = new SSLParameters();
-            params.setApplicationProtocols(new String[]{"x-amzn-http-ca", "http/1.1"});
+            params.setApplicationProtocols(new String[] {
+                    "x-amzn-http-ca", "http/1.1"
+            });
             socket.setSSLParameters(params);
         } catch (NoSuchMethodError e) {
             log.warn(() -> "Unable to configure socket for ALPN. Ports other than 443 may still work."
@@ -60,21 +62,17 @@ public class SdkTlsSocketFactory extends SSLConnectionSocketFactory {
         // END GG MODIFICATIONS
 
         log.debug(() -> String.format("socket.getSupportedProtocols(): %s, socket.getEnabledProtocols(): %s",
-                Arrays.toString(socket.getSupportedProtocols()),
-                Arrays.toString(socket.getEnabledProtocols())));
+                Arrays.toString(socket.getSupportedProtocols()), Arrays.toString(socket.getEnabledProtocols())));
     }
 
     @Override
-    public Socket connectSocket(
-            final int connectTimeout,
-            final Socket socket,
-            final HttpHost host,
-            final InetSocketAddress remoteAddress,
-            final InetSocketAddress localAddress,
-            final HttpContext context) throws IOException {
+    public Socket connectSocket(final int connectTimeout, final Socket socket, final HttpHost host,
+            final InetSocketAddress remoteAddress, final InetSocketAddress localAddress, final HttpContext context)
+            throws IOException {
         log.trace(() -> String.format("Connecting to %s:%s", remoteAddress.getAddress(), remoteAddress.getPort()));
 
-        Socket connectedSocket = super.connectSocket(connectTimeout, socket, host, remoteAddress, localAddress, context);
+        Socket connectedSocket =
+                super.connectSocket(connectTimeout, socket, host, remoteAddress, localAddress, context);
 
         if (connectedSocket instanceof SSLSocket) {
             return new SdkSslSocket((SSLSocket) connectedSocket);

@@ -54,7 +54,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class MqttProxyIPCAgentTest {
     private static final String TEST_SERVICE = "TestService";
     private static final String TEST_TOPIC = "TestTopic";
@@ -83,7 +85,8 @@ class MqttProxyIPCAgentTest {
         mqttProxyIPCAgent.setMqttClient(mqttClient);
         mqttProxyIPCAgent.setAuthorizationHandler(authorizationHandler);
         lenient().when(mqttClient.subscribe(any(Subscribe.class))).thenReturn(CompletableFuture.completedFuture(null));
-        lenient().when(mqttClient.unsubscribe(any(Unsubscribe.class))).thenReturn(CompletableFuture.completedFuture(null));
+        lenient().when(mqttClient.unsubscribe(any(Unsubscribe.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
     }
 
     @Test
@@ -97,15 +100,19 @@ class MqttProxyIPCAgentTest {
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
         ArgumentCaptor<Publish> publishRequestArgumentCaptor = ArgumentCaptor.forClass(Publish.class);
 
-        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
-            PublishToIoTCoreResponse publishToIoTCoreResponse
-                    = publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+            PublishToIoTCoreResponse publishToIoTCoreResponse =
+                    publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
 
             assertNotNull(publishToIoTCoreResponse);
-            verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME, Permission.builder().principal(TEST_SERVICE)
-                    .operation(GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE)
-                    .resource(TEST_TOPIC).build(), ResourceLookupPolicy.MQTT_STYLE);
+            verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME,
+                    Permission.builder()
+                            .principal(TEST_SERVICE)
+                            .operation(GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE)
+                            .resource(TEST_TOPIC)
+                            .build(),
+                    ResourceLookupPolicy.MQTT_STYLE);
 
             verify(mqttClient).publish(publishRequestArgumentCaptor.capture());
             Publish capturedPublishRequest = publishRequestArgumentCaptor.getValue();
@@ -125,8 +132,8 @@ class MqttProxyIPCAgentTest {
         when(mqttClient.publish(any(Publish.class))).thenThrow(new SpoolerStoreException("Spool full"));
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
-        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
             assertThrows(ServiceError.class, () -> {
                 publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
             });
@@ -140,23 +147,25 @@ class MqttProxyIPCAgentTest {
         subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
-        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor
-                = ArgumentCaptor.forClass(Subscribe.class);
-        ArgumentCaptor<Unsubscribe> unsubscribeRequestArgumentCaptor
-                = ArgumentCaptor.forClass(Unsubscribe.class);
+        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+        ArgumentCaptor<Unsubscribe> unsubscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Unsubscribe.class);
         ArgumentCaptor<IoTCoreMessage> ioTCoreMessageArgumentCaptor = ArgumentCaptor.forClass(IoTCoreMessage.class);
 
-        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
-                     = spy(mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext))) {
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler =
+                spy(mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext))) {
             SubscribeToIoTCoreResponse subscribeToIoTCoreResponse =
                     subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
                             .get(1, TimeUnit.SECONDS);
             subscribeToIoTCoreOperationHandler.afterHandleRequest();
 
             assertNotNull(subscribeToIoTCoreResponse);
-            verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME, Permission.builder().principal(TEST_SERVICE)
-                    .operation(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE)
-                    .resource(TEST_TOPIC).build(), ResourceLookupPolicy.MQTT_STYLE);
+            verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME,
+                    Permission.builder()
+                            .principal(TEST_SERVICE)
+                            .operation(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE)
+                            .resource(TEST_TOPIC)
+                            .build(),
+                    ResourceLookupPolicy.MQTT_STYLE);
 
             verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
             Subscribe capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
@@ -189,8 +198,8 @@ class MqttProxyIPCAgentTest {
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
-        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
                 publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
             });
@@ -205,8 +214,8 @@ class MqttProxyIPCAgentTest {
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
-        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
                 publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
             });
@@ -219,8 +228,8 @@ class MqttProxyIPCAgentTest {
         publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
         publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
 
-        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
                 publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
             });
@@ -235,8 +244,8 @@ class MqttProxyIPCAgentTest {
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
-        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
                 publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
             });
@@ -251,10 +260,11 @@ class MqttProxyIPCAgentTest {
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
-        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
-                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest).get(1, TimeUnit.SECONDS);
+                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                        .get(1, TimeUnit.SECONDS);
             });
         }
     }
@@ -266,10 +276,11 @@ class MqttProxyIPCAgentTest {
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
-        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
-                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest).get(1, TimeUnit.SECONDS);
+                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                        .get(1, TimeUnit.SECONDS);
             });
         }
     }
@@ -279,10 +290,11 @@ class MqttProxyIPCAgentTest {
         SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
         subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
 
-        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler =
+                mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
-                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest).get(1, TimeUnit.SECONDS);
+                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                        .get(1, TimeUnit.SECONDS);
             });
         }
     }

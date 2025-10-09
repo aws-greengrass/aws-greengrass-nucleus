@@ -13,65 +13,22 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-/** A hierarchy data structure indicating merge behavior of entire config tree.
- * An example looks like below:
- * [MERGE]
- *   key1: [MERGE]
- *     subkey1: [REPLACE]
- *       subkey2: [MERGE]
- *   *: [REPLACE]
- *     subkey1: [MERGE]
- *       subkey2: [REPLACE]
+/**
+ * A hierarchy data structure indicating merge behavior of entire config tree. An example looks like below: [MERGE]
+ * key1: [MERGE] subkey1: [REPLACE] subkey2: [MERGE] *: [REPLACE] subkey1: [MERGE] subkey2: [REPLACE]
  * <p>
- * Original config:
- * --
- * key1:
- *   otherKey: otherVal
- *   subKey1:
- *     leafKey1:val1
- *     subKey2:
- *       leafKey2:val2
- * foo:
- *   otherKey: otherVal
- *   subKey1:
- *     leafKey1:val1
- *     subKey2:
- *       leafKey2:val2
- * bar:
- *   key1:val1
+ * Original config: -- key1: otherKey: otherVal subKey1: leafKey1:val1 subKey2: leafKey2:val2 foo: otherKey: otherVal
+ * subKey1: leafKey1:val1 subKey2: leafKey2:val2 bar: key1:val1
  * </p>
  * <p>
- * Config to merge in:
- * --
- * key1:
- *   subKey1:
- *     subKey2:
- *       updatedLeafKey2: updatedVal2
- * foo:
- *   subKey1:
- *     subKey2:
- *       updatedLeafKey2: updatedVal2
- * baz:
- *   key1:val1
+ * Config to merge in: -- key1: subKey1: subKey2: updatedLeafKey2: updatedVal2 foo: subKey1: subKey2: updatedLeafKey2:
+ * updatedVal2 baz: key1:val1
  * </p>
  * <p>
- * Resulting config:
- * --
- * key1:
- *   otherKey: otherVal (merged from original config)
- *   subKey1: (leafKey1 removed)
- *     subKey2:
- *       leafKey2:val2 (merged from original config)
- *       updatedLeafKey2: updatedVal2
- * foo: (otherKey removed)
- *   subKey1:
- *     leafKey1:val1 (merged from original config)
- *     subKey2: (leafKey2 removed)
- *       updatedLeafKey2: updatedVal2
- * bar: (merged from original config)
- *   key1:val1
- * baz: (merged from new config)
- *   key1:val1
+ * Resulting config: -- key1: otherKey: otherVal (merged from original config) subKey1: (leafKey1 removed) subKey2:
+ * leafKey2:val2 (merged from original config) updatedLeafKey2: updatedVal2 foo: (otherKey removed) subKey1:
+ * leafKey1:val1 (merged from original config) subKey2: (leafKey2 removed) updatedLeafKey2: updatedVal2 bar: (merged
+ * from original config) key1:val1 baz: (merged from new config) key1:val1
  * </p>
  */
 @AllArgsConstructor
@@ -92,7 +49,7 @@ public class UpdateBehaviorTree {
      * Create a mutable behavior tree with some behavior and a timestamp.
      *
      * @param behavior behavior to use when merging this and child nodes
-     * @param timestamp       timestamp to use for this and child nodes
+     * @param timestamp timestamp to use for this and child nodes
      */
     public UpdateBehaviorTree(UpdateBehavior behavior, long timestamp) {
         this(behavior, timestamp, new HashMap<>());
@@ -101,12 +58,12 @@ public class UpdateBehaviorTree {
     /**
      * Create a behavior tree with some behavior, timestamp, and map of child behaviors.
      *
-     * @param behavior        behavior to use when merging this and child nodes
-     * @param timestamp       timestamp to use for this and child nodes
-     * @param childOverride   initial map to use to override children
+     * @param behavior behavior to use when merging this and child nodes
+     * @param timestamp timestamp to use for this and child nodes
+     * @param childOverride initial map to use to override children
      */
     protected UpdateBehaviorTree(UpdateBehavior behavior, long timestamp,
-                                Map<String, UpdateBehaviorTree> childOverride) {
+            Map<String, UpdateBehaviorTree> childOverride) {
         this.behavior = behavior;
         this.timestampToUse = timestamp;
         this.childOverride = childOverride;

@@ -34,11 +34,12 @@ public final class ComponentTestResourceHelper {
 
     public static Path getPathForLocalTestCache() {
         try {
-        Path path = Paths.get(ComponentTestResourceHelper.class.getResource("plugins").toURI()).resolve("test_cache_local");
-        if (Files.notExists(path)) {
-            Files.createDirectories(path);
-        }
-        return path;
+            Path path = Paths.get(ComponentTestResourceHelper.class.getResource("plugins").toURI())
+                    .resolve("test_cache_local");
+            if (Files.notExists(path)) {
+                Files.createDirectories(path);
+            }
+            return path;
         } catch (URISyntaxException | IOException e) {
             throw new RuntimeException("Failed to create local directory for test", e);
         }
@@ -51,7 +52,7 @@ public final class ComponentTestResourceHelper {
     }
 
     public static Path getArtifactForTestPackage(String testPackageName, String testPackageVersion,
-                                                 String testArtifactName) throws URISyntaxException {
+            String testArtifactName) throws URISyntaxException {
         return getPathForTestPackage(testPackageName, testPackageVersion).resolve(testArtifactName);
     }
 

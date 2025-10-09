@@ -30,10 +30,18 @@ public class UnsubscribeResponse {
      * @return UnsubscribeResponse
      */
     public static UnsubscribeResponse fromCrtUnsubAck(UnsubAckPacket r) {
-        return new UnsubscribeResponse(r.getReasonString(), r.getReasonCodes() == null ? null
-                : r.getReasonCodes().stream().map(UnsubAckPacket.UnsubAckReasonCode::getValue)
-                        .collect(Collectors.toList()), r.getUserProperties() == null ? null
-                : r.getUserProperties().stream().map(u -> new UserProperty(u.key, u.value))
-                        .collect(Collectors.toList()));
+        return new UnsubscribeResponse(r.getReasonString(),
+                r.getReasonCodes() == null
+                        ? null
+                        : r.getReasonCodes()
+                                .stream()
+                                .map(UnsubAckPacket.UnsubAckReasonCode::getValue)
+                                .collect(Collectors.toList()),
+                r.getUserProperties() == null
+                        ? null
+                        : r.getUserProperties()
+                                .stream()
+                                .map(u -> new UserProperty(u.key, u.value))
+                                .collect(Collectors.toList()));
     }
 }

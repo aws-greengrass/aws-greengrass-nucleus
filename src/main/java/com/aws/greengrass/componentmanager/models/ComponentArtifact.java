@@ -18,7 +18,8 @@ import java.net.URI;
 @AllArgsConstructor
 public class ComponentArtifact {
 
-    @NonNull URI artifactUri;
+    @NonNull
+    URI artifactUri;
 
     String checksum;
 

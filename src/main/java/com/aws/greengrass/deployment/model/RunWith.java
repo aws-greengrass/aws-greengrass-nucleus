@@ -33,7 +33,7 @@ public class RunWith {
     /**
      * Construct a new instance.
      *
-     * @param posixUser   posix user value.
+     * @param posixUser posix user value.
      * @param windowsUser windows user value.
      * @param systemResourceLimits system resource limits.
      */

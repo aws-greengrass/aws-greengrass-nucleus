@@ -43,7 +43,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeploymentDirectoryManagerTest {
     private static final String mockArn = "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1";
     private static final String expectedDirectoryName =
@@ -72,7 +74,8 @@ class DeploymentDirectoryManagerTest {
     }
 
     @Test
-    void GIVEN_deployment_dir_exists_WHEN_create_new_deployment_dir_THEN_reset_directory_and_symlink() throws Exception {
+    void GIVEN_deployment_dir_exists_WHEN_create_new_deployment_dir_THEN_reset_directory_and_symlink()
+            throws Exception {
         Path actual = createNewDeploymentDir(mockArn);
         Path oldFile = actual.resolve("oldfile");
         Files.createFile(oldFile);
@@ -113,8 +116,7 @@ class DeploymentDirectoryManagerTest {
         deploymentDirectoryManager.persistLastFailedDeployment();
 
         String mockArn2 = "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:2";
-        String expectedDirectoryName2 =
-                "arn.aws.greengrass.us-east-1.12345678910.configuration.thinggroup+group1.2";
+        String expectedDirectoryName2 = "arn.aws.greengrass.us-east-1.12345678910.configuration.thinggroup+group1.2";
         Path actual2 = createNewDeploymentDir(mockArn2);
         deploymentDirectoryManager.persistLastSuccessfulDeployment();
 
@@ -126,7 +128,8 @@ class DeploymentDirectoryManagerTest {
     }
 
     @Test
-    void GIVEN_deployment_WHEN_write_to_file_and_read_THEN_restore_deployment(ExtensionContext context) throws Exception {
+    void GIVEN_deployment_WHEN_write_to_file_and_read_THEN_restore_deployment(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, JsonParseException.class);
         ignoreExceptionOfType(context, JsonEOFException.class);
 

@@ -90,8 +90,8 @@ public class FleetStatusService extends GreengrassService {
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
-    public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS IoT cloud. "
-            + "FleetStatusService is offline";
+    public static final String DEVICE_OFFLINE_MESSAGE =
+            "Device not configured to talk to AWS IoT cloud. " + "FleetStatusService is offline";
 
     // setter is only used for testing
     @Setter
@@ -108,7 +108,7 @@ public class FleetStatusService extends GreengrassService {
     private final MqttChunkedPayloadPublisher<ComponentDetails> publisher;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
     private final KernelLifecycle kernelLifecycle;
-    //For testing
+    // For testing
     @Getter
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicBoolean isFSSSetupComplete = new AtomicBoolean(false);
@@ -151,8 +151,11 @@ public class FleetStatusService extends GreengrassService {
         if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC) {
             return;
         }
-        this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
+        this.periodicPublishIntervalSec =
+                TestFeatureParameters
+                        .retrieveWithDefault(Double.class, FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC,
+                                newPeriodicUpdateIntervalSec)
+                        .intValue();
         if (periodicUpdateFuture != null) {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
@@ -162,20 +165,19 @@ public class FleetStatusService extends GreengrassService {
     /**
      * Constructor for FleetStatusService.
      *
-     * @param topics                 root Configuration topic for this service
-     * @param mqttClient             {@link MqttClient}
+     * @param topics root Configuration topic for this service
+     * @param mqttClient {@link MqttClient}
      * @param deploymentStatusKeeper {@link DeploymentStatusKeeper}
-     * @param kernel                 {@link Kernel}
-     * @param deviceConfiguration    {@link DeviceConfiguration}
-     * @param platformResolver       {@link PlatformResolver}
-     * @param kernelLifecycle        {@link KernelLifecycle}
-     * @param ses                    {@link ScheduledExecutorService}
+     * @param kernel {@link Kernel}
+     * @param deviceConfiguration {@link DeviceConfiguration}
+     * @param platformResolver {@link PlatformResolver}
+     * @param kernelLifecycle {@link KernelLifecycle}
+     * @param ses {@link ScheduledExecutorService}
      */
     @Inject
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
-                              Kernel kernel, DeviceConfiguration deviceConfiguration,
-                              PlatformResolver platformResolver, KernelLifecycle kernelLifecycle,
-                              ScheduledExecutorService ses) {
+            Kernel kernel, DeviceConfiguration deviceConfiguration, PlatformResolver platformResolver,
+            KernelLifecycle kernelLifecycle, ScheduledExecutorService ses) {
         this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration, platformResolver, kernelLifecycle,
                 ses, DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
     }
@@ -183,21 +185,19 @@ public class FleetStatusService extends GreengrassService {
     /**
      * Constructor for FleetStatusService.
      *
-     * @param topics                        root Configuration topic for this service
-     * @param mqttClient                    {@link MqttClient}
-     * @param deploymentStatusKeeper        {@link DeploymentStatusKeeper}
-     * @param kernel                        {@link Kernel}
-     * @param deviceConfiguration           {@link DeviceConfiguration}
-     * @param platformResolver              {@link PlatformResolver}
-     * @param kernelLifecycle               {@link KernelLifecycle}
-     * @param ses                    {@link ScheduledExecutorService}
-     * @param periodicPublishIntervalSec     interval for cadence based status update.
+     * @param topics root Configuration topic for this service
+     * @param mqttClient {@link MqttClient}
+     * @param deploymentStatusKeeper {@link DeploymentStatusKeeper}
+     * @param kernel {@link Kernel}
+     * @param deviceConfiguration {@link DeviceConfiguration}
+     * @param platformResolver {@link PlatformResolver}
+     * @param kernelLifecycle {@link KernelLifecycle}
+     * @param ses {@link ScheduledExecutorService}
+     * @param periodicPublishIntervalSec interval for cadence based status update.
      */
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
-                              Kernel kernel, DeviceConfiguration deviceConfiguration,
-                              PlatformResolver platformResolver, KernelLifecycle kernelLifecycle,
-                              ScheduledExecutorService ses,
-                              int periodicPublishIntervalSec) {
+            Kernel kernel, DeviceConfiguration deviceConfiguration, PlatformResolver platformResolver,
+            KernelLifecycle kernelLifecycle, ScheduledExecutorService ses, int periodicPublishIntervalSec) {
         super(topics);
         this.mqttClient = mqttClient;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
@@ -207,8 +207,11 @@ public class FleetStatusService extends GreengrassService {
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.architecture = platformResolver.getCurrentPlatform()
                 .getOrDefault(PlatformResolver.ARCHITECTURE_KEY, PlatformResolver.UNKNOWN_KEYWORD);
-        this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicPublishIntervalSec).intValue();
+        this.periodicPublishIntervalSec =
+                TestFeatureParameters
+                        .retrieveWithDefault(Double.class, FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC,
+                                periodicPublishIntervalSec)
+                        .intValue();
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.platform = platformResolver.getCurrentPlatform()
                 .getOrDefault(PlatformResolver.OS_KEY, PlatformResolver.UNKNOWN_KEYWORD);
@@ -220,7 +223,7 @@ public class FleetStatusService extends GreengrassService {
         this.mqttClient.addToCallbackEvents(callbacks);
         TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
 
-        //populating services when kernel starts up
+        // populating services when kernel starts up
         Instant now = Instant.now();
         this.kernel.orderedDependencies().forEach(greengrassService -> {
             serviceFssTracksMap.put(greengrassService, now);
@@ -254,7 +257,8 @@ public class FleetStatusService extends GreengrassService {
         if (isFSSSetupComplete.compareAndSet(false, true)) {
             Topics configurationTopics = deviceConfiguration.getStatusConfigurationTopics();
             configurationTopics.lookup(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC)
-                    .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC).subscribe(publishIntervalSubscriber);
+                    .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
+                    .subscribe(publishIntervalSubscriber);
 
             config.getContext().addGlobalStateChangeListener(handleServiceStateChange);
 
@@ -270,8 +274,11 @@ public class FleetStatusService extends GreengrassService {
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
-        this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicPublishIntervalSec).intValue();
+        this.periodicPublishIntervalSec =
+                TestFeatureParameters
+                        .retrieveWithDefault(Double.class, FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC,
+                                this.periodicPublishIntervalSec)
+                        .intValue();
         if (periodicUpdateFuture != null) {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
@@ -289,7 +296,7 @@ public class FleetStatusService extends GreengrassService {
      * Schedule cadence based periodic updates for fleet status.
      *
      * @param isDuringConnectionResumed boolean to indicate if the cadence based update is being rescheduled after
-     *                                  connection resumed.
+     *        connection resumed.
      */
     public void schedulePeriodicFleetStatusDataUpdate(boolean isDuringConnectionResumed) {
         // If the last periodic update was missed, update the fleet status service for all running services.
@@ -315,13 +322,12 @@ public class FleetStatusService extends GreengrassService {
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
         // we don't want all the devices to send the periodic update for fleet statuses at the same time.
         long initialDelay = RandomUtils.nextLong(0, maxInitialDelay + 1);
-        this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
-                initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
+        this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData, initialDelay,
+                periodicPublishIntervalSec, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
-    private void handleServiceStateChange(GreengrassService greengrassService, State oldState,
-                                          State newState) {
+    private void handleServiceStateChange(GreengrassService greengrassService, State oldState, State newState) {
         try (LockScope ls = LockScope.lock(serviceSetLock)) {
             updatedGreengrassServiceSet.add(greengrassService);
         }
@@ -333,8 +339,7 @@ public class FleetStatusService extends GreengrassService {
             if (isDeploymentInProgress.get()) {
                 Set<GreengrassService> erroredComponent = new HashSet<>();
                 erroredComponent.add(greengrassService);
-                uploadFleetStatusServiceData(erroredComponent, overallStatus, null,
-                        Trigger.COMPONENT_STATUS_CHANGE);
+                uploadFleetStatusServiceData(erroredComponent, overallStatus, null, Trigger.COMPONENT_STATUS_CHANGE);
                 return;
             }
             // Report status of other components, in case recovery duration takes too long and other components need
@@ -351,8 +356,8 @@ public class FleetStatusService extends GreengrassService {
             // update the fleet status as UNHEALTHY.
             if (newState.equals(State.BROKEN)) {
                 try (LockScope ls = LockScope.lock(serviceSetLock)) {
-                    uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY,
-                            null, Trigger.COMPONENT_STATUS_CHANGE);
+                    uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY, null,
+                            Trigger.COMPONENT_STATUS_CHANGE);
                 }
             }
             // If kernel is not shutting down and all components reached terminal states,
@@ -401,16 +406,18 @@ public class FleetStatusService extends GreengrassService {
         // kernel launch indicates FSS setup is completed
         isLaunchMessageSent.set(true);
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            logger.atWarn().kv("trigger", Trigger.NUCLEUS_LAUNCH).log("Status won't be published until Nucleus is "
-                    + "configured online");
+            logger.atWarn()
+                    .kv("trigger", Trigger.NUCLEUS_LAUNCH)
+                    .log("Status won't be published until Nucleus is " + "configured online");
             return;
         }
         updateFleetStatusUpdateForAllComponents(Trigger.NUCLEUS_LAUNCH);
     }
 
     /**
-     * Update the Fleet Status information for all the components.
-     * This function calls under assumption that device is configured to talk to cloud.
+     * Update the Fleet Status information for all the components. This function calls under assumption that device is
+     * configured to talk to cloud.
+     * 
      * @param trigger Trigger of FSS update
      */
     public void updateFleetStatusUpdateForAllComponents(Trigger trigger) {
@@ -432,7 +439,8 @@ public class FleetStatusService extends GreengrassService {
             return true;
         }
 
-        logger.atDebug().kv("deployment details", deploymentDetails)
+        logger.atDebug()
+                .kv("deployment details", deploymentDetails)
                 .log("Updating Fleet Status service for deployment");
         isDeploymentInProgress.set(false);
         DeploymentInformation deploymentInformation = getDeploymentInformation(deploymentDetails);
@@ -446,16 +454,17 @@ public class FleetStatusService extends GreengrassService {
         return true;
     }
 
-    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation,
-                                                     Trigger trigger) {
+    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation, Trigger trigger) {
         if (!isConnected.get()) {
             // spool deployment updates even if mqtt connection interrupted
             if (Trigger.isCloudDeploymentTrigger(trigger)) {
-                logger.atDebug().log("Attempting to publish and spool cloud deployment FSS updates even though MQTT "
-                        + "connection is interrupted");
+                logger.atDebug()
+                        .log("Attempting to publish and spool cloud deployment FSS updates even though MQTT "
+                                + "connection is interrupted");
             } else {
-                logger.atDebug().log("Not updating FSS data on local deployment and component events since MQTT "
-                        + "connection is interrupted");
+                logger.atDebug()
+                        .log("Not updating FSS data on local deployment and component events since MQTT "
+                                + "connection is interrupted");
                 return;
             }
         }
@@ -488,7 +497,7 @@ public class FleetStatusService extends GreengrassService {
             // TODO: better throttling mechanism for FSS updates
             if (updatedGreengrassServiceSet.isEmpty() && Trigger.RECONNECT.equals(trigger)
                     && lastReconnectUpdateTime.plusSeconds(MINIMAL_RECONNECT_PUBLISH_INTERVAL_SEC)
-                        .isAfter(Instant.now())) {
+                            .isAfter(Instant.now())) {
                 return;
             }
 
@@ -502,8 +511,8 @@ public class FleetStatusService extends GreengrassService {
                     }
                 });
                 // remove any component from unchanged status component list if it's in updatedGreengrassServiceSet
-                deploymentInformation.getUnchangedRootComponents().removeIf(
-                        componentName -> updatedGreengrassServiceSet.stream()
+                deploymentInformation.getUnchangedRootComponents()
+                        .removeIf(componentName -> updatedGreengrassServiceSet.stream()
                                 .anyMatch(service -> service.getName().equals(componentName)));
             }
             uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation,
@@ -516,10 +525,8 @@ public class FleetStatusService extends GreengrassService {
         }
     }
 
-    private void uploadFleetStatusServiceData(Set<GreengrassService> greengrassServiceSet,
-                                              OverallStatus overAllStatus,
-                                              DeploymentInformation deploymentInformation,
-                                              Trigger trigger) {
+    private void uploadFleetStatusServiceData(Set<GreengrassService> greengrassServiceSet, OverallStatus overAllStatus,
+            DeploymentInformation deploymentInformation, Trigger trigger) {
         // Only allow component state change update publish if FSS set up is complete
         // If set up is incomplete, it may cause a deadlock
         if (!isLaunchMessageSent.get() && !Trigger.NUCLEUS_LAUNCH.equals(trigger)) {
@@ -533,15 +540,15 @@ public class FleetStatusService extends GreengrassService {
         }
         List<ComponentDetails> components = new ArrayList<>();
 
-        //When a component version is bumped up, FSS may have pointers to both old and new service instances
-        //Filtering out the old version and only sending the update for the new version
+        // When a component version is bumped up, FSS may have pointers to both old and new service instances
+        // Filtering out the old version and only sending the update for the new version
         Set<GreengrassService> filteredServices = new HashSet<>();
         greengrassServiceSet.forEach(service -> {
             try {
                 GreengrassService runningService = kernel.locate(service.getName());
                 filteredServices.add(runningService);
             } catch (ServiceLoadException e) {
-                //not able to find service, service might be removed.
+                // not able to find service, service might be removed.
                 filteredServices.add(service);
             }
         });
@@ -550,15 +557,17 @@ public class FleetStatusService extends GreengrassService {
         HashSet<String> allGroups = new HashSet<>();
         DeploymentService deploymentService = null;
         try {
-            GreengrassService deploymentServiceLocateResult = this.kernel
-                    .locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+            GreengrassService deploymentServiceLocateResult =
+                    this.kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
             if (deploymentServiceLocateResult instanceof DeploymentService) {
                 deploymentService = (DeploymentService) deploymentServiceLocateResult;
                 componentsToGroupsTopics = deploymentService.getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
             }
         } catch (ServiceLoadException e) {
-            logger.atError().cause(e).log("Unable to locate {} service while uploading FSS data",
-                    DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+            logger.atError()
+                    .cause(e)
+                    .log("Unable to locate {} service while uploading FSS data",
+                            DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
         }
 
         Topics finalComponentsToGroupsTopics = componentsToGroupsTopics;
@@ -572,7 +581,10 @@ public class FleetStatusService extends GreengrassService {
             if (finalComponentsToGroupsTopics != null) {
                 Topics groupsTopics = finalComponentsToGroupsTopics.findTopics(service.getName());
                 if (groupsTopics != null) {
-                    groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
+                    groupsTopics.children.values()
+                            .stream()
+                            .map(n -> (Topic) n)
+                            .map(Topic::getName)
                             .forEach(groupName -> {
                                 componentGroups.add(groupName);
                                 // Get all the group names from the user components.
@@ -606,7 +618,8 @@ public class FleetStatusService extends GreengrassService {
                     .componentStatusDetails(getComponentStatusDetails(service))
                     .version(Coerce.toString(versionTopic))
                     .fleetConfigArns(new ArrayList<>(allGroups))
-                    .isRoot(false) // Set false for all system level services.
+                    .isRoot(false) // Set
+                    // false for all system level services.
                     .build();
             components.add(componentDetails);
         });
@@ -631,15 +644,15 @@ public class FleetStatusService extends GreengrassService {
     }
 
     private void publishMessage(FleetStatusDetails fleetStatusDetails, List<ComponentDetails> components,
-                                Trigger trigger) {
+            Trigger trigger) {
         Instant expectedPublishTime;
         long delay;
 
         // lock to avoid concurrent modifying of lastFSSPublishTime
         try (LockScope ls = LockScope.lock(publishLock)) {
             // add a 10 sec gap between each publish request to avoid message receiving out of order in cloud
-            Instant minimalAllowedPublishTime = lastFSSPublishTime.get()
-                    .plusSeconds(FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC);
+            Instant minimalAllowedPublishTime =
+                    lastFSSPublishTime.get().plusSeconds(FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC);
             Instant now = Instant.now();
             // if last publish time is already more than 10 sec old, publish without delay
             if (now.isAfter(minimalAllowedPublishTime) || this.waitBetweenPublishDisabled) {
@@ -655,14 +668,18 @@ public class FleetStatusService extends GreengrassService {
         if (delay == 0 || !Trigger.COMPONENT_STATUS_CHANGE.equals(trigger)) {
             // Publish immediately
             publisher.publish(fleetStatusDetails, components);
-            logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
+            logger.atInfo()
+                    .event("fss-status-update-published")
+                    .kv("trigger", trigger)
                     .log("Status update published to FSS");
         } else {
             // Schedule for later
             ses.schedule(() -> {
                 fleetStatusDetails.setTimestamp(expectedPublishTime.toEpochMilli());
                 publisher.publish(fleetStatusDetails, components);
-                logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
+                logger.atInfo()
+                        .event("fss-status-update-published")
+                        .kv("trigger", trigger)
                         .log("Status update published to FSS");
             }, delay, TimeUnit.SECONDS);
         }
@@ -689,9 +706,8 @@ public class FleetStatusService extends GreengrassService {
     }
 
     private OverallStatus getOverallStatusBasedOnServiceState(OverallStatus overallStatus,
-                                                              GreengrassService greengrassService) {
-        if (State.BROKEN.equals(greengrassService.getState())
-                || OverallStatus.UNHEALTHY.equals(overallStatus)) {
+            GreengrassService greengrassService) {
+        if (State.BROKEN.equals(greengrassService.getState()) || OverallStatus.UNHEALTHY.equals(overallStatus)) {
             return OverallStatus.UNHEALTHY;
         }
         return OverallStatus.HEALTHY;
@@ -703,7 +719,8 @@ public class FleetStatusService extends GreengrassService {
                 // Reporting GG deployment id in FSS because ListInstalledComponents API
                 // relies on this field to set up last installation source link to deployments.
                 .deploymentId((String) deploymentDetails.get(GG_DEPLOYMENT_ID_KEY_NAME))
-                .fleetConfigurationArnForStatus((String) deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME)).build();
+                .fleetConfigurationArnForStatus((String) deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME))
+                .build();
         if (deploymentDetails.containsKey(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)) {
             Map<String, Object> statusDetailsMap =
                     (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
@@ -719,8 +736,8 @@ public class FleetStatusService extends GreengrassService {
         if (deploymentDetails.containsKey(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME)) {
             // Setting the unchangedRootComponents to be the entire list of root packages, and then later
             // if a component changed state since last FSS update we will remove it from this list.
-            deploymentInformation.setUnchangedRootComponents((List<String>) deploymentDetails
-                    .get(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME));
+            deploymentInformation.setUnchangedRootComponents(
+                    (List<String>) deploymentDetails.get(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME));
         }
         return deploymentInformation;
     }
@@ -744,10 +761,9 @@ public class FleetStatusService extends GreengrassService {
      * Used for unit tests only. Adds a list of Greengrass services of previously
      *
      * @param greengrassServices List of Greengrass services to add
-     * @param instant           last time the service was processed.
+     * @param instant last time the service was processed.
      */
-    void addServicesToPreviouslyKnownServicesList(List<GreengrassService> greengrassServices,
-                                                           Instant instant) {
+    void addServicesToPreviouslyKnownServicesList(List<GreengrassService> greengrassServices, Instant instant) {
         greengrassServices.forEach(greengrassService -> serviceFssTracksMap.put(greengrassService, instant));
     }
 

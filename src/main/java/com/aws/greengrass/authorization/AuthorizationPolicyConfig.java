@@ -21,7 +21,10 @@ import java.util.Set;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AuthorizationPolicyConfig {
-    @NonNull String policyDescription;
-    @NonNull Set<String> operations;
-    @NonNull Set<String> resources;
+    @NonNull
+    String policyDescription;
+    @NonNull
+    Set<String> operations;
+    @NonNull
+    Set<String> resources;
 }

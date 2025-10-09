@@ -15,7 +15,8 @@ import lombok.RequiredArgsConstructor;
  */
 @Data
 @RequiredArgsConstructor
-@NoArgsConstructor  // need for JSON deserialization
+@NoArgsConstructor // need for JSON deserialization
 public class RecipeMetadata {
-    @NonNull String componentVersionArn;
+    @NonNull
+    String componentVersionArn;
 }

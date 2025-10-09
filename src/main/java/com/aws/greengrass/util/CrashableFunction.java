@@ -5,10 +5,9 @@
 
 package com.aws.greengrass.util;
 
-
 /**
- * Like Function, but exceptions pass through. It is normally used in situations where
- * the caller is prepared to take corrective action on the exception.
+ * Like Function, but exceptions pass through. It is normally used in situations where the caller is prepared to take
+ * corrective action on the exception.
  */
 @FunctionalInterface
 public interface CrashableFunction<T, R, E extends Exception> {

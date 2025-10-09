@@ -65,7 +65,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class PubSubIPCEventStreamAgentTest {
     private static final String TEST_SERVICE = "TestService";
     private static final String TEST_TOPIC = "TestTopic";
@@ -83,8 +85,7 @@ class PubSubIPCEventStreamAgentTest {
     ArgumentCaptor<Permission> permissionArgumentCaptor;
 
     final ExecutorService pool = Executors.newCachedThreadPool();
-    private final OrderedExecutorService orderedExecutorService =
-            new OrderedExecutorService(pool);
+    private final OrderedExecutorService orderedExecutorService = new OrderedExecutorService(pool);
     private PubSubIPCEventStreamAgent pubSubIPCEventStreamAgent;
 
     @BeforeEach
@@ -101,11 +102,12 @@ class PubSubIPCEventStreamAgentTest {
     }
 
     @Test
-    void GIVEN_subscribe_topic_to_all_sources_WHEN_subscribe_THEN_added_all_services_listeners() throws AuthorizationException {
+    void GIVEN_subscribe_topic_to_all_sources_WHEN_subscribe_THEN_added_all_services_listeners()
+            throws AuthorizationException {
         SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
         subscribeToTopicRequest.setTopic(TEST_TOPIC);
         try (PubSubIPCEventStreamAgent.SubscribeToTopicOperationHandler subscribeToTopicHandler =
-                     pubSubIPCEventStreamAgent.getSubscribeToTopicHandler(mockContext)) {
+                pubSubIPCEventStreamAgent.getSubscribeToTopicHandler(mockContext)) {
             SubscribeToTopicResponse subscribeToTopicResponse =
                     subscribeToTopicHandler.handleRequest(subscribeToTopicRequest);
             assertNotNull(subscribeToTopicResponse);
@@ -126,9 +128,11 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException, AuthorizationException {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         // Default is RECEIVE_ALL_MESSAGES if not set
-        SubscriptionCallback cbs = SubscriptionCallback.builder().sourceComponent(TEST_SERVICE).callback(publisher).build();
+        SubscriptionCallback cbs =
+                SubscriptionCallback.builder().sourceComponent(TEST_SERVICE).callback(publisher).build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, cbs);
-        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture()))
+                .thenReturn(new CompletableFuture());
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
         publishToTopicRequest.setTopic(TEST_TOPIC);
@@ -139,7 +143,7 @@ class PubSubIPCEventStreamAgentTest {
         publishToTopicRequest.setPublishMessage(publishMessage);
 
         try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
-                     pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
@@ -165,8 +169,11 @@ class PubSubIPCEventStreamAgentTest {
     void GIVEN_subscribed_to_topic_with_receive_others_mode_WHEN_publish_binary_message_from_same_component_THEN_not_publishes_message()
             throws InterruptedException {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
-        SubscriptionCallback cbs = SubscriptionCallback.builder().callback(publisher).sourceComponent(TEST_SERVICE)
-                .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS).build();
+        SubscriptionCallback cbs = SubscriptionCallback.builder()
+                .callback(publisher)
+                .sourceComponent(TEST_SERVICE)
+                .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS)
+                .build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, cbs);
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
@@ -178,7 +185,7 @@ class PubSubIPCEventStreamAgentTest {
         publishToTopicRequest.setPublishMessage(publishMessage);
 
         try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
-                     pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
@@ -193,7 +200,8 @@ class PubSubIPCEventStreamAgentTest {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         SubscriptionCallback cbs = SubscriptionCallback.builder().callback(publisher).build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, cbs);
-        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture()))
+                .thenReturn(new CompletableFuture());
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
         publishToTopicRequest.setTopic(TEST_TOPIC);
@@ -206,7 +214,7 @@ class PubSubIPCEventStreamAgentTest {
         publishToTopicRequest.setPublishMessage(publishMessage);
 
         try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
-                     pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
@@ -232,8 +240,11 @@ class PubSubIPCEventStreamAgentTest {
     void GIVEN_subscribed_to_wildcard_topic_from_all_sources_WHEN_publish_binary_message_to_subtopic_THEN_publishes_message_and_gets_topic()
             throws InterruptedException, AuthorizationException {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
-        SubscriptionCallback cbs =
-                SubscriptionCallback.builder().callback(publisher).receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).sourceComponent(TEST_SERVICE).build();
+        SubscriptionCallback cbs = SubscriptionCallback.builder()
+                .callback(publisher)
+                .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES)
+                .sourceComponent(TEST_SERVICE)
+                .build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_WILDCARD_TOPIC, cbs);
         when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture()))
                 .thenReturn(new CompletableFuture());
@@ -246,8 +257,8 @@ class PubSubIPCEventStreamAgentTest {
         publishMessage.setBinaryMessage(binaryMessage);
         publishToTopicRequest.setPublishMessage(publishMessage);
 
-        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler = pubSubIPCEventStreamAgent
-                .getPublishToTopicHandler(mockContext)) {
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
@@ -273,8 +284,11 @@ class PubSubIPCEventStreamAgentTest {
     void GIVEN_subscribed_to_wildcard_topic_with_receive_others_mode_WHEN_publish_binary_message_to_subtopic_from_same_component_THEN_not_publishes_message()
             throws InterruptedException {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
-        SubscriptionCallback cbs =
-                SubscriptionCallback.builder().callback(publisher).receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS).sourceComponent(TEST_SERVICE).build();
+        SubscriptionCallback cbs = SubscriptionCallback.builder()
+                .callback(publisher)
+                .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS)
+                .sourceComponent(TEST_SERVICE)
+                .build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_WILDCARD_TOPIC, cbs);
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
@@ -285,8 +299,8 @@ class PubSubIPCEventStreamAgentTest {
         publishMessage.setBinaryMessage(binaryMessage);
         publishToTopicRequest.setPublishMessage(publishMessage);
 
-        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler = pubSubIPCEventStreamAgent
-                .getPublishToTopicHandler(mockContext)) {
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
@@ -300,8 +314,11 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         // Default is RECEIVE_MESSAGES_FROM_OTHERS if mode is not set for wildcard topic
-        SubscriptionCallback cbs =
-                SubscriptionCallback.builder().callback(publisher).receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS).sourceComponent(TEST_SERVICE).build();
+        SubscriptionCallback cbs = SubscriptionCallback.builder()
+                .callback(publisher)
+                .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS)
+                .sourceComponent(TEST_SERVICE)
+                .build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_WILDCARD_TOPIC, cbs);
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
@@ -312,8 +329,8 @@ class PubSubIPCEventStreamAgentTest {
         publishMessage.setBinaryMessage(binaryMessage);
         publishToTopicRequest.setPublishMessage(publishMessage);
 
-        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler = pubSubIPCEventStreamAgent
-                .getPublishToTopicHandler(mockContext)) {
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
@@ -328,7 +345,8 @@ class PubSubIPCEventStreamAgentTest {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         SubscriptionCallback cbs = SubscriptionCallback.builder().callback(publisher).build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, cbs);
-        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture()))
+                .thenReturn(new CompletableFuture());
 
         List<PublishToTopicRequest> publishToTopicRequests = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -345,13 +363,15 @@ class PubSubIPCEventStreamAgentTest {
         }
 
         try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
-                     pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
-            for (PublishToTopicRequest publishToTopicRequest: publishToTopicRequests) {
-                PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
+            for (PublishToTopicRequest publishToTopicRequest : publishToTopicRequests) {
+                PublishToTopicResponse publishToTopicResponse =
+                        publishToTopicHandler.handleRequest(publishToTopicRequest);
                 assertNotNull(publishToTopicResponse);
             }
 
-            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME),
+                    permissionArgumentCaptor.capture());
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -378,7 +398,8 @@ class PubSubIPCEventStreamAgentTest {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         SubscriptionCallback cbs = SubscriptionCallback.builder().callback(publisher).build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, cbs);
-        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture()))
+                .thenReturn(new CompletableFuture());
 
         List<PublishToTopicRequest> publishToTopicRequests = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -393,13 +414,15 @@ class PubSubIPCEventStreamAgentTest {
         }
 
         try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
-                     pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
-            for (PublishToTopicRequest publishToTopicRequest: publishToTopicRequests) {
-                PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
+            for (PublishToTopicRequest publishToTopicRequest : publishToTopicRequests) {
+                PublishToTopicResponse publishToTopicResponse =
+                        publishToTopicHandler.handleRequest(publishToTopicRequest);
                 assertNotNull(publishToTopicResponse);
             }
 
-            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME),
+                    permissionArgumentCaptor.capture());
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -424,8 +447,11 @@ class PubSubIPCEventStreamAgentTest {
     void GIVEN_subscribed_to_wildcard_topic_from_all_sources_WHEN_publish_many_binary_message_to_subtopics_THEN_publishes_message_and_gets_topics_inorder()
             throws InterruptedException, AuthorizationException {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
-        SubscriptionCallback cbs =
-                SubscriptionCallback.builder().sourceComponent(TEST_SERVICE).callback(publisher).receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).build();
+        SubscriptionCallback cbs = SubscriptionCallback.builder()
+                .sourceComponent(TEST_SERVICE)
+                .callback(publisher)
+                .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES)
+                .build();
         pubSubIPCEventStreamAgent.getListeners().add(TEST_WILDCARD_TOPIC, cbs);
         when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture()))
                 .thenReturn(new CompletableFuture());
@@ -444,16 +470,16 @@ class PubSubIPCEventStreamAgentTest {
             publishToTopicRequests.add(publishToTopicRequest);
         }
 
-        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler = pubSubIPCEventStreamAgent
-                .getPublishToTopicHandler(mockContext)) {
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
+                pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
             for (PublishToTopicRequest publishToTopicRequest : publishToTopicRequests) {
                 PublishToTopicResponse publishToTopicResponse =
                         publishToTopicHandler.handleRequest(publishToTopicRequest);
                 assertNotNull(publishToTopicResponse);
             }
 
-            verify(authorizationHandler, times(10))
-                    .isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME),
+                    permissionArgumentCaptor.capture());
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -498,9 +524,12 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
-        SubscribeRequest request =
-                SubscribeRequest.builder().topic(TEST_TOPIC).callback(consumer).serviceName(TEST_SERVICE)
-                        .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS).build();
+        SubscribeRequest request = SubscribeRequest.builder()
+                .topic(TEST_TOPIC)
+                .callback(consumer)
+                .serviceName(TEST_SERVICE)
+                .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS)
+                .build();
         pubSubIPCEventStreamAgent.subscribe(request);
 
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
@@ -519,9 +548,12 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
-        SubscribeRequest request =
-                SubscribeRequest.builder().topic(TEST_TOPIC).callback(consumer).serviceName(TEST_SERVICE)
-                        .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).build();
+        SubscribeRequest request = SubscribeRequest.builder()
+                .topic(TEST_TOPIC)
+                .callback(consumer)
+                .serviceName(TEST_SERVICE)
+                .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES)
+                .build();
         pubSubIPCEventStreamAgent.subscribe(request);
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
         assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_TOPIC));
@@ -537,10 +569,10 @@ class PubSubIPCEventStreamAgentTest {
     @Test
     void GIVEN_subscribed_consumer_WHEN_invalid_topic_THEN_throws() {
         Consumer<PublishEvent> consumer = mock(Consumer.class);
-        assertThrows(InvalidArgumentsError.class, () -> pubSubIPCEventStreamAgent.subscribe("", consumer,
-                TEST_SERVICE));
-        assertThrows(InvalidArgumentsError.class, () -> pubSubIPCEventStreamAgent.subscribe(null, consumer,
-                TEST_SERVICE));
+        assertThrows(InvalidArgumentsError.class,
+                () -> pubSubIPCEventStreamAgent.subscribe("", consumer, TEST_SERVICE));
+        assertThrows(InvalidArgumentsError.class,
+                () -> pubSubIPCEventStreamAgent.subscribe(null, consumer, TEST_SERVICE));
     }
 
     @Test
@@ -567,9 +599,12 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
-        SubscribeRequest request =
-                SubscribeRequest.builder().topic(TEST_WILDCARD_TOPIC).callback(consumer).serviceName(TEST_SERVICE)
-                        .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).build();
+        SubscribeRequest request = SubscribeRequest.builder()
+                .topic(TEST_WILDCARD_TOPIC)
+                .callback(consumer)
+                .serviceName(TEST_SERVICE)
+                .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES)
+                .build();
         pubSubIPCEventStreamAgent.subscribe(request);
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
         assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_WILDCARD_TOPIC));
@@ -587,9 +622,12 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
-        SubscribeRequest request =
-                SubscribeRequest.builder().topic(TEST_WILDCARD_TOPIC).callback(consumer).serviceName(TEST_SERVICE)
-                        .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS).build();
+        SubscribeRequest request = SubscribeRequest.builder()
+                .topic(TEST_WILDCARD_TOPIC)
+                .callback(consumer)
+                .serviceName(TEST_SERVICE)
+                .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS)
+                .build();
         pubSubIPCEventStreamAgent.subscribe(request);
 
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());

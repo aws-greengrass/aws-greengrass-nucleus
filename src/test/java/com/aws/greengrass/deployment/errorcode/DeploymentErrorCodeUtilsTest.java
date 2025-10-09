@@ -54,7 +54,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeploymentErrorCodeUtilsTest {
 
     @Mock
@@ -116,16 +118,14 @@ class DeploymentErrorCodeUtilsTest {
 
         // test an exception with inheritance hierarchy and an empty exception
         InvalidImageOrAccessDeniedException e1 = new InvalidImageOrAccessDeniedException("docker access denied", e);
-        List<String> expectedStackFromE1 =
-                Arrays.asList("DEPLOYMENT_FAILURE", "ARTIFACT_DOWNLOAD_ERROR", "DOCKER_ERROR",
-                        "DOCKER_IMAGE_NOT_VALID");
+        List<String> expectedStackFromE1 = Arrays.asList("DEPLOYMENT_FAILURE", "ARTIFACT_DOWNLOAD_ERROR",
+                "DOCKER_ERROR", "DOCKER_IMAGE_NOT_VALID");
         List<String> expectedTypesFromE1 = Collections.singletonList("DEPENDENCY_ERROR");
         validateGenerateErrorReport(e1, expectedStackFromE1, expectedTypesFromE1);
 
         // test an arbitrary chain of exception, error stack should order from outside to inside
-        List<DeploymentErrorCode> errorCodeList =
-                Arrays.asList(IO_WRITE_ERROR, S3_HEAD_OBJECT_ACCESS_DENIED, MULTIPLE_NUCLEUS_RESOLVED_ERROR, COMPONENT_BROKEN,
-                        COMPONENT_UPDATE_ERROR);
+        List<DeploymentErrorCode> errorCodeList = Arrays.asList(IO_WRITE_ERROR, S3_HEAD_OBJECT_ACCESS_DENIED,
+                MULTIPLE_NUCLEUS_RESOLVED_ERROR, COMPONENT_BROKEN, COMPONENT_UPDATE_ERROR);
         DeploymentException rootCause = e;
         for (DeploymentErrorCode errorCode : errorCodeList) {
             DeploymentException temp = new DeploymentException(errorCode);
@@ -135,12 +135,12 @@ class DeploymentErrorCodeUtilsTest {
         List<String> expectedStackFromE2 =
                 Arrays.asList("DEPLOYMENT_FAILURE", "IO_WRITE_ERROR", "S3_HEAD_OBJECT_ACCESS_DENIED",
                         "MULTIPLE_NUCLEUS_RESOLVED_ERROR", "COMPONENT_BROKEN", "COMPONENT_UPDATE_ERROR");
-        List<String> expectedTypesFromE2 =
-                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "REQUEST_ERROR");
+        List<String> expectedTypesFromE2 = Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "REQUEST_ERROR");
         validateGenerateErrorReport(e, expectedStackFromE2, expectedTypesFromE2);
 
         // test a combination of inheritance and chain
-        List<String> expectedStackFromCombined = Stream.concat(expectedStackFromE1.stream(),
+        List<String> expectedStackFromCombined = Stream
+                .concat(expectedStackFromE1.stream(),
                         expectedStackFromE2.stream().filter(code -> !"DEPLOYMENT_FAILURE".equals(code)))
                 .collect(Collectors.toList());
         List<String> expectedTypesFromCombined =
@@ -243,7 +243,8 @@ class DeploymentErrorCodeUtilsTest {
     }
 
     @Test
-    void GIVEN_malformed_arn_WHEN_classify_component_error_THEN_return_generic_type(ExtensionContext ec) throws PackageLoadingException {
+    void GIVEN_malformed_arn_WHEN_classify_component_error_THEN_return_generic_type(ExtensionContext ec)
+            throws PackageLoadingException {
         ignoreExceptionOfType(ec, IllegalArgumentException.class);
         when(kernel.getContext()).thenReturn(context);
         when(context.get(ComponentStore.class)).thenReturn(componentStore);

@@ -46,7 +46,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.text.MatchesPattern.matchesPattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@ExtendWith({GGExtension.class})
+@ExtendWith({
+        GGExtension.class
+})
 @EnabledOnOs(OS.WINDOWS)
 class WindowsPlatformTest {
 
@@ -96,29 +98,26 @@ class WindowsPlatformTest {
         assertThat(aclEntryList, hasSize(1));
 
         // Owner
-        AclFileAttributeView view = Files.getFileAttributeView(tempDir, AclFileAttributeView.class,
-                LinkOption.NOFOLLOW_LINKS);
+        AclFileAttributeView view =
+                Files.getFileAttributeView(tempDir, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
         UserPrincipal owner = view.getOwner();
 
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .ownerRead(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().ownerRead(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(owner));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.READ_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .ownerWrite(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().ownerWrite(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(owner));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.WRITE_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .ownerExecute(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().ownerExecute(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(owner));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
@@ -132,28 +131,22 @@ class WindowsPlatformTest {
         String ownerGroup = USERS_GROUP_NAME;
 
         GroupPrincipal groupPrincipal = userPrincipalLookupService.lookupPrincipalByGroupName(ownerGroup);
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .ownerGroup(ownerGroup)
-                .groupRead(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().ownerGroup(ownerGroup).groupRead(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.READ_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .ownerGroup(ownerGroup)
-                .groupWrite(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().ownerGroup(ownerGroup).groupWrite(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.WRITE_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .ownerGroup(ownerGroup)
-                .groupExecute(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().ownerGroup(ownerGroup).groupExecute(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
@@ -162,25 +155,22 @@ class WindowsPlatformTest {
         // Other
         GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName(EVERYONE_GROUP_NAME);
 
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .otherRead(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().otherRead(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(everyone));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.READ_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .otherWrite(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().otherWrite(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(everyone));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.WRITE_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
-                .otherExecute(true)
-                .build(), tempDir);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().otherExecute(true).build(), tempDir);
         assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(everyone));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
@@ -190,11 +180,11 @@ class WindowsPlatformTest {
         Path under = tempDir.resolve("under");
         under.toFile().createNewFile();
         platform.setPermissions(FileSystemPermission.builder()
-                        .ownerRead(true)
-                        .ownerWrite(true)
-                        .ownerExecute(true)
-                        .otherWrite(true).build(), under,
-                FileSystemPermission.Option.SetMode);
+                .ownerRead(true)
+                .ownerWrite(true)
+                .ownerExecute(true)
+                .otherWrite(true)
+                .build(), under, FileSystemPermission.Option.SetMode);
 
         AclFileAttributeView initialOwnerAcl =
                 Files.getFileAttributeView(under, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
@@ -224,8 +214,8 @@ class WindowsPlatformTest {
             createWindowsTestUser(username, WINDOWS_TEST_PASSWORD);
             platform.setPermissions(FileSystemPermission.builder().ownerUser(username).build(), under,
                     FileSystemPermission.Option.SetOwner);
-            AclFileAttributeView updatedOwnerAcl = Files.getFileAttributeView(under,
-                    AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+            AclFileAttributeView updatedOwnerAcl =
+                    Files.getFileAttributeView(under, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
             assertThat(updatedOwnerAcl.getOwner().getName(), containsString(username));
             List<AclEntry> updatedAcl = updatedOwnerAcl.getAcl();
             assertThat(updatedAcl, hasSize(5));

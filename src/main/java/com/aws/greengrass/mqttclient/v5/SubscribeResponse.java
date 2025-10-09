@@ -31,11 +31,20 @@ public class SubscribeResponse {
      * @return SubscribeResponse
      */
     public static SubscribeResponse fromCrtSubAck(SubAckPacket r) {
-        return new SubscribeResponse(r.getReasonString(), r.getReasonCodes() == null ? 0
-                : r.getReasonCodes().stream().map(SubAckPacket.SubAckReasonCode::getValue).max(Integer::compareTo)
-                        .orElse(0), r.getUserProperties() == null ? null
-                : r.getUserProperties().stream().map((u) -> new UserProperty(u.key, u.value))
-                        .collect(Collectors.toList()));
+        return new SubscribeResponse(r.getReasonString(),
+                r.getReasonCodes() == null
+                        ? 0
+                        : r.getReasonCodes()
+                                .stream()
+                                .map(SubAckPacket.SubAckReasonCode::getValue)
+                                .max(Integer::compareTo)
+                                .orElse(0),
+                r.getUserProperties() == null
+                        ? null
+                        : r.getUserProperties()
+                                .stream()
+                                .map((u) -> new UserProperty(u.key, u.value))
+                                .collect(Collectors.toList()));
     }
 
     public boolean isSuccessful() {

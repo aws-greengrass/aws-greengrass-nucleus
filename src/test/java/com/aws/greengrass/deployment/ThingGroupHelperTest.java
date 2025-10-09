@@ -30,7 +30,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class ThingGroupHelperTest {
     @Mock
     private DeviceConfiguration deviceConfiguration;
@@ -53,7 +55,8 @@ class ThingGroupHelperTest {
         this.helper = spy(new ThingGroupHelper(clientFactory, deviceConfiguration));
         ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
                 .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
-                .nextToken(nextToken.get()).build();
+                .nextToken(nextToken.get())
+                .build();
         when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
 

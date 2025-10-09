@@ -68,21 +68,28 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 public class DockerImageDownloaderTest {
     private static ComponentIdentifier TEST_COMPONENT_ID =
             new ComponentIdentifier("test.container.component", new Semver("1.0.0"));
 
     // Using retry config with much smaller interval and count
-    private final RetryUtils.RetryConfig infiniteAttemptsRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(50L))
-                    .maxRetryInterval(Duration.ofMillis(50L)).maxAttempt(5).retryableExceptions(
-                            Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class)).build();
-    private final RetryUtils.RetryConfig finiteAttemptsRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(50L))
-                    .maxRetryInterval(Duration.ofMillis(50L)).maxAttempt(2).retryableExceptions(
-                            Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
-                                    SdkClientException.class, ServerException.class)).build();
+    private final RetryUtils.RetryConfig infiniteAttemptsRetryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofMillis(50L))
+            .maxRetryInterval(Duration.ofMillis(50L))
+            .maxAttempt(5)
+            .retryableExceptions(
+                    Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class))
+            .build();
+    private final RetryUtils.RetryConfig finiteAttemptsRetryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofMillis(50L))
+            .maxRetryInterval(Duration.ofMillis(50L))
+            .maxAttempt(2)
+            .retryableExceptions(Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
+                    SdkClientException.class, ServerException.class))
+            .build();
 
     @Mock
     private DefaultDockerClient dockerClient;
@@ -102,12 +109,13 @@ public class DockerImageDownloaderTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"012345678910.dkr.ecr.us-east-1.amazonaws,us-east-1", "012345678910.dkr.ecr.us-west-1.amazonaws,us-west-1"})
-    void GIVEN_a_container_component_with_an_ecr_image_with_digest_WHEN_deployed_THEN_download_image_artifact(String url, String region)
-            throws Exception {
-        URI artifactUri =
-                new URI("docker:" + url
-                        + ".com/testimagepath/testimage@sha256:223057d6358a0530e4959c883e05199317cdc892f08667e6186133a0b5432948");
+    @CsvSource({
+            "012345678910.dkr.ecr.us-east-1.amazonaws,us-east-1", "012345678910.dkr.ecr.us-west-1.amazonaws,us-west-1"
+    })
+    void GIVEN_a_container_component_with_an_ecr_image_with_digest_WHEN_deployed_THEN_download_image_artifact(
+            String url, String region) throws Exception {
+        URI artifactUri = new URI("docker:" + url
+                + ".com/testimagepath/testimage@sha256:223057d6358a0530e4959c883e05199317cdc892f08667e6186133a0b5432948");
         Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
 
         when(ecrAccessor.getCredentials("012345678910", region))
@@ -323,7 +331,9 @@ public class DockerImageDownloaderTest {
         when(dockerClient.dockerInstalled()).thenReturn(true);
         doThrow(new DockerServiceUnavailableException("Service Unavailable"))
                 .doThrow(new DockerServiceUnavailableException("Service Unavailable"))
-                .doThrow(new DockerServiceUnavailableException("Service Unavailable")).doNothing().when(dockerClient)
+                .doThrow(new DockerServiceUnavailableException("Service Unavailable"))
+                .doNothing()
+                .when(dockerClient)
                 .pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
@@ -354,7 +364,8 @@ public class DockerImageDownloaderTest {
         when(dockerClient.dockerInstalled()).thenReturn(true);
         // fail first attempt, succeed on next retry attempt, device is connected the whole time but there could be
         // temporary issues with docker cloud which can get resolved in a short span
-        doThrow(new DockerServiceUnavailableException("Service Unavailable")).doNothing().when(dockerClient)
+        doThrow(new DockerServiceUnavailableException("Service Unavailable")).doNothing()
+                .when(dockerClient)
                 .pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
@@ -517,8 +528,7 @@ public class DockerImageDownloaderTest {
     }
 
     @Test
-    void GIVEN_a_artifact_with_private_ecr_image_THEN_check_if_image_used_by_others()
-            throws Exception {
+    void GIVEN_a_artifact_with_private_ecr_image_THEN_check_if_image_used_by_others() throws Exception {
         URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
         DockerImageDownloader downloader = spy(getDownloader(artifactUri));
 
@@ -529,9 +539,11 @@ public class DockerImageDownloaderTest {
         when(componentStore.listAvailableComponentVersions()).thenReturn(allVersions);
 
         ComponentRecipe recipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, "com.example.HelloWorld",
-                new Semver("1.0.0", Semver.SemverType.NPM), "", "", null, new HashMap<String, Object>() {{
-            put("LIFECYCLE_RUN_KEY", "java -jar {artifacts:path}/test.jar -x arg");
-        }}, Collections.emptyList(), Collections.emptyMap(), null);
+                new Semver("1.0.0", Semver.SemverType.NPM), "", "", null, new HashMap<String, Object>() {
+                    {
+                        put("LIFECYCLE_RUN_KEY", "java -jar {artifacts:path}/test.jar -x arg");
+                    }
+                }, Collections.emptyList(), Collections.emptyMap(), null);
         when(componentStore.getPackageRecipe(any())).thenReturn(recipe);
 
         assertFalse(downloader.ifImageUsedByOther(componentStore));
@@ -541,18 +553,24 @@ public class DockerImageDownloaderTest {
         versions_test.add("2.0.0");
         allVersions.put(TEST_COMPONENT_ID.getName(), versions_test);
         recipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_COMPONENT_ID.getName(),
-                new Semver("2.0.0", Semver.SemverType.NPM), "", "", null, new HashMap<String, Object>() {{
-            put("LIFECYCLE_RUN_KEY", "java -jar {artifacts:path}/test.jar -x arg");
-        }}, new ArrayList<ComponentArtifact>() {{ add(ComponentArtifact.builder().artifactUri(artifactUri).build());}}, Collections.emptyMap(), null);
-        when(componentStore.getPackageRecipe(eq(new ComponentIdentifier(TEST_COMPONENT_ID.getName(),
-                new Semver("2.0.0", Semver.SemverType.NPM))))).thenReturn(recipe);
+                new Semver("2.0.0", Semver.SemverType.NPM), "", "", null, new HashMap<String, Object>() {
+                    {
+                        put("LIFECYCLE_RUN_KEY", "java -jar {artifacts:path}/test.jar -x arg");
+                    }
+                }, new ArrayList<ComponentArtifact>() {
+                    {
+                        add(ComponentArtifact.builder().artifactUri(artifactUri).build());
+                    }
+                }, Collections.emptyMap(), null);
+        when(componentStore.getPackageRecipe(
+                eq(new ComponentIdentifier(TEST_COMPONENT_ID.getName(), new Semver("2.0.0", Semver.SemverType.NPM)))))
+                .thenReturn(recipe);
 
         assertTrue(downloader.ifImageUsedByOther(componentStore));
     }
 
     @Test
-    void GIVEN_a_artifact_with_private_ecr_image_WHEN_image_not_used_by_others_THEN_remove_image()
-            throws Exception {
+    void GIVEN_a_artifact_with_private_ecr_image_WHEN_image_not_used_by_others_THEN_remove_image() throws Exception {
         URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
         DockerImageDownloader downloader = spy(getDownloader(artifactUri));
 

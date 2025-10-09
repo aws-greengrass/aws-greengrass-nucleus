@@ -23,7 +23,9 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class OrderedExecutorServiceTest {
     private static OrderedExecutorService orderedExecutorService;
     private volatile static Throwable lastThrownException = null;
@@ -69,12 +71,12 @@ class OrderedExecutorServiceTest {
             TimeUnit.SECONDS.sleep(1);
         }
 
-        if(lastThrownException != null) {
+        if (lastThrownException != null) {
             fail(lastThrownException.getMessage(), lastThrownException);
         }
     }
 
-    private Runnable createRunnable(final String randomStringToCheck, final Queue<String> queue){
+    private Runnable createRunnable(final String randomStringToCheck, final Queue<String> queue) {
         return () -> {
             String firstRandomVarFromQueue = queue.poll();
             try {

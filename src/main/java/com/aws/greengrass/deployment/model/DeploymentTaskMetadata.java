@@ -17,13 +17,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 @AllArgsConstructor
 public class DeploymentTaskMetadata {
     // TODO: [P41179644] clean up duplicate information
-    @NonNull @Getter
+    @NonNull
+    @Getter
     private Deployment deployment;
-    @NonNull @Getter
+    @NonNull
+    @Getter
     private DeploymentTask deploymentTask;
     @NonNull
     private Future<DeploymentResult> deploymentResultFuture;
-    @NonNull @Getter
+    @NonNull
+    @Getter
     private AtomicInteger deploymentAttemptCount;
 
     @Synchronized

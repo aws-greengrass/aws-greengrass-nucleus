@@ -22,12 +22,13 @@ import software.amazon.awssdk.aws.greengrass.GeneratedAbstractUpdateStateOperati
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
-
 import java.util.function.Function;
 
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class LifecycleIPCServiceTest {
 
     LifecycleIPCService lifecycleIPCService;
@@ -59,36 +60,36 @@ class LifecycleIPCServiceTest {
 
         verify(greengrassCoreIPCService).setUpdateStateHandler(argumentCaptor.capture());
         Function<OperationContinuationHandlerContext, GeneratedAbstractUpdateStateOperationHandler> updateHandler =
-                (Function<OperationContinuationHandlerContext,
-                        GeneratedAbstractUpdateStateOperationHandler>)argumentCaptor.getValue();
+                (Function<OperationContinuationHandlerContext, GeneratedAbstractUpdateStateOperationHandler>) argumentCaptor
+                        .getValue();
         updateHandler.apply(mockContext);
         verify(eventStreamAgent).getUpdateStateOperationHandler(mockContext);
 
         verify(greengrassCoreIPCService).setSubscribeToComponentUpdatesHandler(argumentCaptor.capture());
-        Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToComponentUpdatesOperationHandler>
-                subsHandler = (Function<OperationContinuationHandlerContext,
-                GeneratedAbstractSubscribeToComponentUpdatesOperationHandler>)argumentCaptor.getValue();
+        Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToComponentUpdatesOperationHandler> subsHandler =
+                (Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToComponentUpdatesOperationHandler>) argumentCaptor
+                        .getValue();
         subsHandler.apply(mockContext);
         verify(eventStreamAgent).getSubscribeToComponentUpdateHandler(mockContext);
 
         verify(greengrassCoreIPCService).setDeferComponentUpdateHandler(argumentCaptor.capture());
         Function<OperationContinuationHandlerContext, GeneratedAbstractDeferComponentUpdateOperationHandler> deferHandler =
-                (Function<OperationContinuationHandlerContext,
-                        GeneratedAbstractDeferComponentUpdateOperationHandler>)argumentCaptor.getValue();
+                (Function<OperationContinuationHandlerContext, GeneratedAbstractDeferComponentUpdateOperationHandler>) argumentCaptor
+                        .getValue();
         deferHandler.apply(mockContext);
         verify(eventStreamAgent).getDeferComponentHandler(mockContext);
 
         verify(greengrassCoreIPCService).setPauseComponentHandler(argumentCaptor.capture());
         Function<OperationContinuationHandlerContext, GeneratedAbstractPauseComponentOperationHandler> pauseHandler =
-                (Function<OperationContinuationHandlerContext,
-                        GeneratedAbstractPauseComponentOperationHandler>)argumentCaptor.getValue();
+                (Function<OperationContinuationHandlerContext, GeneratedAbstractPauseComponentOperationHandler>) argumentCaptor
+                        .getValue();
         pauseHandler.apply(mockContext);
         verify(eventStreamAgent).getPauseComponentHandler(mockContext);
 
         verify(greengrassCoreIPCService).setResumeComponentHandler(argumentCaptor.capture());
         Function<OperationContinuationHandlerContext, GeneratedAbstractResumeComponentOperationHandler> resumeHandler =
-                (Function<OperationContinuationHandlerContext,
-                        GeneratedAbstractResumeComponentOperationHandler>)argumentCaptor.getValue();
+                (Function<OperationContinuationHandlerContext, GeneratedAbstractResumeComponentOperationHandler>) argumentCaptor
+                        .getValue();
         resumeHandler.apply(mockContext);
         verify(eventStreamAgent).getResumeComponentHandler(mockContext);
     }

@@ -89,8 +89,7 @@ public class WinswUtils implements SystemServiceUtils {
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    void runCommand(boolean ignoreError, String... command)
-            throws IOException, InterruptedException {
+    void runCommand(boolean ignoreError, String... command) throws IOException, InterruptedException {
         logger.atDebug(LOG_EVENT_NAME).log("{}", (Object) command);
         Exec exec = Platform.getInstance().createNewProcessRunner().withExec(command);
         if (Platform.getInstance().getPrivilegedUser() != null) {
@@ -100,11 +99,12 @@ public class WinswUtils implements SystemServiceUtils {
             exec.withGroup(Platform.getInstance().getPrivilegedGroup());
         }
         String commandStr = Arrays.toString(command);
-        boolean success = exec
-                .withOut(s -> logger.atWarn(LOG_EVENT_NAME).kv("command", commandStr)
-                        .kv("stdout", s.toString().trim()).log())
-                .withErr(s -> logger.atError(LOG_EVENT_NAME).kv("command", commandStr)
-                        .kv("stderr", s.toString().trim()).log())
+        boolean success = exec.withOut(
+                s -> logger.atWarn(LOG_EVENT_NAME).kv("command", commandStr).kv("stdout", s.toString().trim()).log())
+                .withErr(s -> logger.atError(LOG_EVENT_NAME)
+                        .kv("command", commandStr)
+                        .kv("stderr", s.toString().trim())
+                        .log())
                 .successful(true);
         if (!success && !ignoreError) {
             throw new IOException(String.format("Command %s failed", commandStr));

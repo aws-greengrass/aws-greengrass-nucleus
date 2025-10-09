@@ -72,16 +72,16 @@ public class ConfigStoreIPCEventStreamAgent {
     private static final String KEY_NOT_FOUND_ERROR_MESSAGE = "Key not found";
     private static final String SERVICE_NAME = "service-name";
     @Getter(AccessLevel.PACKAGE)
-    private final ConcurrentHashMap<String, Set<StreamEventPublisher<ConfigurationUpdateEvents>>>
-            configUpdateListeners = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Set<StreamEventPublisher<ConfigurationUpdateEvents>>> configUpdateListeners =
+            new ConcurrentHashMap<>();
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, BiConsumer<String, Map<String, Object>>> configValidationListeners =
             new ConcurrentHashMap<>();
     // Map of component + deployment id --> future to complete with validation status received from service in response
     // to validate event
     @Getter(AccessLevel.PACKAGE)
-    private final Map<Pair<String, String>, CompletableFuture<ConfigurationValidityReport>>
-            configValidationReportFutures = new ConcurrentHashMap<>();
+    private final Map<Pair<String, String>, CompletableFuture<ConfigurationValidityReport>> configValidationReportFutures =
+            new ConcurrentHashMap<>();
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -112,7 +112,8 @@ public class ConfigStoreIPCEventStreamAgent {
     }
 
     class SendConfigurationValidityReportOperationHandler
-            extends GeneratedAbstractSendConfigurationValidityReportOperationHandler {
+            extends
+                GeneratedAbstractSendConfigurationValidityReportOperationHandler {
         private final String serviceName;
 
         protected SendConfigurationValidityReportOperationHandler(OperationContinuationHandlerContext context) {
@@ -279,20 +280,18 @@ public class ConfigStoreIPCEventStreamAgent {
                     Topics topics = configTopics.lookupTopics(keyPath);
                     updateTime = topics.getModtime();
                     topics.updateFromMap((Map) value,
-                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                    updateTime));
+                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, updateTime));
                 } else if (node instanceof Topic) {
-                    Topic topic = (Topic)node;
+                    Topic topic = (Topic) node;
                     try {
                         topic.parent.updateFromMap(Collections.singletonMap(topic.getName(), value),
-                                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                        updateTime));
+                                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, updateTime));
                     } catch (IllegalArgumentException e) {
                         throw new InvalidArgumentsError(e.getMessage());
                     }
                 } else {
-                    Topics topics = (Topics)node;
-                    topics.updateFromMap((Map)value,
+                    Topics topics = (Topics) node;
+                    topics.updateFromMap((Map) value,
                             new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, updateTime));
                 }
                 Node updatedNode = configTopics.findNode(keyPath);
@@ -320,11 +319,14 @@ public class ConfigStoreIPCEventStreamAgent {
             if (request.getKeyPath() != null) {
                 keyPath = request.getKeyPath().toArray(new String[0]);
             }
-            if (keyPath.length == 0 && request.getValueToMerge().keySet().stream()
-                    .anyMatch(key -> restrictedConfigurationFields.contains(key))
-            || keyPath.length != 0 && restrictedConfigurationFields.contains(request.getKeyPath().get(0))) {
-                throw new InvalidArgumentsError("Config update is not allowed for following fields "
-                        + restrictedConfigurationFields);
+            if (keyPath.length == 0
+                    && request.getValueToMerge()
+                            .keySet()
+                            .stream()
+                            .anyMatch(key -> restrictedConfigurationFields.contains(key))
+                    || keyPath.length != 0 && restrictedConfigurationFields.contains(request.getKeyPath().get(0))) {
+                throw new InvalidArgumentsError(
+                        "Config update is not allowed for following fields " + restrictedConfigurationFields);
             }
 
             Topics serviceTopics = kernel.findServiceTopic(serviceName);
@@ -334,16 +336,18 @@ public class ConfigStoreIPCEventStreamAgent {
             Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
             Node node = configTopics.findNode(keyPath);
             if (node != null && !(node instanceof Topic) && !(node instanceof Topics)) {
-                logger.atError().kv(SERVICE_NAME, serviceName)
+                logger.atError()
+                        .kv(SERVICE_NAME, serviceName)
                         .log("Somehow Node has an unknown type {}", node.getClass());
-                throw new InvalidArgumentsError("Node corresponding to keypath "
-                        + request.getKeyPath().toString() + " has an unknown type");
+                throw new InvalidArgumentsError(
+                        "Node corresponding to keypath " + request.getKeyPath().toString() + " has an unknown type");
             }
         }
     }
 
     public class ConfigurationUpdateOperationHandler
-            extends GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler {
+            extends
+                GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler {
         private final String serviceName;
         private Node subscribedToNode;
         private Watcher subscribedToWatcher;
@@ -356,7 +360,8 @@ public class ConfigStoreIPCEventStreamAgent {
 
         @Override
         protected void onStreamClosed() {
-            logger.atDebug().kv(SERVICE_NAME, serviceName)
+            logger.atDebug()
+                    .kv(SERVICE_NAME, serviceName)
                     .log("Stream closed for subscribeToConfigurationUpdate for {}", serviceName);
             if (subscribedToNode != null) {
                 subscribedToNode.remove(subscribedToWatcher);
@@ -393,7 +398,8 @@ public class ConfigStoreIPCEventStreamAgent {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
 
-                logger.atDebug().kv(SERVICE_NAME, serviceName)
+                logger.atDebug()
+                        .kv(SERVICE_NAME, serviceName)
                         .log("{} subscribed to configuration update", serviceName);
                 subscribedToNode = subscribeTo;
                 subscribedToWatcher = watcher.get();
@@ -415,8 +421,7 @@ public class ConfigStoreIPCEventStreamAgent {
         }
 
         private Optional<Watcher> registerWatcher(Node subscribeTo, String componentName) {
-            ChildChanged watcher =
-                    (whatHappened, node) -> handleConfigNodeUpdate(whatHappened, node, componentName);
+            ChildChanged watcher = (whatHappened, node) -> handleConfigNodeUpdate(whatHappened, node, componentName);
 
             if (subscribeTo instanceof Topics) {
                 ((Topics) subscribeTo).subscribe(watcher);
@@ -430,8 +435,9 @@ public class ConfigStoreIPCEventStreamAgent {
 
         private void handleConfigNodeUpdate(WhatHappened whatHappened, Node changedNode, String componentName) {
             // Blocks from sending an event on subscription, or events IPC subscriber isn't interested in knowing about
-            if (changedNode == null || WhatHappened.initialized.equals(whatHappened) || WhatHappened.timestampUpdated
-                    .equals(whatHappened) || WhatHappened.interiorAdded.equals(whatHappened)) {
+            if (changedNode == null || WhatHappened.initialized.equals(whatHappened)
+                    || WhatHappened.timestampUpdated.equals(whatHappened)
+                    || WhatHappened.interiorAdded.equals(whatHappened)) {
                 return;
             }
             // Avoid race conditions when subscribing to IPC and the subscription response hasn't been sent yet
@@ -457,7 +463,8 @@ public class ConfigStoreIPCEventStreamAgent {
                 valueChangedEvent.setComponentName(componentName);
                 valueChangedEvent.setKeyPath(Arrays.asList(changedKeyPath));
                 configurationUpdateEvents.setConfigurationUpdateEvent(valueChangedEvent);
-                logger.atDebug().kv(SERVICE_NAME, serviceName)
+                logger.atDebug()
+                        .kv(SERVICE_NAME, serviceName)
                         .log("Sending component {}'s updated config key {}", componentName, changedKeyPath);
 
                 this.sendStreamEvent(configurationUpdateEvents);
@@ -474,7 +481,8 @@ public class ConfigStoreIPCEventStreamAgent {
     }
 
     class ValidateConfigurationUpdatesOperationHandler
-            extends GeneratedAbstractSubscribeToValidateConfigurationUpdatesOperationHandler {
+            extends
+                GeneratedAbstractSubscribeToValidateConfigurationUpdatesOperationHandler {
 
         private final String serviceName;
 
@@ -511,7 +519,8 @@ public class ConfigStoreIPCEventStreamAgent {
                 validationEvent.setConfiguration(configuration);
                 validationEvent.setDeploymentId(deploymentId);
                 events.setValidateConfigurationUpdateEvent(validationEvent);
-                logger.atDebug().kv(SERVICE_NAME, serviceName)
+                logger.atDebug()
+                        .kv(SERVICE_NAME, serviceName)
                         .log("Requesting validation for component config {}", configuration);
 
                 this.sendStreamEvent(events);
@@ -523,16 +532,15 @@ public class ConfigStoreIPCEventStreamAgent {
      * Trigger a validate event to service/component, typically used during deployments.
      *
      * @param componentName service/component to send validate event to
-     * @param deploymentId  deployment id which is being validated
+     * @param deploymentId deployment id which is being validated
      * @param configuration new component configuration to validate
-     * @param reportFuture  future to track validation report in response to the event
+     * @param reportFuture future to track validation report in response to the event
      * @return true if the service has registered a validator, false if not
      * @throws ValidateEventRegistrationException throws when triggering requested validation event failed
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public boolean validateConfiguration(String componentName, String deploymentId, Map<String, Object> configuration,
-                                         CompletableFuture<ConfigurationValidityReport> reportFuture)
-            throws ValidateEventRegistrationException {
+            CompletableFuture<ConfigurationValidityReport> reportFuture) throws ValidateEventRegistrationException {
         for (Map.Entry<String, BiConsumer<String, Map<String, Object>>> e : configValidationListeners.entrySet()) {
             if (e.getKey().equals(componentName)) {
                 Pair componentToDeploymentId = new Pair<>(componentName, deploymentId);
@@ -542,7 +550,7 @@ public class ConfigStoreIPCEventStreamAgent {
                     return true;
                 } catch (Exception ex) {
                     // TODO: [P41211196]: Retries, timeouts & and better exception handling in sending server event to
-                    //  components
+                    // components
                     configValidationReportFutures.remove(componentToDeploymentId);
                     throw new ValidateEventRegistrationException(ex);
                 }
@@ -555,13 +563,13 @@ public class ConfigStoreIPCEventStreamAgent {
      * Abandon tracking for report of configuration validation event. Can be used by the caller in the case of timeouts
      * or other errors.
      *
-     * @param deploymentId  the deployment id which is being validated
+     * @param deploymentId the deployment id which is being validated
      * @param componentName component name to abandon validation for
-     * @param reportFuture  tracking future for validation report to abandon
+     * @param reportFuture tracking future for validation report to abandon
      * @return true if abandon request was successful
      */
     public boolean discardValidationReportTracker(String deploymentId, String componentName,
-                                                  CompletableFuture<ConfigurationValidityReport> reportFuture) {
+            CompletableFuture<ConfigurationValidityReport> reportFuture) {
         return configValidationReportFutures.remove(new Pair<>(componentName, deploymentId), reportFuture);
     }
 }

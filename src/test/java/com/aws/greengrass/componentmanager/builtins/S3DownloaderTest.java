@@ -61,7 +61,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class S3DownloaderTest {
 
     private static final String VALID_ARTIFACT_URI = "s3://eg-artifacts/ComponentWithS3Artifacts-1.0.0/artifact.txt";
@@ -85,6 +87,7 @@ class S3DownloaderTest {
 
     @Mock
     private Context context;
+
     @BeforeEach
     void setup() throws DeviceConfigurationException {
         lenient().when(s3SdkClientFactory.getS3Client()).thenReturn(s3Client);
@@ -92,12 +95,14 @@ class S3DownloaderTest {
         lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class)))
                 .thenReturn(mock(GetBucketLocationResponse.class));
     }
+
     @AfterEach
     void after() throws Exception {
         if (context != null) {
             context.close();
         }
     }
+
     @Test
     void GIVEN_wrong_region_WHEN_head_THEN_finds_right_region() throws Exception {
         when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class))).thenThrow(S3Exception.builder().message(
@@ -126,8 +131,8 @@ class S3DownloaderTest {
             getObjectResponse = new ResponseInputStream<>(GetObjectResponse.builder().build(),
                     AbortableInputStream.create(new ByteArrayInputStream(Files.readAllBytes(artifactFilePath))));
             when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(getObjectResponse);
-            HeadObjectResponse  headObjectResponse = HeadObjectResponse.builder()
-                    .contentLength(Files.size(artifactFilePath)).build();
+            HeadObjectResponse headObjectResponse =
+                    HeadObjectResponse.builder().contentLength(Files.size(artifactFilePath)).build();
             when(s3Client.headObject(any(HeadObjectRequest.class))).thenReturn(headObjectResponse);
 
             Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
@@ -136,8 +141,11 @@ class S3DownloaderTest {
             }
             S3Downloader s3Downloader = new S3Downloader(s3SdkClientFactory,
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
-                            .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
+                    ComponentArtifact.builder()
+                            .artifactUri(new URI(VALID_ARTIFACT_URI))
+                            .checksum(checksum)
+                            .algorithm(VALID_ALGORITHM)
+                            .build(),
                     saveToPath, componentStore);
             s3Downloader.download();
             byte[] downloadedFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
@@ -157,11 +165,11 @@ class S3DownloaderTest {
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         try {
             Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
-            assertThrows(InvalidArtifactUriException.class, () ->
-                new S3Downloader(s3SdkClientFactory,
-                        new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                        ComponentArtifact.builder().artifactUri(new URI(INVALID_ARTIFACT_URI)).build(),
-                        saveToPath, componentStore));
+            assertThrows(InvalidArtifactUriException.class,
+                    () -> new S3Downloader(s3SdkClientFactory,
+                            new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
+                            ComponentArtifact.builder().artifactUri(new URI(INVALID_ARTIFACT_URI)).build(), saveToPath,
+                            componentStore));
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);
         }
@@ -172,8 +180,8 @@ class S3DownloaderTest {
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         try {
             when(s3Client.getObject(any(GetObjectRequest.class))).thenThrow(S3Exception.class);
-            when(s3Client.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder()
-                    .contentLength((long)100).build());
+            when(s3Client.headObject(any(HeadObjectRequest.class)))
+                    .thenReturn(HeadObjectResponse.builder().contentLength((long) 100).build());
 
             Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
             if (Files.notExists(saveToPath)) {
@@ -181,8 +189,11 @@ class S3DownloaderTest {
             }
             S3Downloader s3Downloader = new S3Downloader(s3SdkClientFactory,
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
-                            .checksum(VALID_ARTIFACT_CHECKSUM).algorithm(VALID_ALGORITHM).build(),
+                    ComponentArtifact.builder()
+                            .artifactUri(new URI(VALID_ARTIFACT_URI))
+                            .checksum(VALID_ARTIFACT_CHECKSUM)
+                            .algorithm(VALID_ALGORITHM)
+                            .build(),
                     saveToPath, componentStore);
             Exception e = assertThrows(PackageDownloadException.class, () -> s3Downloader.download());
             assertThat(e.getMessage(), containsString("Failed to download artifact"));
@@ -192,7 +203,8 @@ class S3DownloaderTest {
     }
 
     @Test
-    void GIVEN_s3_artifact_uri_WHEN_cloud_deployment_error_in_getting_from_s3_THEN_retry(ExtensionContext context) throws Exception {
+    void GIVEN_s3_artifact_uri_WHEN_cloud_deployment_error_in_getting_from_s3_THEN_retry(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, RetryableServerErrorException.class);
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path artifactFilePath =
@@ -208,20 +220,23 @@ class S3DownloaderTest {
             }
             S3Downloader s3Downloader = new S3Downloader(s3SdkClientFactory,
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
-                            .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
-                    saveToPath,
-                    componentStore);
-            s3Downloader.setS3ClientExceptionRetryConfig(
-                    s3Downloader.getS3ClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
+                    ComponentArtifact.builder()
+                            .artifactUri(new URI(VALID_ARTIFACT_URI))
+                            .checksum(checksum)
+                            .algorithm(VALID_ALGORITHM)
+                            .build(),
+                    saveToPath, componentStore);
+            s3Downloader.setS3ClientExceptionRetryConfig(s3Downloader.getS3ClientExceptionRetryConfig()
+                    .toBuilder()
+                    .initialRetryInterval(Duration.ZERO)
+                    .build());
 
             getObjectResponse = new ResponseInputStream<>(GetObjectResponse.builder().build(),
                     AbortableInputStream.create(new ByteArrayInputStream(Files.readAllBytes(artifactFilePath))));
             Exception e = S3Exception.builder().statusCode(500).build();
-            when(s3Client.getObject(any(GetObjectRequest.class))).thenThrow(e)
-                    .thenReturn(getObjectResponse);
-            HeadObjectResponse  headObjectResponse = HeadObjectResponse.builder()
-                    .contentLength(Files.size(artifactFilePath)).build();
+            when(s3Client.getObject(any(GetObjectRequest.class))).thenThrow(e).thenReturn(getObjectResponse);
+            HeadObjectResponse headObjectResponse =
+                    HeadObjectResponse.builder().contentLength(Files.size(artifactFilePath)).build();
             when(s3Client.headObject(any(HeadObjectRequest.class))).thenReturn(headObjectResponse);
 
             s3Downloader.download();
@@ -250,15 +265,15 @@ class S3DownloaderTest {
         Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
         S3Downloader s3Downloader = new S3Downloader(s3SdkClientFactory,
                 new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
-                        .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
-                saveToPath,
-                componentStore);
+                ComponentArtifact.builder()
+                        .artifactUri(new URI(VALID_ARTIFACT_URI))
+                        .checksum(checksum)
+                        .algorithm(VALID_ALGORITHM)
+                        .build(),
+                saveToPath, componentStore);
         Exception e = S3Exception.builder().statusCode(500).build();
-        HeadObjectResponse  headObjectResponse = HeadObjectResponse.builder()
-                .contentLength(5L).build();
-        when(s3Client.headObject(any(HeadObjectRequest.class)))
-                .thenThrow(e).thenReturn(headObjectResponse);
+        HeadObjectResponse headObjectResponse = HeadObjectResponse.builder().contentLength(5L).build();
+        when(s3Client.headObject(any(HeadObjectRequest.class))).thenThrow(e).thenReturn(headObjectResponse);
 
         s3Downloader.setS3ClientExceptionRetryConfig(
                 s3Downloader.getS3ClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());

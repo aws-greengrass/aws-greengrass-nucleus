@@ -46,9 +46,9 @@ public class PubSubIPCService implements Startable, InjectionActions {
 
     @Override
     public void startup() {
-        greengrassCoreIPCService.setSubscribeToTopicHandler(
-                context -> eventStreamAgent.getSubscribeToTopicHandler(context));
-        greengrassCoreIPCService.setPublishToTopicHandler(
-                context -> eventStreamAgent.getPublishToTopicHandler(context));
+        greengrassCoreIPCService
+                .setSubscribeToTopicHandler(context -> eventStreamAgent.getSubscribeToTopicHandler(context));
+        greengrassCoreIPCService
+                .setPublishToTopicHandler(context -> eventStreamAgent.getPublishToTopicHandler(context));
     }
 }

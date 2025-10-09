@@ -42,7 +42,6 @@ import java.util.jar.Manifest;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 
-
 @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
 public class EZPlugins implements Closeable {
     private static final Logger logger = LogManager.getLogger(EZPlugins.class);
@@ -113,8 +112,9 @@ public class EZPlugins implements Closeable {
                     }
                 }
             } catch (IOException e) {
-                logger.atWarn().log("Problem looking for Greengrass plugin with the fast path."
-                        + " Falling back to classpath scanner", e);
+                logger.atWarn()
+                        .log("Problem looking for Greengrass plugin with the fast path."
+                                + " Falling back to classpath scanner", e);
             }
 
             FastClasspathScanner sc = new FastClasspathScanner("com.aws.greengrass");
@@ -128,7 +128,9 @@ public class EZPlugins implements Closeable {
     @SuppressWarnings("PMD.CloseResource")
     // Class loader must stay open, otherwise we won't be able to load all classes from the jar
     private void loadPlugins(boolean trusted, Path p) throws IOException {
-        URLClassLoader cl = new URLClassLoader(new URL[]{p.toUri().toURL()});
+        URLClassLoader cl = new URLClassLoader(new URL[] {
+                p.toUri().toURL()
+        });
         classLoaders.add(cl);
         loadPlugins(trusted, cl);
     }
@@ -136,7 +138,7 @@ public class EZPlugins implements Closeable {
     /**
      * Load a single plugin with the classpath scanner.
      *
-     * @param p       path to jar file
+     * @param p path to jar file
      * @param annotationClass annotation to search for
      * @param <T> annotation class type
      * @param matcher matcher to use
@@ -145,9 +147,11 @@ public class EZPlugins implements Closeable {
     // Class loader must stay open, otherwise we won't be able to load all classes from the jar
     @SuppressWarnings("PMD.CloseResource")
     public <T extends Annotation> ClassLoader loadPluginAnnotatedWith(Path p, Class<T> annotationClass,
-                                                           Consumer<Class<?>> matcher) throws IOException {
+            Consumer<Class<?>> matcher) throws IOException {
         try (LockScope ls = LockScope.lock(lock)) {
-            URL[] urls = {p.toUri().toURL()};
+            URL[] urls = {
+                    p.toUri().toURL()
+            };
             return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> {
                 URLClassLoader cl = new URLClassLoader(urls, root);
                 classLoaders.add(cl);
@@ -291,8 +295,8 @@ public class EZPlugins implements Closeable {
     /**
      * Find plugins implementing the given class.
      *
-     * @param c   Class that the plugin should implement
-     * @param m   Callback to do something if a matching plugin is found
+     * @param c Class that the plugin should implement
+     * @param m Callback to do something if a matching plugin is found
      * @param <T> the class type to lookup
      * @return this
      * @throws IllegalStateException if plugins are not yet loaded
@@ -313,8 +317,8 @@ public class EZPlugins implements Closeable {
     /**
      * Find plugin annotated with a given class.
      *
-     * @param c   Annotation to search for
-     * @param m   Callback if a match is found
+     * @param c Annotation to search for
+     * @param m Callback if a match is found
      * @param <T> the class type to lookup
      * @return this
      * @throws IllegalStateException if plugins are not yet loaded

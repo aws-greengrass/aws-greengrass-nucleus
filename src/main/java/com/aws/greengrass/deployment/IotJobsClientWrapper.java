@@ -40,33 +40,28 @@ import java.util.function.Consumer;
 @SuppressWarnings("PMD.AvoidCatchingGenericException")
 @SuppressFBWarnings("NM_METHOD_NAMING_CONVENTION")
 public class IotJobsClientWrapper extends IotJobsClient {
-    private static final String UPDATE_JOB_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update";
+    private static final String UPDATE_JOB_TOPIC = "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update";
     static final String JOB_UPDATE_ACCEPTED_TOPIC =
             "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update/accepted";
     static final String JOB_UPDATE_REJECTED_TOPIC =
             "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update/rejected";
-    private static final String DESCRIBE_JOB_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get";
-    static final String JOB_DESCRIBE_ACCEPTED_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get/accepted";
-    static final String JOB_DESCRIBE_REJECTED_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get/rejected";
-    static final String JOB_EXECUTIONS_CHANGED_TOPIC =
-            "$aws/things/%s/jobs/notify-namespace-aws-gg-deployment";
+    private static final String DESCRIBE_JOB_TOPIC = "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get";
+    static final String JOB_DESCRIBE_ACCEPTED_TOPIC = "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get/accepted";
+    static final String JOB_DESCRIBE_REJECTED_TOPIC = "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get/rejected";
+    static final String JOB_EXECUTIONS_CHANGED_TOPIC = "$aws/things/%s/jobs/notify-namespace-aws-gg-deployment";
 
     private final MqttClientConnection connection;
     private final Gson gson = this.getGson();
-    private final Map<Pair<Consumer<UpdateJobExecutionResponse>, Consumer<Exception>>, Consumer<MqttMessage>>
-            updateJobExecutionCbs = new ConcurrentHashMap<>();
-    private final Map<Pair<Consumer<RejectedError>, Consumer<Exception>>, Consumer<MqttMessage>>
-            updateJobExecutionSubscriptionCbs = new ConcurrentHashMap<>();
-    private final Map<Pair<Consumer<DescribeJobExecutionResponse>, Consumer<Exception>>, Consumer<MqttMessage>>
-            describeJobCbs = new ConcurrentHashMap<>();
-    private final Map<Pair<Consumer<RejectedError>, Consumer<Exception>>, Consumer<MqttMessage>>
-            describeJobSubscriptionCbs = new ConcurrentHashMap<>();
-    private final Map<Pair<Consumer<JobExecutionsChangedEvent>, Consumer<Exception>>, Consumer<MqttMessage>>
-            jobExecutionCbs = new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<UpdateJobExecutionResponse>, Consumer<Exception>>, Consumer<MqttMessage>> updateJobExecutionCbs =
+            new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<RejectedError>, Consumer<Exception>>, Consumer<MqttMessage>> updateJobExecutionSubscriptionCbs =
+            new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<DescribeJobExecutionResponse>, Consumer<Exception>>, Consumer<MqttMessage>> describeJobCbs =
+            new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<RejectedError>, Consumer<Exception>>, Consumer<MqttMessage>> describeJobSubscriptionCbs =
+            new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<JobExecutionsChangedEvent>, Consumer<Exception>>, Consumer<MqttMessage>> jobExecutionCbs =
+            new ConcurrentHashMap<>();
 
     public IotJobsClientWrapper(MqttClientConnection connection) {
         super(connection);
@@ -89,11 +84,11 @@ public class IotJobsClientWrapper extends IotJobsClient {
 
     @Override
     public CompletableFuture<Integer> PublishUpdateJobExecution(UpdateJobExecutionRequest request,
-                                                                QualityOfService qos) {
+            QualityOfService qos) {
         if (request.thingName == null || request.jobId == null) {
             CompletableFuture result = new CompletableFuture();
-            result.completeExceptionally(new MqttException(
-                    "UpdateJobExecutionRequest must have a non-null thingName and a non-null jobId"));
+            result.completeExceptionally(
+                    new MqttException("UpdateJobExecutionRequest must have a non-null thingName and a non-null jobId"));
             return result;
         }
         String topic = String.format(UPDATE_JOB_TOPIC, request.thingName, request.jobId);
@@ -157,7 +152,7 @@ public class IotJobsClientWrapper extends IotJobsClient {
 
     @Override
     public CompletableFuture<Integer> PublishDescribeJobExecution(DescribeJobExecutionRequest request,
-                                                                  QualityOfService qos) {
+            QualityOfService qos) {
         if (request.thingName == null || request.jobId == null) {
             CompletableFuture result = new CompletableFuture();
             result.completeExceptionally(new MqttException(
@@ -232,8 +227,8 @@ public class IotJobsClientWrapper extends IotJobsClient {
 
         if (request.thingName == null) {
             CompletableFuture<Integer> result = new CompletableFuture();
-            result.completeExceptionally(new MqttException(
-                    "JobExecutionsChangedSubscriptionRequest must have a non-null thingName"));
+            result.completeExceptionally(
+                    new MqttException("JobExecutionsChangedSubscriptionRequest must have a non-null thingName"));
             return result;
         }
 

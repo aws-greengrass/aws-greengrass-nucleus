@@ -15,17 +15,20 @@ import java.nio.charset.StandardCharsets;
 /**
  * Useful to set as a handler for an operation with no implementation yet.
  */
-public class DebugLoggingOperationHandler extends OperationContinuationHandler
-        <EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage> {
+public class DebugLoggingOperationHandler
+        extends
+            OperationContinuationHandler<EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage> {
     private static Logger LOGGER = LoggerFactory.getLogger(DebugLoggingOperationHandler.class);
     private final OperationModelContext operationModelContext;
 
     /**
      * Constructs a new DebugLoggingOperationHandler from the given model and continuation handler contexts
+     * 
      * @param modelContext The model context
      * @param context The continuation handler model context
      */
-    public DebugLoggingOperationHandler(final OperationModelContext modelContext, final OperationContinuationHandlerContext context) {
+    public DebugLoggingOperationHandler(final OperationModelContext modelContext,
+            final OperationContinuationHandlerContext context) {
         super(context);
         this.operationModelContext = modelContext;
     }
@@ -36,9 +39,9 @@ public class DebugLoggingOperationHandler extends OperationContinuationHandler
     }
 
     /**
-     * Called when the underlying continuation is closed. Gives operations a chance to cleanup whatever
-     * resources may be on the other end of an open stream. Also invoked when an underlying ServerConnection
-     * is closed associated with the stream/continuation
+     * Called when the underlying continuation is closed. Gives operations a chance to cleanup whatever resources may be
+     * on the other end of an open stream. Also invoked when an underlying ServerConnection is closed associated with
+     * the stream/continuation
      */
     @Override
     protected void onStreamClosed() {

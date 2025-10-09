@@ -38,7 +38,8 @@ import java.util.stream.Collectors;
  * Class to model the deployment configuration coming from cloud, local, or any other sources that can trigger a
  * deployment.
  *
- * <p>JSON Annotations are only in tests to easily generate this model from a JSON file. They are not part of business
+ * <p>
+ * JSON Annotations are only in tests to easily generate this model from a JSON file. They are not part of business
  * logic.
  */
 @Getter
@@ -90,7 +91,6 @@ public class DeploymentDocument {
     private DeploymentConfigurationValidationPolicy configurationValidationPolicy =
             DeploymentConfigurationValidationPolicy.builder().build();
 
-
     /**
      * For sub-group deployments root group name is used otherwise group name.
      *
@@ -111,8 +111,10 @@ public class DeploymentDocument {
         if (deploymentPackageConfigurationList == null || deploymentPackageConfigurationList.isEmpty()) {
             return Collections.emptyList();
         }
-        return deploymentPackageConfigurationList.stream().filter(DeploymentPackageConfiguration::isRootComponent)
-                .map(DeploymentPackageConfiguration::getPackageName).collect(Collectors.toList());
+        return deploymentPackageConfigurationList.stream()
+                .filter(DeploymentPackageConfiguration::isRootComponent)
+                .map(DeploymentPackageConfiguration::getPackageName)
+                .collect(Collectors.toList());
     }
 
     // Custom serializer for AWS SDK model since Jackson can't figure it out itself
@@ -130,8 +132,9 @@ public class DeploymentDocument {
         }
     }
 
-    private static class SDKDeserializer implements
-            Converter<Map<String, Object>, DeploymentConfigurationValidationPolicy> {
+    private static class SDKDeserializer
+            implements
+                Converter<Map<String, Object>, DeploymentConfigurationValidationPolicy> {
 
         @Override
         public DeploymentConfigurationValidationPolicy convert(Map<String, Object> value) {

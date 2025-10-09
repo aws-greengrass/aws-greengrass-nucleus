@@ -60,14 +60,18 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeploymentTaskTest {
 
     private static final String COMPONENT_2_ROOT_PACKAGE_NAME = "component2";
     private static Context context;
-    private final DeploymentDocument deploymentDocument =
-            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
-                    .groupName(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME).build();
+    private final DeploymentDocument deploymentDocument = DeploymentDocument.builder()
+            .deploymentId("TestDeployment")
+            .timestamp(System.currentTimeMillis())
+            .groupName(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME)
+            .build();
     private final Logger logger = LogManager.getLogger("unit test");
     @Mock
     private DependencyResolver mockDependencyResolver;
@@ -120,11 +124,11 @@ class DeploymentTaskTest {
                 .thenReturn(mockGroupMembership);
         lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);
-        deploymentTask =
-                new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
-                        mockDeploymentConfigMerger, logger,
-                        new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper, mockDeviceConfiguration);
+        deploymentTask = new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager,
+                mockKernelConfigResolver, mockDeploymentConfigMerger, logger,
+                new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
+                mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper,
+                mockDeviceConfiguration);
     }
 
     @Test
@@ -141,7 +145,8 @@ class DeploymentTaskTest {
     }
 
     @Test
-    void GIVEN_deploymentDocument_WHEN_thingGroupHelper_return_forbidden_THEN_succeeds(ExtensionContext context) throws Exception {
+    void GIVEN_deploymentDocument_WHEN_thingGroupHelper_return_forbidden_THEN_succeeds(ExtensionContext context)
+            throws Exception {
         ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockExecutorService.submit(any(Callable.class)))
@@ -159,8 +164,8 @@ class DeploymentTaskTest {
     }
 
     @Test
-    void GIVEN_deploymentDocument_WHEN_thingGroupHelper_throws_error_THEN_deployment_result_has_chain_of_error_messages(ExtensionContext context)
-            throws Exception {
+    void GIVEN_deploymentDocument_WHEN_thingGroupHelper_throws_error_THEN_deployment_result_has_chain_of_error_messages(
+            ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
 
         when(mockThingGroupHelper.listThingGroupsForDevice(anyInt()))
@@ -191,7 +196,8 @@ class DeploymentTaskTest {
         assertTrue(result.getFailureCause() instanceof PackagingException);
 
         verify(mockComponentManager, times(0)).preparePackages(anyList());
-        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
+        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(),
+                any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
     }
 
@@ -224,7 +230,8 @@ class DeploymentTaskTest {
 
         assertThrows(InterruptedException.class, () -> deploymentTask.call());
         verify(mockComponentManager, times(0)).preparePackages(anyList());
-        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
+        verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(),
+                any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
     }
 

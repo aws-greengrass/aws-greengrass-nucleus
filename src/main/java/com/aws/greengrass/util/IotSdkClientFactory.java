@@ -33,9 +33,9 @@ import java.util.Set;
  * Accessor for AWS IoT SDK.
  */
 public final class IotSdkClientFactory {
-    private static final Set<Class<? extends Exception>> retryableIoTExceptions = new HashSet<>(
-            Arrays.asList(ThrottlingException.class, InternalException.class, InternalFailureException.class,
-                    LimitExceededException.class));
+    private static final Set<Class<? extends Exception>> retryableIoTExceptions =
+            new HashSet<>(Arrays.asList(ThrottlingException.class, InternalException.class,
+                    InternalFailureException.class, LimitExceededException.class));
 
     private IotSdkClientFactory() {
     }
@@ -55,7 +55,7 @@ public final class IotSdkClientFactory {
     /**
      * Build IotClient for desired region and credentials.
      *
-     * @param awsRegion           aws region
+     * @param awsRegion aws region
      * @param credentialsProvider credentials provider
      * @return IotClient instance
      * @throws URISyntaxException when Iot endpoint is malformed
@@ -68,44 +68,43 @@ public final class IotSdkClientFactory {
     /**
      * Build IotClient for desired region, stage and credentials.
      *
-     * @param awsRegion           aws region
-     * @param stage               {@link EnvironmentStage}
+     * @param awsRegion aws region
+     * @param stage {@link EnvironmentStage}
      * @param credentialsProvider credentials provider
      * @return IotClient instance
      * @throws URISyntaxException when Iot endpoint is malformed
      */
     public static IotClient getIotClient(Region awsRegion, EnvironmentStage stage,
-                                         AwsCredentialsProvider credentialsProvider) throws URISyntaxException {
+            AwsCredentialsProvider credentialsProvider) throws URISyntaxException {
         return getIotClient(awsRegion, stage, credentialsProvider, Collections.emptySet());
     }
 
     /**
      * Build IotClient for tests with custom retry logic.
      *
-     * @param awsRegion                     aws region
+     * @param awsRegion aws region
      * @param additionalRetryableExceptions additional exceptions to retry on
      * @param stage {@link EnvironmentStage}
      * @return IotClient instance
      * @throws URISyntaxException when Iot endpoint is malformed
      */
     public static IotClient getIotClient(String awsRegion, EnvironmentStage stage,
-                                         Set<Class<? extends Exception>> additionalRetryableExceptions)
-            throws URISyntaxException {
+            Set<Class<? extends Exception>> additionalRetryableExceptions) throws URISyntaxException {
         return getIotClient(Region.of(awsRegion), stage, null, additionalRetryableExceptions);
     }
 
     /**
      * Build IotClient for desired region, stage and credentials with custom retry logic.
-     * @param awsRegion                     aws region
-     * @param stage                         {@link EnvironmentStage}
-     * @param credentialsProvider           credentials provider
+     * 
+     * @param awsRegion aws region
+     * @param stage {@link EnvironmentStage}
+     * @param credentialsProvider credentials provider
      * @param additionalRetryableExceptions additional exceptions to retry on
      * @return IotClient instance
      * @throws URISyntaxException when Iot endpoint is malformed
      */
     public static IotClient getIotClient(Region awsRegion, EnvironmentStage stage,
-                                         AwsCredentialsProvider credentialsProvider,
-                                         Set<Class<? extends Exception>> additionalRetryableExceptions)
+            AwsCredentialsProvider credentialsProvider, Set<Class<? extends Exception>> additionalRetryableExceptions)
             throws URISyntaxException {
         Set<Class<? extends Exception>> allExceptionsToRetryOn = new HashSet<>();
         allExceptionsToRetryOn.addAll(retryableIoTExceptions);
@@ -118,12 +117,15 @@ public final class IotSdkClientFactory {
 
         RetryCondition retryCondition = OrRetryCondition.create(RetryCondition.defaultRetryCondition(),
                 RetryOnExceptionsCondition.create(allExceptionsToRetryOn));
-        RetryPolicy retryPolicy = RetryPolicy.builder().numRetries(numRetries)
-                .backoffStrategy(BackoffStrategy.defaultThrottlingStrategy()).retryCondition(retryCondition).build();
-        IotClientBuilder iotClientBuilder =
-                IotClient.builder().region(awsRegion)
-                        .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
-                        .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build());
+        RetryPolicy retryPolicy = RetryPolicy.builder()
+                .numRetries(numRetries)
+                .backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
+                .retryCondition(retryCondition)
+                .build();
+        IotClientBuilder iotClientBuilder = IotClient.builder()
+                .region(awsRegion)
+                .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
+                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build());
 
         if (credentialsProvider != null) {
             iotClientBuilder.credentialsProvider(credentialsProvider);
@@ -139,14 +141,13 @@ public final class IotSdkClientFactory {
 
     @AllArgsConstructor
     public enum EnvironmentStage {
-        PROD("prod"),
-        GAMMA("gamma"),
-        BETA("beta");
+        PROD("prod"), GAMMA("gamma"), BETA("beta");
 
         String value;
 
         /**
          * Convert string to {@link EnvironmentStage}.
+         * 
          * @param stage The string representation of the environment stage
          * @return {@link EnvironmentStage}
          * @throws InvalidEnvironmentStageException when the given stage is invalid

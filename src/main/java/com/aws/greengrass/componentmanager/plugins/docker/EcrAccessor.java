@@ -34,7 +34,7 @@ public class EcrAccessor {
     /**
      * Constructor.
      *
-     * @param deviceConfiguration    Device config
+     * @param deviceConfiguration Device config
      * @param lazyCredentialProvider AWS credentials provider
      */
     @Inject
@@ -43,7 +43,6 @@ public class EcrAccessor {
         this.deviceConfiguration = deviceConfiguration;
         this.lazyCredentialProvider = lazyCredentialProvider;
     }
-
 
     /**
      * Get Ecr client with region.
@@ -60,14 +59,15 @@ public class EcrAccessor {
         return EcrClient.builder()
                 .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
                 .region(Region.of(region))
-                .credentialsProvider(lazyCredentialProvider).build();
+                .credentialsProvider(lazyCredentialProvider)
+                .build();
     }
 
     /**
      * Get credentials(auth token) for a private docker registry in ECR.
      *
      * @param registryId Registry id
-     * @param region     actual region
+     * @param region actual region
      * @return Registry.Credentials - Registry's authorization information
      * @throws RegistryAuthException When authentication fails
      */
@@ -76,7 +76,8 @@ public class EcrAccessor {
         try (EcrClient client = getClient(region)) {
             AuthorizationData authorizationData = client.getAuthorizationToken(
                     GetAuthorizationTokenRequest.builder().registryIds(Collections.singletonList(registryId)).build())
-                    .authorizationData().get(0);
+                    .authorizationData()
+                    .get(0);
             // Decoded auth token is of the format <username>:<password>
             String[] authTokenParts = new String(Base64.getDecoder().decode(authorizationData.authorizationToken()),
                     StandardCharsets.UTF_8).split(":");

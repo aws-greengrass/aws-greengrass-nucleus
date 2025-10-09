@@ -24,12 +24,14 @@ public class DarwinPlatform extends UnixPlatform {
         runCmd(AVAILABLE_UNIQUE_ID_CMD, o -> {
             uniqueUid.set(Long.parseLong(o.toString().replaceAll("\\n", "")) + 1L);
         }, "Cannot get a unique id for creating user");
-        runCmd(CREATE_USER_CMD_PREFIX + user, o -> {}, "Failed to create user");
-        runCmd(CREATE_USER_CMD_PREFIX + user + " UserShell /bin/bash", o -> {}, "Failed to add shell");
-        runCmd(CREATE_USER_CMD_PREFIX + user + " UniqueID " + uniqueUid.get(), o -> {},
-                "Failed to add user id");
-        runCmd(CREATE_USER_CMD_PREFIX + user + " PrimaryGroupID " + uniqueUid.get(), o -> {},
-                "Failed to add group id");
+        runCmd(CREATE_USER_CMD_PREFIX + user, o -> {
+        }, "Failed to create user");
+        runCmd(CREATE_USER_CMD_PREFIX + user + " UserShell /bin/bash", o -> {
+        }, "Failed to add shell");
+        runCmd(CREATE_USER_CMD_PREFIX + user + " UniqueID " + uniqueUid.get(), o -> {
+        }, "Failed to add user id");
+        runCmd(CREATE_USER_CMD_PREFIX + user + " PrimaryGroupID " + uniqueUid.get(), o -> {
+        }, "Failed to add group id");
     }
 
     @Override
@@ -38,15 +40,16 @@ public class DarwinPlatform extends UnixPlatform {
         runCmd(AVAILABLE_GID_CMD, o -> {
             gid.set(Long.parseLong(o.toString().replaceAll("\\n", "")) + 1L);
         }, "Cannot get a unique gid for creating group");
-        runCmd(CREATE_GROUP_CMD_PREFIX + group, o -> {}, "Failed to create group");
-        runCmd(CREATE_GROUP_CMD_PREFIX + group + " PrimaryGroupID " + gid.get(), o -> {},
-                "Failed to add gid");
+        runCmd(CREATE_GROUP_CMD_PREFIX + group, o -> {
+        }, "Failed to create group");
+        runCmd(CREATE_GROUP_CMD_PREFIX + group + " PrimaryGroupID " + gid.get(), o -> {
+        }, "Failed to add gid");
     }
 
     @Override
     public void addUserToGroup(String user, String group) throws IOException {
-        runCmd(ADD_USER_TO_GROUP_CMD_PREFIX + group + " GroupMembership " + user, o -> {},
-                "Failed to add user to group");
+        runCmd(ADD_USER_TO_GROUP_CMD_PREFIX + group + " GroupMembership " + user, o -> {
+        }, "Failed to add user to group");
     }
 
     @Override

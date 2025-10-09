@@ -28,12 +28,14 @@ public final class StsSdkClientFactory {
     private static final Set<Class<? extends Exception>> retryableIamExceptions = new HashSet<>(
             Arrays.asList(StsException.class, LimitExceededException.class, ServiceFailureException.class));
 
-    private static final RetryCondition retryCondition = OrRetryCondition
-            .create(RetryCondition.defaultRetryCondition(), RetryOnExceptionsCondition.create(retryableIamExceptions));
+    private static final RetryCondition retryCondition = OrRetryCondition.create(RetryCondition.defaultRetryCondition(),
+            RetryOnExceptionsCondition.create(retryableIamExceptions));
 
-    private static final RetryPolicy retryPolicy =
-            RetryPolicy.builder().numRetries(5).backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
-                    .retryCondition(retryCondition).build();
+    private static final RetryPolicy retryPolicy = RetryPolicy.builder()
+            .numRetries(5)
+            .backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
+            .retryCondition(retryCondition)
+            .build();
 
     private StsSdkClientFactory() {
     }
@@ -45,8 +47,10 @@ public final class StsSdkClientFactory {
      * @return StsClient instance
      */
     public static StsClient getStsClient(String awsRegion) {
-        return StsClient.builder().region(Region.of(awsRegion))
+        return StsClient.builder()
+                .region(Region.of(awsRegion))
                 .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
-                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build()).build();
+                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build())
+                .build();
     }
 }

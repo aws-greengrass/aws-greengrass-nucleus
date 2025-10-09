@@ -34,8 +34,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@SuppressWarnings({"PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"})
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@SuppressWarnings({
+        "PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"
+})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class UtilsTest {
 
     @Mock
@@ -99,7 +103,9 @@ class UtilsTest {
         Map m = new LinkedHashMap();
         m.put("CDC", "6400");
         m.put("PDP", "8/I");
-        Object[] o = {5, "hello", new HashMap(), m};
+        Object[] o = {
+                5, "hello", new HashMap(), m
+        };
         assertEquals("[5,\"hello\",{},{CDC:\"6400\",PDP:\"8/I\"}]", deepToString(o, 80).toString());
         assertEquals("[5,\"hello\"...]", deepToString(o, 6).toString());
         assertEquals("[5,\"hello\",{},{CDC:\"6400\"...}]", deepToString(o, 20).toString());

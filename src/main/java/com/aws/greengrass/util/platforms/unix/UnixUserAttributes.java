@@ -11,7 +11,6 @@ import lombok.Value;
 
 import java.util.Optional;
 
-
 /**
  * Unix specific user attributes.
  */
@@ -24,6 +23,7 @@ public class UnixUserAttributes implements UserPlatform.UserAttributes {
 
     /**
      * Get the UID.
+     * 
      * @return the numeric user id.
      */
     public long getUID() {
@@ -32,8 +32,8 @@ public class UnixUserAttributes implements UserPlatform.UserAttributes {
     }
 
     /**
-     * Get the primary GID if present for the user. If the user does not actually exist on the device, an empty
-     * optional is returned.
+     * Get the primary GID if present for the user. If the user does not actually exist on the device, an empty optional
+     * is returned.
      *
      * @return the group id of the users primary group or empty if the user is not a known user on the device.
      */

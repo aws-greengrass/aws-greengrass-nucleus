@@ -37,16 +37,20 @@ class PluginServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_new_config_with_new_version_WHEN_isBootstrapRequired_THEN_return_true() {
         doReturn(Topic.of(context, VERSION_CONFIG_KEY, "1.0.0")).when(config).find(eq(VERSION_CONFIG_KEY));
-        assertTrue(pluginService.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.1");
-        }}));
+        assertTrue(pluginService.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.1");
+            }
+        }));
     }
 
     @Test
     void GIVEN_new_config_with_old_version_WHEN_isBootstrapRequired_THEN_return_true() {
         doReturn(Topic.of(context, VERSION_CONFIG_KEY, "1.0.0")).when(config).find(eq(VERSION_CONFIG_KEY));
-        assertFalse(pluginService.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-        }}));
+        assertFalse(pluginService.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+            }
+        }));
     }
 }

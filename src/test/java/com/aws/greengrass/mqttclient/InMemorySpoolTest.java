@@ -46,7 +46,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class InMemorySpoolTest {
 
     @Mock
@@ -74,9 +76,14 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_publish_request_should_not_be_null_WHEN_pop_id_THEN_continue_if_request_is_null() throws InterruptedException, SpoolerStoreException {
-        Publish request = PublishRequest.builder().topic("spool").payload(new byte[0])
-                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
+    void GIVEN_publish_request_should_not_be_null_WHEN_pop_id_THEN_continue_if_request_is_null()
+            throws InterruptedException, SpoolerStoreException {
+        Publish request = PublishRequest.builder()
+                .topic("spool")
+                .payload(new byte[0])
+                .qos(QualityOfService.AT_MOST_ONCE)
+                .build()
+                .toPublish();
 
         long id1 = spool.addMessage(request).getId();
         long id2 = spool.addMessage(request).getId();
@@ -87,9 +94,14 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_is_not_full_WHEN_add_message_THEN_add_message_without_message_dropped() throws InterruptedException, SpoolerStoreException {
-        Publish request = PublishRequest.builder().topic("spool").payload(new byte[0])
-                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
+    void GIVEN_spooler_is_not_full_WHEN_add_message_THEN_add_message_without_message_dropped()
+            throws InterruptedException, SpoolerStoreException {
+        Publish request = PublishRequest.builder()
+                .topic("spool")
+                .payload(new byte[0])
+                .qos(QualityOfService.AT_MOST_ONCE)
+                .build()
+                .toPublish();
 
         long id = spool.addMessage(request).getId();
 
@@ -99,11 +111,20 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_is_full_WHEN_add_message_THEN_drop_messages() throws InterruptedException, SpoolerStoreException {
-        Publish request1 = PublishRequest.builder().topic("spool").payload(new byte[10])
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
-        Publish request2 = PublishRequest.builder().topic("spool").payload(new byte[10])
-                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
+    void GIVEN_spooler_is_full_WHEN_add_message_THEN_drop_messages()
+            throws InterruptedException, SpoolerStoreException {
+        Publish request1 = PublishRequest.builder()
+                .topic("spool")
+                .payload(new byte[10])
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
+        Publish request2 = PublishRequest.builder()
+                .topic("spool")
+                .payload(new byte[10])
+                .qos(QualityOfService.AT_MOST_ONCE)
+                .build()
+                .toPublish();
 
         spool.addMessage(request1);
         long id2 = spool.addMessage(request2).getId();
@@ -114,19 +135,33 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_queue_is_full_and_not_have_enough_space_for_new_message_when_add_message_THEN_throw_exception() throws InterruptedException, SpoolerStoreException {
-        Publish request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
-        Publish request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
-        Publish request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(20).array())
-                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
-
+    void GIVEN_spooler_queue_is_full_and_not_have_enough_space_for_new_message_when_add_message_THEN_throw_exception()
+            throws InterruptedException, SpoolerStoreException {
+        Publish request1 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
+        Publish request2 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_MOST_ONCE)
+                .build()
+                .toPublish();
+        Publish request3 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(20).array())
+                .qos(QualityOfService.AT_MOST_ONCE)
+                .build()
+                .toPublish();
 
         spool.addMessage(request1);
         long id2 = spool.addMessage(request2).getId();
 
-        assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request3); });
+        assertThrows(SpoolerStoreException.class, () -> {
+            spool.addMessage(request3);
+        });
 
         verify(spool, times(1)).removeOldestMessage();
         assertEquals(10, spool.getCurrentSpoolerSize());
@@ -134,22 +169,40 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_queue_is_full_with_qos1_messages_WHEN_add_3_new_messages_THEN_remove_qos0_check_is_done_only_once() throws InterruptedException, SpoolerStoreException {
-        Publish request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
-        Publish request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
-        Publish request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
-
+    void GIVEN_spooler_queue_is_full_with_qos1_messages_WHEN_add_3_new_messages_THEN_remove_qos0_check_is_done_only_once()
+            throws InterruptedException, SpoolerStoreException {
+        Publish request1 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
+        Publish request2 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
+        Publish request3 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
 
         spool.addMessage(request1);
         spool.addMessage(request2);
 
         // Try to add 3 new messages
-        assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request3); });
-        assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request3); });
-        assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request3); });
+        assertThrows(SpoolerStoreException.class, () -> {
+            spool.addMessage(request3);
+        });
+        assertThrows(SpoolerStoreException.class, () -> {
+            spool.addMessage(request3);
+        });
+        assertThrows(SpoolerStoreException.class, () -> {
+            spool.addMessage(request3);
+        });
         verify(spool, times(3)).removeOldestMessage();
         // Check that the 2 existing messages were read(to see if they are qos0) only once when we try to
         // add message3 for the first time and skip for the remaining 2 attempts.
@@ -158,19 +211,31 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_message_size_exceeds_max_size_of_spooler_when_add_message_THEN_throw_exception() throws InterruptedException, SpoolerStoreException {
-        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(30).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+    void GIVEN_message_size_exceeds_max_size_of_spooler_when_add_message_THEN_throw_exception()
+            throws InterruptedException, SpoolerStoreException {
+        Publish request = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(30).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
 
-        assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request); });
+        assertThrows(SpoolerStoreException.class, () -> {
+            spool.addMessage(request);
+        });
 
         assertEquals(0, spool.getCurrentSpoolerSize());
     }
 
     @Test
-    void GIVEN_id_WHEN_remove_message_by_id_THEN_spooler_size_decreased() throws SpoolerStoreException, InterruptedException {
-        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+    void GIVEN_id_WHEN_remove_message_by_id_THEN_spooler_size_decreased()
+            throws SpoolerStoreException, InterruptedException {
+        Publish request = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
         SpoolMessage message = spool.addMessage(request);
         long id = message.getId();
 
@@ -180,13 +245,26 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_message_with_qos_zero_WHEN_pop_out_messages_with_qos_zero_THEN_only_remove_message_with_qos_zero() throws SpoolerStoreException, InterruptedException {
-        Publish request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(1).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
-        Publish request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(2).array())
-                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
-        Publish request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(4).array())
-                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
+    void GIVEN_message_with_qos_zero_WHEN_pop_out_messages_with_qos_zero_THEN_only_remove_message_with_qos_zero()
+            throws SpoolerStoreException, InterruptedException {
+        Publish request1 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(1).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
+        Publish request2 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(2).array())
+                .qos(QualityOfService.AT_MOST_ONCE)
+                .build()
+                .toPublish();
+        Publish request3 = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(4).array())
+                .qos(QualityOfService.AT_MOST_ONCE)
+                .build()
+                .toPublish();
         List<Publish> requests = Arrays.asList(request1, request2, request3);
 
         for (Publish request : requests) {
@@ -200,13 +278,19 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_config_disk_WHEN_setup_spooler_THEN_persistent_queue_synced() throws ServiceLoadException, IOException {
+    void GIVEN_spooler_config_disk_WHEN_setup_spooler_THEN_persistent_queue_synced()
+            throws ServiceLoadException, IOException {
         List<Long> messageIds = Arrays.asList(0L, 1L, 2L);
-        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+        GreengrassService persistenceSpoolService =
+                Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
         CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
 
-        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        Publish request = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
 
         SpoolMessage message0 = SpoolMessage.builder().id(0L).request(request).build();
         SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
@@ -224,16 +308,23 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_config_disk_WHEN_setup_spooler_failed_THEN_use_in_memory_spooler(ExtensionContext context) throws ServiceLoadException, IOException, SpoolerStoreException, InterruptedException {
+    void GIVEN_spooler_config_disk_WHEN_setup_spooler_failed_THEN_use_in_memory_spooler(ExtensionContext context)
+            throws ServiceLoadException, IOException, SpoolerStoreException, InterruptedException {
         ignoreExceptionOfType(context, IOException.class);
-        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+        GreengrassService persistenceSpoolService =
+                Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
         CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
-        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        Publish request = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
-        lenient().when(persistenceSpool.getAllMessageIds()).thenThrow(new IOException("Get all message IDs failed for Disk Spooler"));
+        lenient().when(persistenceSpool.getAllMessageIds())
+                .thenThrow(new IOException("Get all message IDs failed for Disk Spooler"));
 
         spool = new Spool(deviceConfiguration, kernel);
         spool.addMessage(request);
@@ -241,14 +332,20 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_config_disk_WHEN_disk_spooler_add_fail_THEN_add_in_memory_spooler(ExtensionContext context) throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
+    void GIVEN_spooler_config_disk_WHEN_disk_spooler_add_fail_THEN_add_in_memory_spooler(ExtensionContext context)
+            throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
         ignoreExceptionOfType(context, IOException.class);
         List<Long> messageIds = Arrays.asList(0L, 1L, 2L);
-        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+        GreengrassService persistenceSpoolService =
+                Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
         CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
 
-        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        Publish request = PublishRequest.builder()
+                .topic("spool")
+                .payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build()
+                .toPublish();
 
         SpoolMessage message0 = SpoolMessage.builder().id(0L).request(request).build();
         SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
@@ -259,8 +356,9 @@ class InMemorySpoolTest {
         lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
         lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
         lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
-        lenient().doThrow(new IOException("Spooler Add failed")).
-                when(persistenceSpool).add(anyLong(), any(SpoolMessage.class));
+        lenient().doThrow(new IOException("Spooler Add failed"))
+                .when(persistenceSpool)
+                .add(anyLong(), any(SpoolMessage.class));
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         spool = new Spool(deviceConfiguration, kernel);
@@ -271,7 +369,8 @@ class InMemorySpoolTest {
         spool.addMessage(request);
         // Should be able to add to InMemory spooler even if Disk Spooler Add failed
         assertEquals(4, spool.getCurrentMessageCount());
-        // Should read from InMemory spooler first and successfully return a message, even if "Disk" Spooler is configured
+        // Should read from InMemory spooler first and successfully return a message, even if "Disk" Spooler is
+        // configured
         assertNotNull(spool.getMessageById(3L));
     }
 }

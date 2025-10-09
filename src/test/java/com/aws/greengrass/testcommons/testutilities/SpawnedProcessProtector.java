@@ -29,9 +29,8 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
     public void afterEach(ExtensionContext context) throws Exception {
         List<String> childPids = getChildPids();
         if (!childPids.isEmpty()) {
-            System.err.println(
-                    "Child PID not cleaned after test case " + context.getDisplayName() + ". Child PIDs: " + String
-                            .join(", ", childPids));
+            System.err.println("Child PID not cleaned after test case " + context.getDisplayName() + ". Child PIDs: "
+                    + String.join(", ", childPids));
         }
     }
 
@@ -85,7 +84,9 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
         if (PlatformResolver.isWindows) {
             return new ArrayList<>();
         }
-        String[] cmd = {"pgrep", "-P", String.valueOf(PidUtil.getMyPid())};
+        String[] cmd = {
+                "pgrep", "-P", String.valueOf(PidUtil.getMyPid())
+        };
         Process proc = Runtime.getRuntime().exec(cmd);
         assertTrue(proc.waitFor(5, TimeUnit.SECONDS), "Able to run pgrep and find child processes");
 

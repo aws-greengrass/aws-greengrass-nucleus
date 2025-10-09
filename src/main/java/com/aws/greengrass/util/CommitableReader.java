@@ -41,7 +41,9 @@ public final class CommitableReader {
             if (!Files.exists(backup)) {
                 throw e1;
             }
-            logger.atWarn().kv("file", target).kv("backup", backup)
+            logger.atWarn()
+                    .kv("file", target)
+                    .kv("backup", backup)
                     .log("Failed to read file. Try with backup next", e1);
             try (InputStream b = Files.newInputStream(backup)) {
                 validator.apply(b);

@@ -27,7 +27,7 @@ class WildcardTrieTest {
 
         // Test wildcards in middle
         rt.add("abc*xy*z");
-        assertTrue(rt.matchesStandard("abc123xyabc!@/<>#$%^&*()_+-=z" ));
+        assertTrue(rt.matchesStandard("abc123xyabc!@/<>#$%^&*()_+-=z"));
         assertTrue(rt.matchesStandard("abcxyz"));
         assertTrue(rt.matchesStandard("abcxy/ 7895z"));
         assertTrue(rt.matchesStandard("abc123xy90zABCz"));
@@ -40,7 +40,7 @@ class WildcardTrieTest {
         assertFalse(rt.matchesStandard("abc123xqwez"));
         assertFalse(rt.matchesStandard(""));
 
-        assertTrue(rt.matchesMQTT("abc123xyabc!@/<>#$%^&*()_+-=z" ));
+        assertTrue(rt.matchesMQTT("abc123xyabc!@/<>#$%^&*()_+-=z"));
         assertTrue(rt.matchesMQTT("abcxyz"));
         assertTrue(rt.matchesMQTT("abcxy/ 7895z"));
         assertTrue(rt.matchesMQTT("abc123xy90zABCz"));
@@ -70,14 +70,14 @@ class WildcardTrieTest {
         // Test Edge wildcards
         WildcardTrie rt1 = new WildcardTrie();
         rt1.add("*qwe*90*");
-        assertTrue(rt1.matchesStandard("abcqwe12390abcde" ));
+        assertTrue(rt1.matchesStandard("abcqwe12390abcde"));
         assertTrue(rt1.matchesStandard("qwe90"));
         assertTrue(rt1.matchesStandard("qwe9012"));
         assertTrue(rt1.matchesStandard("789qwe-+9qwe-+90ABC"));
         assertFalse(rt1.matchesStandard("789qwe-+9A"));
         assertFalse(rt1.matchesStandard("ABC89078"));
 
-        assertTrue(rt1.matchesMQTT("abcqwe12390abcde" ));
+        assertTrue(rt1.matchesMQTT("abcqwe12390abcde"));
         assertTrue(rt1.matchesMQTT("qwe90"));
         assertTrue(rt1.matchesMQTT("qwe9012"));
         assertTrue(rt1.matchesMQTT("789qwe-+9qwe-+90ABC"));
@@ -127,7 +127,8 @@ class WildcardTrieTest {
 
     @Test
     void testMQTTMultilevelWildcardMatching() {
-        //test MQTT wildcard usages according to MQTT V5.0 spec (https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
+        // test MQTT wildcard usages according to MQTT V5.0 spec
+        // (https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
         // Test Valid usages
         WildcardTrie rt = new WildcardTrie();
         rt.add("abc/#");
@@ -185,7 +186,6 @@ class WildcardTrieTest {
         assertFalse(rt2.matchesStandard("asd"));
         assertTrue(rt2.matchesStandard("/#"));
 
-
         // Test Invalid usages
         WildcardTrie rt3 = new WildcardTrie();
         rt3.add("w/qqq#");
@@ -212,7 +212,8 @@ class WildcardTrieTest {
 
     @Test
     void testMQTTSinglelevelWildcardMatching() {
-        //test MQTT wildcard usages according to MQTT V5.0 spec (https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
+        // test MQTT wildcard usages according to MQTT V5.0 spec
+        // (https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
         // Test Valid usages
         WildcardTrie rt = new WildcardTrie();
         rt.add("abc/+/123");
@@ -390,7 +391,8 @@ class WildcardTrieTest {
 
     @Test
     void testEscapedCharactersMatching() {
-        // tests here would accept any single character inside escape sequence but in reality only special characters ($,?,*)
+        // tests here would accept any single character inside escape sequence but in reality only special characters
+        // ($,?,*)
         // are allowed and anything else is rejected during validating the resource, before calling add method
 
         WildcardTrie rt = new WildcardTrie();

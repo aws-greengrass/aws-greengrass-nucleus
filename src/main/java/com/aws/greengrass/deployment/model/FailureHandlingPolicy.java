@@ -6,8 +6,7 @@
 package com.aws.greengrass.deployment.model;
 
 public enum FailureHandlingPolicy {
-    ROLLBACK("ROLLBACK"),
-    DO_NOTHING("DO_NOTHING");
+    ROLLBACK("ROLLBACK"), DO_NOTHING("DO_NOTHING");
 
     private final String failureHandlingPolicy;
 

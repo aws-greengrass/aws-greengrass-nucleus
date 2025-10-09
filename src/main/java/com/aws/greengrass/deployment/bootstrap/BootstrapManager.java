@@ -82,7 +82,7 @@ import static com.aws.greengrass.mqttclient.spool.Spool.SPOOL_STORAGE_TYPE_KEY;
  * Generates a list of bootstrap tasks from deployments, manages the execution and persists status.
  */
 @NotThreadSafe
-public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
+public class BootstrapManager implements Iterator<BootstrapTaskStatus> {
     private static final String COMPONENT_NAME_LOG_KEY_NAME = "componentName";
     private static final String RESTART_REQUIRED_MESSAGE = "Restart required due to configuration change";
 
@@ -127,12 +127,11 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
-     * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap
-     * tasks.
+     * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap tasks.
      *
      * @param newConfig new configuration from deployment
      * @return true if there are bootstrap tasks, false otherwise
-     * @throws ServiceUpdateException                    if parsing bootstrap tasks from new configuration fails
+     * @throws ServiceUpdateException if parsing bootstrap tasks from new configuration fails
      * @throws ComponentConfigurationValidationException If changed nucleus component configuration is invalid
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
@@ -142,13 +141,12 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
-     * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap
-     * tasks.
+     * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap tasks.
      *
      * @param newConfig new configuration from deployment
      * @param componentsToExclude set of components to exclude from consideration for bootstrapping
      * @return true if there are bootstrap tasks, false otherwise
-     * @throws ServiceUpdateException                    if parsing bootstrap tasks from new configuration fails
+     * @throws ServiceUpdateException if parsing bootstrap tasks from new configuration fails
      * @throws ComponentConfigurationValidationException If changed nucleus component configuration is invalid
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
@@ -158,8 +156,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         cursor = 0;
 
         if (newConfig == null || !newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
-            logger.atInfo().log(
-                    "No bootstrap tasks found: Deployment configuration is missing or has no service changes");
+            logger.atInfo()
+                    .log("No bootstrap tasks found: Deployment configuration is missing or has no service changes");
             return false;
         }
 
@@ -186,10 +184,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         }
         List<String> errors = new ArrayList<>();
         // Figure out the dependency order within the subset of components which require changes
-        LinkedHashSet<String> dependencyFound =
-                new DependencyOrder<String>().computeOrderedDependencies(componentsRequiresBootstrapTask,
-                        name -> getDependenciesWithinSubset(name, componentsRequiresBootstrapTask,
-                                (Map<String, Object>) serviceConfig.get(name), errors));
+        LinkedHashSet<String> dependencyFound = new DependencyOrder<String>()
+                .computeOrderedDependencies(componentsRequiresBootstrapTask, name -> getDependenciesWithinSubset(name,
+                        componentsRequiresBootstrapTask, (Map<String, Object>) serviceConfig.get(name), errors));
         if (!errors.isEmpty()) {
             throw new ServiceUpdateException(errors.toString(), DeploymentErrorCode.COMPONENT_DEPENDENCY_NOT_VALID);
         }
@@ -204,21 +201,23 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     private boolean willRemovePlugins(Map<String, Object> serviceConfig) {
-        Set<String> pluginsToRemove = kernel.orderedDependencies().stream()
+        Set<String> pluginsToRemove = kernel.orderedDependencies()
+                .stream()
                 .filter(s -> s instanceof PluginService)
                 .filter(s -> !s.isBuiltin())
                 .filter(s -> !serviceConfig.containsKey(s.getName()))
                 .map(GreengrassService::getName)
                 .collect(Collectors.toSet());
         if (!pluginsToRemove.isEmpty()) {
-            logger.atInfo().kv("plugins-to-remove", pluginsToRemove)
+            logger.atInfo()
+                    .kv("plugins-to-remove", pluginsToRemove)
                     .log("Bootstrap required for cleaning up plugin(s)");
         }
         return !pluginsToRemove.isEmpty();
     }
 
     private boolean fipsModeHasChanged(Map<String, Object> newNucleusParameters,
-                                       DeviceConfiguration currentDeviceConfiguration) {
+            DeviceConfiguration currentDeviceConfiguration) {
         boolean currentFipsMode = Coerce.toBoolean(currentDeviceConfiguration.getFipsMode());
         boolean newFipsMode = Coerce.toBoolean(newNucleusParameters.get(DEVICE_PARAM_FIPS_MODE));
         if (currentFipsMode != newFipsMode) {
@@ -229,9 +228,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     private boolean mqttVersionHasChanged(Map<String, Object> newNucleusParameters,
-                                          DeviceConfiguration currentDeviceConfiguration) {
-        String currentMqttVersion = Coerce.toString(
-                currentDeviceConfiguration.getMQTTNamespace().findOrDefault(DEFAULT_MQTT_VERSION, "version"));
+            DeviceConfiguration currentDeviceConfiguration) {
+        String currentMqttVersion = Coerce
+                .toString(currentDeviceConfiguration.getMQTTNamespace().findOrDefault(DEFAULT_MQTT_VERSION, "version"));
         Map<String, Object> newMqtt = (Map<String, Object>) newNucleusParameters.get(DEVICE_MQTT_NAMESPACE);
         Object newVersion = newMqtt == null ? null : newMqtt.get("version");
         if (newVersion == null && !DEFAULT_MQTT_VERSION.equalsIgnoreCase(currentMqttVersion)
@@ -243,18 +242,17 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     private boolean spoolerStorageTypeHasChanged(Map<String, Object> newNucleusParameters,
-                                          DeviceConfiguration currentDeviceConfiguration) {
-        String currentSpoolerStorageType = Coerce.toString(
-                currentDeviceConfiguration.getSpoolerNamespace().findOrDefault(DEFAULT_SPOOL_STORAGE_TYPE,
-                        SPOOL_STORAGE_TYPE_KEY));
+            DeviceConfiguration currentDeviceConfiguration) {
+        String currentSpoolerStorageType = Coerce.toString(currentDeviceConfiguration.getSpoolerNamespace()
+                .findOrDefault(DEFAULT_SPOOL_STORAGE_TYPE, SPOOL_STORAGE_TYPE_KEY));
         Map<String, Object> newMqtt = (Map<String, Object>) newNucleusParameters.get(DEVICE_MQTT_NAMESPACE);
-        Map<String, Object> newSpooler = newMqtt == null ? null
-                : (Map<String, Object>) newMqtt.get(DEVICE_SPOOLER_NAMESPACE);
+        Map<String, Object> newSpooler =
+                newMqtt == null ? null : (Map<String, Object>) newMqtt.get(DEVICE_SPOOLER_NAMESPACE);
         Object newStorageType = newSpooler == null ? null : newSpooler.get(SPOOL_STORAGE_TYPE_KEY);
         if (newStorageType == null
                 && !(DEFAULT_SPOOL_STORAGE_TYPE.toString().equalsIgnoreCase(currentSpoolerStorageType))
                 || newStorageType instanceof String
-                && !currentSpoolerStorageType.equalsIgnoreCase((String) newStorageType)) {
+                        && !currentSpoolerStorageType.equalsIgnoreCase((String) newStorageType)) {
             logger.atInfo().kv(DEVICE_SPOOLER_NAMESPACE, newSpooler).log(RESTART_REQUIRED_MESSAGE);
             return true;
         }
@@ -262,7 +260,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters,
-                                           DeviceConfiguration currentDeviceConfiguration) {
+            DeviceConfiguration currentDeviceConfiguration) {
         Map<String, Object> newNetworkProxy =
                 (Map<String, Object>) newNucleusParameters.get(DEVICE_NETWORK_PROXY_NAMESPACE);
         if (newNetworkProxy == null) {
@@ -307,25 +305,28 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
 
     private boolean defaultRunWithChanged(Map<String, Object> newNucleusParameters,
             DeviceConfiguration currentDeviceConfiguration) throws ComponentConfigurationValidationException {
-        Map<String, Object> runWithDefault = (Map<String, Object>)newNucleusParameters.getOrDefault(RUN_WITH_TOPIC,
-                Collections.emptyMap());
+        Map<String, Object> runWithDefault =
+                (Map<String, Object>) newNucleusParameters.getOrDefault(RUN_WITH_TOPIC, Collections.emptyMap());
 
         Map<String, Object> currentValues = currentDeviceConfiguration.getRunWithTopic().toPOJO();
 
         boolean changed = false;
         if (Utils.stringHasChanged(Coerce.toString(currentValues.get(RUN_WITH_DEFAULT_POSIX_USER)),
                 Coerce.toString(runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER)))) {
-            logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_USER,
-                    runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))
+            logger.atInfo()
+                    .kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_USER,
+                            runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))
                     .log(RESTART_REQUIRED_MESSAGE);
             changed = true;
         }
-        if (Utils.stringHasChanged(Coerce.toString(currentValues.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
-                RUN_WITH_DEFAULT_POSIX_SHELL_VALUE)),
+        if (Utils.stringHasChanged(
+                Coerce.toString(
+                        currentValues.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL, RUN_WITH_DEFAULT_POSIX_SHELL_VALUE)),
                 Coerce.toString(runWithDefault.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
                         RUN_WITH_DEFAULT_POSIX_SHELL_VALUE)))) {
-            logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_SHELL,
-                    runWithDefault.get(RUN_WITH_DEFAULT_POSIX_SHELL))
+            logger.atInfo()
+                    .kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_SHELL,
+                            runWithDefault.get(RUN_WITH_DEFAULT_POSIX_SHELL))
                     .log(RESTART_REQUIRED_MESSAGE);
             changed = true;
         }
@@ -337,7 +338,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                 throw new ComponentConfigurationValidationException(e, DeploymentErrorCode.RUN_WITH_CONFIG_NOT_VALID);
             }
             try {
-                logger.atInfo().kv("changed", RUN_WITH_TOPIC)
+                logger.atInfo()
+                        .kv("changed", RUN_WITH_TOPIC)
                         .kv("old", SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(currentValues))
                         .kv("new", SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(runWithDefault))
                         .log(RESTART_REQUIRED_MESSAGE);
@@ -350,14 +352,13 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     private boolean nucleusConfigChangeRequiresRestart(Map<String, Object> newNucleusParameters,
-                                                       DeviceConfiguration currentDeviceConfiguration)
-            throws ComponentConfigurationValidationException {
+            DeviceConfiguration currentDeviceConfiguration) throws ComponentConfigurationValidationException {
         // validation must not be skipped - otherwise the nucleus will be restarted with invalid config
-        boolean proxyChanged =  networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
+        boolean proxyChanged = networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean runWithChanged = defaultRunWithChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean mqttVersionChanged = mqttVersionHasChanged(newNucleusParameters, currentDeviceConfiguration);
-        boolean spoolerStorageTypeChanged = spoolerStorageTypeHasChanged(newNucleusParameters,
-                currentDeviceConfiguration);
+        boolean spoolerStorageTypeChanged =
+                spoolerStorageTypeHasChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean fipsModeChanged = fipsModeHasChanged(newNucleusParameters, currentDeviceConfiguration);
 
         return proxyChanged || runWithChanged || mqttVersionChanged || spoolerStorageTypeChanged || fipsModeChanged;
@@ -390,8 +391,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     private Map<String, Object> getProposedNucleusConfig(Map<String, Object> deploymentConfig) {
-        Map<String, Object> services = (Map<String, Object>) deploymentConfig.getOrDefault(SERVICES_NAMESPACE_TOPIC,
-                Collections.emptyMap());
+        Map<String, Object> services =
+                (Map<String, Object>) deploymentConfig.getOrDefault(SERVICES_NAMESPACE_TOPIC, Collections.emptyMap());
         for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
             if (serviceConfig.getValue() instanceof Map) {
                 Map<String, Object> serviceConfigMap = (Map<String, Object>) serviceConfig.getValue();
@@ -413,7 +414,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @param componentConfig config of the component
      */
     private Set<String> getDependenciesWithinSubset(String componentName, Set<String> subset,
-                                                    Map<String, Object> componentConfig, List<String> errors) {
+            Map<String, Object> componentConfig, List<String> errors) {
         Set<String> relevantDependencies = new HashSet<>();
         if (!componentConfig.containsKey(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)) {
             return relevantDependencies;
@@ -426,8 +427,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     relevantDependencies.add(depName);
                 }
             } catch (InputValidationException e) {
-                logger.atError().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName).setCause(e).log(
-                        "Ignore component with invalid dependency setting");
+                logger.atError()
+                        .kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+                        .setCause(e)
+                        .log("Ignore component with invalid dependency setting");
                 errors.add(e.getMessage());
             }
         }
@@ -439,7 +442,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      *
      * @param componentName the name of the component
      * @return true if a new component has bootstrap step defined, or existing component update requires bootstrap,
-     *      false otherwise
+     *         false otherwise
      */
     boolean serviceBootstrapRequired(String componentName, Map<String, Object> newServiceConfig) {
         // For existing components, call service to decide
@@ -450,18 +453,21 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         }
         // For newly added components, check if bootstrap is specified in config map
         if (!newServiceConfig.containsKey(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)) {
-            logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+            logger.atDebug()
+                    .kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                     .log("Bootstrap is not required: service lifecycle config not found");
             return false;
         }
         Map<String, Object> newServiceLifecycle =
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         if (serviceLifecycleDefined(newServiceLifecycle, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC).isEmpty()) {
-            logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+            logger.atDebug()
+                    .kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                     .log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;
         }
-        logger.atInfo().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
+        logger.atInfo()
+                .kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                 .log("Bootstrap is required: new service with bootstrap defined");
         return true;
     }
@@ -514,7 +520,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         CommitableReader.of(persistedTaskFilePath).read(in -> {
             bootstrapTaskStatusList.clear();
             bootstrapTaskStatusList.addAll(SerializerFactory.getFailSafeJsonObjectMapper()
-                    .readValue(in, new TypeReference<List<BootstrapTaskStatus>>(){}));
+                    .readValue(in, new TypeReference<List<BootstrapTaskStatus>>() {
+                    }));
             return null;
         });
     }
@@ -541,8 +548,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
-     * Execute all bootstrap steps one by one, until kernel restart or device reboot is requested to complete any one
-     * of the bootstrap steps.
+     * Execute all bootstrap steps one by one, until kernel restart or device reboot is requested to complete any one of
+     * the bootstrap steps.
      *
      * @param persistedTaskFilePath Path to the persisted file of bootstrap task list
      * @return 100 if kernel restart is needed, 101 if device reboot is needed, 0 if no-op.
@@ -555,22 +562,24 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         int exitCode;
         while (hasNext()) {
             BootstrapTaskStatus next = next();
-            logger.atInfo().kv(COMPONENT_NAME_LOG_KEY_NAME, next.getComponentName())
+            logger.atInfo()
+                    .kv(COMPONENT_NAME_LOG_KEY_NAME, next.getComponentName())
                     .log("Execute component bootstrap step");
             exitCode = executeOneBootstrapTask(next);
 
             switch (exitCode) {
-                case NO_OP:
-                case REQUEST_RESTART:
-                case REQUEST_REBOOT:
-                    persistBootstrapTaskList(persistedTaskFilePath);
-                    break;
-                default:
-                    persistBootstrapTaskList(persistedTaskFilePath);
-                    throw new ServiceUpdateException(
-                            String.format("Fail to execute bootstrap step for %s, exit code: %d",
-                                    next.getComponentName(), exitCode), DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
-                            DeploymentErrorCodeUtils.classifyComponentError(next.getComponentName(), kernel));
+            case NO_OP:
+            case REQUEST_RESTART:
+            case REQUEST_REBOOT:
+                persistBootstrapTaskList(persistedTaskFilePath);
+                break;
+            default:
+                persistBootstrapTaskList(persistedTaskFilePath);
+                throw new ServiceUpdateException(
+                        String.format("Fail to execute bootstrap step for %s, exit code: %d", next.getComponentName(),
+                                exitCode),
+                        DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
+                        DeploymentErrorCodeUtils.classifyComponentError(next.getComponentName(), kernel));
             }
             if (exitCode != 0) {
                 return exitCode;

@@ -48,13 +48,13 @@ public class SystemdUtils implements SystemServiceUtils {
             interpolateServiceTemplate(serviceTemplate, serviceConfig, kernelAlternatives);
 
             Files.copy(serviceConfig, Paths.get(SERVICE_CONFIG_FILE_PATH), REPLACE_EXISTING);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl daemon-reload", false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl unmask greengrass.service", false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl stop greengrass.service", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, "systemctl daemon-reload", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, "systemctl unmask greengrass.service", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, "systemctl stop greengrass.service", false);
             if (start) {
-                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl start greengrass.service", false);
+                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, "systemctl start greengrass.service", false);
             }
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl enable greengrass.service", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, "systemctl enable greengrass.service", false);
 
             logger.atInfo(LOG_EVENT_NAME).log("Successfully set up systemd service");
             return true;
@@ -69,8 +69,7 @@ public class SystemdUtils implements SystemServiceUtils {
 
     private void interpolateServiceTemplate(Path src, Path dst, KernelAlternatives kernelAlternatives)
             throws IOException {
-        try (BufferedReader r = Files.newBufferedReader(src);
-             BufferedWriter w = Files.newBufferedWriter(dst)) {
+        try (BufferedReader r = Files.newBufferedReader(src); BufferedWriter w = Files.newBufferedWriter(dst)) {
             String line = r.readLine();
             while (line != null) {
                 w.write(line.replace(PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath().toString())

@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.mqttclient;
 
-
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 

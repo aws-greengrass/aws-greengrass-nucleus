@@ -91,8 +91,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"})
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@SuppressWarnings({
+        "PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"
+})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeploymentServiceTest extends GGServiceTestUtil {
 
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
@@ -141,7 +145,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private DeploymentService deploymentService;
     private DeploymentQueue deploymentQueue;
 
-
     @BeforeEach
     void setup() {
         // initialize Greengrass service specific mocks
@@ -174,8 +177,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private void startDeploymentServiceInAnotherThread() throws InterruptedException {
         CountDownLatch cdl = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> listener = m -> {
-            if (m.getContexts() != null && m.getContexts().containsKey(SERVICE_NAME_KEY) && m.getContexts()
-                    .get(SERVICE_NAME_KEY).equalsIgnoreCase(DEPLOYMENT_SERVICE_TOPICS)) {
+            if (m.getContexts() != null && m.getContexts().containsKey(SERVICE_NAME_KEY)
+                    && m.getContexts().get(SERVICE_NAME_KEY).equalsIgnoreCase(DEPLOYMENT_SERVICE_TOPICS)) {
                 cdl.countDown();
             }
         };
@@ -220,23 +223,23 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_groupsToRootComponents_WHEN_setComponentsToGroupsMapping_THEN_get_correct_componentsToGroupsTopics()
-            throws Exception{
+            throws Exception {
         // GIVEN
-        //   GroupToRootComponents:
-        //      LOCAL_DEPLOYMENT:
-        //        component1:
-        //          groupConfigArn: "asdf"
-        //          groupConfigName: "LOCAL_DEPLOYMENT"
-        //          version: "1.0.0"
-        //        AnotherRootComponent:
-        //          groupConfigArn: "asdf"
-        //          groupConfigName: "LOCAL_DEPLOYMENT"
-        //          version: "2.0.0"
-        //      thinggroup/group1:
-        //        component1:
-        //          groupConfigArn: "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1"
-        //          groupConfigName: "thinggroup/group1"
-        //          version: "1.0.0"
+        // GroupToRootComponents:
+        // LOCAL_DEPLOYMENT:
+        // component1:
+        // groupConfigArn: "asdf"
+        // groupConfigName: "LOCAL_DEPLOYMENT"
+        // version: "1.0.0"
+        // AnotherRootComponent:
+        // groupConfigArn: "asdf"
+        // groupConfigName: "LOCAL_DEPLOYMENT"
+        // version: "2.0.0"
+        // thinggroup/group1:
+        // component1:
+        // groupConfigArn: "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1"
+        // groupConfigName: "thinggroup/group1"
+        // version: "1.0.0"
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
         Topics deploymentGroupTopics2 = Topics.of(context, LOCAL_DEPLOYMENT_GROUP_NAME, allGroupTopics);
@@ -284,10 +287,16 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         doReturn(expectedRootService).when(mockKernel).locate(eq(EXPECTED_ROOT_PACKAGE_NAME));
         doReturn(anotherRootService).when(mockKernel).locate(eq("AnotherRootComponent"));
         doReturn(dependencyService).when(mockKernel).locate(eq("Dependency"));
-        doReturn(new HashMap<GreengrassService, DependencyType>() {{ put(dependencyService, DependencyType.HARD);}})
-                .when(expectedRootService).getDependencies();
-        doReturn(new HashMap<GreengrassService, DependencyType>() {{ put(dependencyService, DependencyType.HARD);}})
-                .when(anotherRootService).getDependencies();
+        doReturn(new HashMap<GreengrassService, DependencyType>() {
+            {
+                put(dependencyService, DependencyType.HARD);
+            }
+        }).when(expectedRootService).getDependencies();
+        doReturn(new HashMap<GreengrassService, DependencyType>() {
+            {
+                put(dependencyService, DependencyType.HARD);
+            }
+        }).when(anotherRootService).getDependencies();
         doReturn(emptyMap()).when(dependencyService).getDependencies();
         doReturn(EXPECTED_ROOT_PACKAGE_NAME).when(expectedRootService).getName();
         doReturn("AnotherRootComponent").when(anotherRootService).getName();
@@ -297,15 +306,15 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentService.setComponentsToGroupsMapping(allGroupTopics);
 
         // THEN
-        //   ComponentToGroups:
-        //      component1:
-        //        "asdf": "LOCAL_DEPLOYMENT"
-        //        "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1": "thinggroup/group1"
-        //      AnotherRootComponent:
-        //        "asdf": "LOCAL_DEPLOYMENT"
-        //      Dependency:
-        //        "asdf": "LOCAL_DEPLOYMENT"
-        //        "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1": "thinggroup/group1"
+        // ComponentToGroups:
+        // component1:
+        // "asdf": "LOCAL_DEPLOYMENT"
+        // "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1": "thinggroup/group1"
+        // AnotherRootComponent:
+        // "asdf": "LOCAL_DEPLOYMENT"
+        // Dependency:
+        // "asdf": "LOCAL_DEPLOYMENT"
+        // "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1": "thinggroup/group1"
         ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(componentsToGroupsTopics).replaceAndWait(mapCaptor.capture());
         Map<String, Object> groupToRootPackages = mapCaptor.getValue();
@@ -318,8 +327,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         assertThat(expectedRootComponentMap, hasEntry("asdf", LOCAL_DEPLOYMENT_GROUP_NAME));
 
         assertThat(groupToRootPackages, hasKey("AnotherRootComponent"));
-        Map<String, String> anotherRootComponentMap = (Map<String, String>) groupToRootPackages.get(
-                "AnotherRootComponent");
+        Map<String, String> anotherRootComponentMap =
+                (Map<String, String>) groupToRootPackages.get("AnotherRootComponent");
         assertEquals(1, anotherRootComponentMap.size());
         assertThat(anotherRootComponentMap, hasEntry("asdf", LOCAL_DEPLOYMENT_GROUP_NAME));
 
@@ -340,8 +349,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                 "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
         Map<CaseInsensitiveString, Node> pkgDetails = new HashMap<>();
-        pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
-                pkgTopic1);
+        pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY), pkgTopic1);
         pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
                 groupTopic1);
         Topics pkgTopics = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics);
@@ -352,8 +360,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         Topic groupTopic2 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                 "arn:aws:greengrass:testRegion:12345:configuration:testGroup2:900");
         Map<CaseInsensitiveString, Node> pkgDetails2 = new HashMap<>();
-        pkgDetails2.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
-                pkgTopic2);
+        pkgDetails2.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY), pkgTopic2);
         pkgDetails2.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
                 groupTopic2);
         Topics pkgTopics2 = Topics.of(context, "AnotherRootComponent", deploymentGroupTopics2);
@@ -371,8 +378,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @ParameterizedTest
     @EnumSource(Deployment.DeploymentType.class)
     void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_correctly_map_components_to_groups(
-            Deployment.DeploymentType type)
-            throws Exception {
+            Deployment.DeploymentType type) throws Exception {
         String expectedGroupName = EXPECTED_GROUP_NAME;
         String expectedConfigArn = null;
         String expectedUuid = null;
@@ -393,11 +399,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         Topic pkgTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
         Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                 "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
-        Topic groupNameTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME,
-                expectedGroupName);
+        Topic groupNameTopic1 =
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, expectedGroupName);
         Map<CaseInsensitiveString, Node> pkgDetails = new HashMap<>();
-        pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
-                pkgTopic1);
+        pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY), pkgTopic1);
         pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
                 groupTopic1);
         pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME),
@@ -408,8 +413,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         allGroupTopics.children.put(new CaseInsensitiveString(expectedGroupName), deploymentGroupTopics);
 
         when(config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS)).thenReturn(groupToLastDeploymentTopics);
-        lenient().when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        lenient().when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
         when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(groupMembershipTopics);
         when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         lenient().when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, expectedGroupName))
@@ -446,16 +451,14 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_deployment_job_WHEN_deployment_completes_with_non_retryable_error_THEN_report_failed_job_status(
-            ExtensionContext extContext)
-            throws Exception {
+            ExtensionContext extContext) throws Exception {
         Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
-        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
 
         String deploymentDocument = getTestDeploymentDocument();
 
-        deploymentQueue.offer(new Deployment(deploymentDocument,
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
         CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
         ignoreExceptionUltimateCauseOfType(extContext, DeploymentTaskFailureException.class);
 
@@ -473,24 +476,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
     }
 
-
     @Test
     void GIVEN_deployment_job_WHEN_deployment_metadata_setup_fails_THEN_report_failed_job_status(
-            ExtensionContext extContext)
-            throws Exception {
+            ExtensionContext extContext) throws Exception {
         Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
-        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
 
         String deploymentDocument = getTestDeploymentDocument();
 
-        deploymentQueue.offer(new Deployment(deploymentDocument,
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         ignoreExceptionUltimateCauseWithMessage(extContext, "mock error");
 
-        when(deploymentDirectoryManager.createNewDeploymentDirectory(any()))
-                .thenThrow(new IOException("mock error"));
+        when(deploymentDirectoryManager.createNewDeploymentDirectory(any())).thenThrow(new IOException("mock error"));
         startDeploymentServiceInAnotherThread();
         ArgumentCaptor<Map<String, Object>> statusDetails = ArgumentCaptor.forClass(Map.class);
 
@@ -500,7 +499,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
                 eq(JobStatus.FAILED.toString()), statusDetails.capture(), eq(EXPECTED_ROOT_PACKAGE_LIST));
-        assertEquals("Unable to create deployment directory. mock error", statusDetails.getValue().get(DEPLOYMENT_FAILURE_CAUSE_KEY));
+        assertEquals("Unable to create deployment directory. mock error",
+                statusDetails.getValue().get(DEPLOYMENT_FAILURE_CAUSE_KEY));
         assertListEquals(Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR", "IO_WRITE_ERROR"),
                 (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_STACK_KEY));
         assertListEquals(Arrays.asList("DEVICE_ERROR"),
@@ -512,8 +512,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             throws Exception {
         String deploymentDocument = getTestDeploymentDocument();
 
-        deploymentQueue.offer(new Deployment(deploymentDocument,
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         Topics allGroupTopics = mock(Topics.class);
         Topics groupMembershipTopics = mock(Topics.class);
@@ -522,14 +521,13 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         when(allGroupTopics.lookupTopics(EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
         when(config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS)).thenReturn(groupToLastDeploymentTopics);
-        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
         when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(groupMembershipTopics);
         when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
 
-        mockFuture.complete(
-                new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, null));
+        mockFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, null));
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
         startDeploymentServiceInAnotherThread();
 
@@ -561,13 +559,12 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_succeeds_THEN_report_failed_job_status()
             throws Exception {
         Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
-        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
 
         String deploymentDocument = getTestDeploymentDocument();
 
-        deploymentQueue.offer(new Deployment(deploymentDocument,
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         mockFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_COMPLETE, null));
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
@@ -586,13 +583,12 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_fails_THEN_report_failed_job_status()
             throws Exception {
         Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
-        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
 
         String deploymentDocument = getTestDeploymentDocument();
 
-        deploymentQueue.offer(new Deployment(deploymentDocument,
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         mockFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, null));
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
@@ -608,16 +604,14 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
-            throws Exception {
+    void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment() throws Exception {
         Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
-        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
 
         String deploymentDocument = getTestDeploymentDocument();
 
-        deploymentQueue.offer(new Deployment(deploymentDocument,
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
         when(updateSystemPolicyService.discardPendingUpdateAction(any())).thenReturn(true);
@@ -637,16 +631,14 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
-            throws Exception {
+    void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment() throws Exception {
         Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
-        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
 
         String deploymentDocument = getTestDeploymentDocument();
 
-        deploymentQueue.offer(new Deployment(deploymentDocument,
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
         when(updateSystemPolicyService.discardPendingUpdateAction(any())).thenReturn(false);
@@ -666,16 +658,14 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
-            throws Exception {
+    void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing() throws Exception {
         Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
-        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
-                groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
 
         String deploymentDocument = getTestDeploymentDocument();
 
-        deploymentQueue.offer(new Deployment(deploymentDocument,
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
         startDeploymentServiceInAnotherThread();
@@ -707,10 +697,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     }
 
     String getTestDeploymentDocument() {
-        return new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n")).replace(CONFIG_ARN_PLACEHOLDER, TEST_CONFIGURATION_ARN);
+        return new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("TestDeploymentDocument.json"),
+                StandardCharsets.UTF_8)).lines()
+                .collect(Collectors.joining("\n"))
+                .replace(CONFIG_ARN_PLACEHOLDER, TEST_CONFIGURATION_ARN);
     }
 
     private void assertListEquals(List<String> first, List<String> second) {

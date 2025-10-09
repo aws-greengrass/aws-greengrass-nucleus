@@ -38,7 +38,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class ArtifactDownloaderFactoryTest {
 
     Path testDir = Paths.get("foo");
@@ -62,9 +64,8 @@ class ArtifactDownloaderFactoryTest {
 
     @BeforeEach
     public void setup() {
-        artifactDownloaderFactory =
-                new ArtifactDownloaderFactory(s3SdkClientFactory, greengrassServiceClientFactory,
-                        componentStore, context, deviceConfiguration);
+        artifactDownloaderFactory = new ArtifactDownloaderFactory(s3SdkClientFactory, greengrassServiceClientFactory,
+                componentStore, context, deviceConfiguration);
     }
 
     @Test
@@ -78,7 +79,6 @@ class ArtifactDownloaderFactoryTest {
                 artifactDownloaderFactory.getArtifactDownloader(pkgId, artifact, testDir);
         assertThat(artifactDownloader, IsInstanceOf.instanceOf(S3Downloader.class));
     }
-
 
     @Test
     void GIVEN_artifact_from_gg_repo_WHEN_attempt_download_artifact_THEN_invoke_gg_downloader() throws Exception {
@@ -100,7 +100,6 @@ class ArtifactDownloaderFactoryTest {
         assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 
-
     @Test
     void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception() throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
@@ -116,12 +115,12 @@ class ArtifactDownloaderFactoryTest {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         // Private ECR image
         List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image")).build());
+                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image"))
+                .build());
 
-        List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
-                        new ComponentIdentifier("aws.greengrass.TokenExchangeService", new Semver("2.0.0")),
-                        testComponent);
+        List<ComponentIdentifier> dependencyClosure = Arrays.asList(
+                new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
+                new ComponentIdentifier("aws.greengrass.TokenExchangeService", new Semver("2.0.0")), testComponent);
         artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure);
     }
 
@@ -130,13 +129,12 @@ class ArtifactDownloaderFactoryTest {
             throws Exception {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         // Public ECR image
-        List<ComponentArtifact> artifacts = Collections.singletonList(
-                ComponentArtifact.builder().artifactUri(new URI("docker:public.ecr.aws/a1b2c3d4/testimage:sometag"))
-                        .build());
+        List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
+                .artifactUri(new URI("docker:public.ecr.aws/a1b2c3d4/testimage:sometag"))
+                .build());
 
-        List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
-                        testComponent);
+        List<ComponentIdentifier> dependencyClosure = Arrays.asList(
+                new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")), testComponent);
         artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure);
     }
 
@@ -146,11 +144,11 @@ class ArtifactDownloaderFactoryTest {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         // Any dockerhub image
         List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:registry.hub.docker.com/library/alpine:sometag")).build());
+                .artifactUri(new URI("docker:registry.hub.docker.com/library/alpine:sometag"))
+                .build());
 
-        List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
-                        testComponent);
+        List<ComponentIdentifier> dependencyClosure = Arrays.asList(
+                new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")), testComponent);
         artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure);
     }
 
@@ -160,12 +158,12 @@ class ArtifactDownloaderFactoryTest {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         // Private ECR image
         List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image")).build());
+                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image"))
+                .build());
 
         List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
-        Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent,
-                        dependencyClosure));
+        Throwable err = assertThrows(MissingRequiredComponentsException.class, () -> artifactDownloaderFactory
+                .checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure));
         assertThat(err.getMessage(), containsString(DOCKER_PLUGIN_REQUIRED_ERROR_MSG));
     }
 
@@ -175,14 +173,13 @@ class ArtifactDownloaderFactoryTest {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         // Private ECR image
         List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image")).build());
+                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image"))
+                .build());
 
-        List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
-                        testComponent);
-        Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent,
-                        dependencyClosure));
+        List<ComponentIdentifier> dependencyClosure = Arrays.asList(
+                new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")), testComponent);
+        Throwable err = assertThrows(MissingRequiredComponentsException.class, () -> artifactDownloaderFactory
+                .checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure));
         assertThat(err.getMessage(), containsString(TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG));
     }
 
@@ -191,14 +188,13 @@ class ArtifactDownloaderFactoryTest {
             throws Exception {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         // Public ECR image
-        List<ComponentArtifact> artifacts = Collections.singletonList(
-                ComponentArtifact.builder().artifactUri(new URI("docker:public.ecr.aws/a1b2c3d4/testimage:sometag"))
-                        .build());
+        List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
+                .artifactUri(new URI("docker:public.ecr.aws/a1b2c3d4/testimage:sometag"))
+                .build());
 
         List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
-        Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent,
-                        dependencyClosure));
+        Throwable err = assertThrows(MissingRequiredComponentsException.class, () -> artifactDownloaderFactory
+                .checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure));
         assertThat(err.getMessage(), containsString(DOCKER_PLUGIN_REQUIRED_ERROR_MSG));
     }
 
@@ -208,12 +204,12 @@ class ArtifactDownloaderFactoryTest {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         // Any dockerhub image
         List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:registry.hub.docker.com/library/alpine:sometag")).build());
+                .artifactUri(new URI("docker:registry.hub.docker.com/library/alpine:sometag"))
+                .build());
 
         List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
-        Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent,
-                        dependencyClosure));
+        Throwable err = assertThrows(MissingRequiredComponentsException.class, () -> artifactDownloaderFactory
+                .checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure));
         assertThat(err.getMessage(), containsString(DOCKER_PLUGIN_REQUIRED_ERROR_MSG));
     }
 }

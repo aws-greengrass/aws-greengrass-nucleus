@@ -44,6 +44,7 @@ public class IotConnectionManager implements Closeable {
 
     /**
      * Get URI for connecting to AWS IoT.
+     * 
      * @return URI to AWS IoT, based on device configuration
      * @throws DeviceConfigurationException When device is not configured to get credentials
      */
@@ -56,6 +57,7 @@ public class IotConnectionManager implements Closeable {
 
     /**
      * Initializes and returns the SdkHttpClient.
+     * 
      * @throws TLSAuthException when unable to initialize the SdkHttpClient
      */
     public SdkHttpClient getClient() throws TLSAuthException {
@@ -85,7 +87,6 @@ public class IotConnectionManager implements Closeable {
     private SdkHttpClient initConnectionManager() throws TLSAuthException {
         return ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration).build();
     }
-
 
     /**
      * Clean up underlying connections and close gracefully.

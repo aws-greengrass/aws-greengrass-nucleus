@@ -87,32 +87,31 @@ public class KernelLifecycle {
     private static final int EXECUTOR_SERVICE_SHUTDOWN_TIMEOUT_SECONDS = 5;
     // Enum for provision policy will exist in common library package
     // This will be done as part of re-provisioning
-    // TODO:  Use the enum from common library when available
+    // TODO: Use the enum from common library when available
     private static final String DEFAULT_PROVISIONING_POLICY = "PROVISION_IF_NOT_PROVISIONED";
     private static final String SYSTEM_SHUTDOWN_EVENT = "system-shutdown";
     private static final int MAX_PROVISIONING_PLUGIN_RETRY_ATTEMPTS = 3;
 
-    public static final String MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION = "Multiple provisioning plugins found "
-            + "[%s]. Greengrass expects only one provisioning plugin";
+    public static final String MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION =
+            "Multiple provisioning plugins found " + "[%s]. Greengrass expects only one provisioning plugin";
     public static final String UPDATED_PROVISIONING_MESSAGE = "Updated provisioning configuration";
-    private static final List<Class<? extends GreengrassService>> BUILTIN_SERVICES =
-            Arrays.asList(DockerApplicationManagerService.class, UpdateSystemPolicyService.class,
-                    DeploymentService.class, FleetStatusService.class, TelemetryAgent.class,
-                    TokenExchangeService.class);
+    private static final List<Class<? extends GreengrassService>> BUILTIN_SERVICES = Arrays.asList(
+            DockerApplicationManagerService.class, UpdateSystemPolicyService.class, DeploymentService.class,
+            FleetStatusService.class, TelemetryAgent.class, TokenExchangeService.class);
 
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
     private final Map<String, Class<?>> serviceImplementors = new HashMap<>();
     private final NucleusPaths nucleusPaths;
-    @Setter (AccessLevel.PACKAGE)
+    @Setter(AccessLevel.PACKAGE)
     private ProvisioningConfigUpdateHelper provisioningConfigUpdateHelper;
-    @Setter (AccessLevel.PACKAGE)
+    @Setter(AccessLevel.PACKAGE)
     private ProvisioningPluginFactory provisioningPluginFactory;
     // setter for unit testing
     @Setter(AccessLevel.PACKAGE)
-    private List<Class<? extends Startable>> startables = Arrays.asList(IPCEventStreamService.class,
-            AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
-            PubSubIPCService.class, ComponentMetricIPCService.class);
+    private List<Class<? extends Startable>> startables =
+            Arrays.asList(IPCEventStreamService.class, AuthorizationService.class, ConfigStoreIPCService.class,
+                    LifecycleIPCService.class, PubSubIPCService.class, ComponentMetricIPCService.class);
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> postPluginStartables =
             Collections.singletonList(MqttProxyIPCService.class);
@@ -141,10 +140,11 @@ public class KernelLifecycle {
      * Startup the Kernel and all services.
      */
     public void launch() {
-        logger.atInfo("system-start").kv("version",
-                kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion())
+        logger.atInfo("system-start")
+                .kv("version", kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion())
                 .kv("rootPath", nucleusPaths.rootPath())
-                .kv("configPath", nucleusPaths.configPath()).log("Launch Nucleus");
+                .kv("configPath", nucleusPaths.configPath())
+                .log("Launch Nucleus");
 
         // Startup builtin non-services. This is blocking, so it will wait for them to be running.
         // This guarantees that IPC, for example, is running before any user code
@@ -155,7 +155,7 @@ public class KernelLifecycle {
         final List<DeviceIdentityInterface> provisioningPlugins = findProvisioningPlugins();
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main
-        final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
+        final Queue<String> autostart = findBuiltInServicesAndPlugins(); // NOPMD
         loadPlugins();
 
         // Start MqttProxyIPCService after plugins are loaded, as it requires
@@ -171,8 +171,8 @@ public class KernelLifecycle {
             // Multiple provisioning plugins may need plugin ordering. We do not support plugin ordering right now
             // There is also no compelling use case right now for multiple provisioning plugins.
             if (provisioningPlugins.size() > 1) {
-                String errorString = String.format(MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION,
-                        provisioningPlugins.toString());
+                String errorString =
+                        String.format(MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION, provisioningPlugins.toString());
                 throw new RuntimeException(errorString);
             }
             executeProvisioningPlugin(provisioningPlugins.get(0));
@@ -201,8 +201,10 @@ public class KernelLifecycle {
                 ((FleetStatusService) fleetStatusService).triggerFleetStatusUpdateAtKernelLaunch();
             }
         } catch (ServiceLoadException e) {
-            logger.atError().setCause(e).log("Failed to send status update at kernel launch because kernel was "
-                    + "unable to locate FleetStatusService");
+            logger.atError()
+                    .setCause(e)
+                    .log("Failed to send status update at kernel launch because kernel was "
+                            + "unable to locate FleetStatusService");
         }
     }
 
@@ -217,27 +219,28 @@ public class KernelLifecycle {
         executorService.execute(() -> {
             String pluginName = provisioningPlugin.name();
             logger.atInfo().log("Running provisioning plugin: " + pluginName);
-            Topics pluginConfig = kernel.getConfig()
-                    .findTopics(SERVICES_NAMESPACE_TOPIC, pluginName, CONFIGURATION_CONFIG_KEY);
+            Topics pluginConfig =
+                    kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, pluginName, CONFIGURATION_CONFIG_KEY);
             ProvisionConfiguration provisionConfiguration = null;
             try {
                 provisionConfiguration = RetryUtils.runWithRetry(retryConfig,
-                        () -> provisioningPlugin.updateIdentityConfiguration(new ProvisionContext(
-                                DEFAULT_PROVISIONING_POLICY, pluginConfig == null
-                                ? Collections.emptyMap() : pluginConfig.toPOJO())),
+                        () -> provisioningPlugin
+                                .updateIdentityConfiguration(new ProvisionContext(DEFAULT_PROVISIONING_POLICY,
+                                        pluginConfig == null ? Collections.emptyMap() : pluginConfig.toPOJO())),
                         "Running provisioning plugin", logger);
             } catch (Exception e) {
-                logger.atError().setCause(e).log("Caught exception while running provisioning plugin. "
-                        + "Moving on to run Greengrass without provisioning");
+                logger.atError()
+                        .setCause(e)
+                        .log("Caught exception while running provisioning plugin. "
+                                + "Moving on to run Greengrass without provisioning");
                 return;
             }
 
-            provisioningConfigUpdateHelper.updateSystemConfiguration(provisionConfiguration
-                    .getSystemConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
-            provisioningConfigUpdateHelper.updateNucleusConfiguration(provisionConfiguration
-                    .getNucleusConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
-            logger.atDebug().kv("PluginName", pluginName)
-                    .log(UPDATED_PROVISIONING_MESSAGE);
+            provisioningConfigUpdateHelper.updateSystemConfiguration(provisionConfiguration.getSystemConfiguration(),
+                    UpdateBehaviorTree.UpdateBehavior.MERGE);
+            provisioningConfigUpdateHelper.updateNucleusConfiguration(provisionConfiguration.getNucleusConfiguration(),
+                    UpdateBehaviorTree.UpdateBehavior.MERGE);
+            logger.atDebug().kv("PluginName", pluginName).log(UPDATED_PROVISIONING_MESSAGE);
         });
     }
 
@@ -255,7 +258,9 @@ public class KernelLifecycle {
                         provisioningPluginNames.add(c.getName());
                     }
                 } catch (InstantiationException | IllegalAccessException e) {
-                    logger.atError().kv("Plugin", c.getName()).setCause(e)
+                    logger.atError()
+                            .kv("Plugin", c.getName())
+                            .setCause(e)
                             .log("Error instantiating a provisioning plugin");
                 }
             });
@@ -268,9 +273,11 @@ public class KernelLifecycle {
     void initConfigAndTlog(String configFilePath) {
         String configFileInput = kernelCommandLine.getProvidedConfigPathName();
         if (!Utils.isEmpty(configFileInput)) {
-            logger.atWarn().kv("configFileInput", configFileInput).kv("configOverride", configFilePath)
+            logger.atWarn()
+                    .kv("configFileInput", configFileInput)
+                    .kv("configOverride", configFilePath)
                     .log("Detected ongoing deployment. Ignore the config file from input and use "
-                    + "config file override");
+                            + "config file override");
         }
         kernelCommandLine.setProvidedConfigPathName(configFilePath);
         initConfigAndTlog();
@@ -292,9 +299,8 @@ public class KernelLifecycle {
 
                 // config.tlog is valid if any incomplete tlog truncation is handled correctly and the tlog content
                 // is validated
-                boolean transactionTlogValid =
-                        handleIncompleteTlogTruncation(transactionLogPath) && ConfigurationReader.validateTlog(
-                                transactionLogPath);
+                boolean transactionTlogValid = handleIncompleteTlogTruncation(transactionLogPath)
+                        && ConfigurationReader.validateTlog(transactionLogPath);
 
                 // if config.tlog is valid, read the tlog first because the yaml config file may not be up to date
                 if (transactionTlogValid) {
@@ -335,7 +341,8 @@ public class KernelLifecycle {
 
             // hook tlog to config so that changes over time are persisted to the tlog
             tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath)
-                    .flushImmediately(true).withAutoTruncate(kernel.getContext());
+                    .flushImmediately(true)
+                    .withAutoTruncate(kernel.getContext());
         } catch (IOException ioe) {
             logger.atError().setEventType("nucleus-read-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);
@@ -346,8 +353,9 @@ public class KernelLifecycle {
      * Check if last tlog truncation was interrupted and undo its effect
      *
      * @param transactionLogPath path to config.tlog
-     * @return true if last tlog truncation was complete or if we are able to undo its effect;
-     *         false only if there was an IO error while undoing its effect (renaming the old tlog file)
+     * 
+     * @return true if last tlog truncation was complete or if we are able to undo its effect; false only if there was
+     * an IO error while undoing its effect (renaming the old tlog file)
      */
     private boolean handleIncompleteTlogTruncation(Path transactionLogPath) {
         Path oldTlogPath = ConfigurationWriter.getOldTlogPath(transactionLogPath);
@@ -357,14 +365,17 @@ public class KernelLifecycle {
         if (Files.exists(oldTlogPath)) {
             // we don't need to validate the content of old tlog here, since the existence of old tlog itself signals
             // that the content in config.tlog at the moment is unusable
-            logger.atWarn().log("Config tlog truncation was interrupted by last nucleus shutdown and an old version "
-                    + "of config.tlog exists. Undoing the effect of incomplete truncation by moving {} back to {}",
-                    oldTlogPath, transactionLogPath);
+            logger.atWarn()
+                    .log("Config tlog truncation was interrupted by last nucleus shutdown and an old version "
+                            + "of config.tlog exists. Undoing the effect of incomplete truncation by moving {} back to {}",
+                            oldTlogPath, transactionLogPath);
             try {
                 Files.move(oldTlogPath, transactionLogPath, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                logger.atError().setCause(e).log("An IO error occurred while moving the old tlog file. Will "
-                        + "attempt to load from backup configs");
+                logger.atError()
+                        .setCause(e)
+                        .log("An IO error occurred while moving the old tlog file. Will "
+                                + "attempt to load from backup configs");
                 return false;
             }
         }
@@ -380,30 +391,31 @@ public class KernelLifecycle {
     }
 
     /*
-     * Read configs from backup tlog files.
-     * the fallback order is config.tlog~ -> bootstrap.tlog -> bootstrap.tlog~
+     * Read configs from backup tlog files. the fallback order is config.tlog~ -> bootstrap.tlog -> bootstrap.tlog~
      *
      * @param transactionLogPath path to main config tlog
-     * @param bootstrapTlogPath  path to bootstrap config tlog
-     * @throws IOException       IO error while reading file
+     * 
+     * @param bootstrapTlogPath path to bootstrap config tlog
+     * 
+     * @throws IOException IO error while reading file
      */
     private void readConfigFromBackUpTLog(Path transactionLogPath, Path bootstrapTlogPath) throws IOException {
-        List<Path> tlogBackupPathsInOrder =
-                Arrays.asList(CommitableFile.getBackupFile(transactionLogPath), // config.tlog~
-                        bootstrapTlogPath, // bootstrap.tlog
-                        CommitableFile.getBackupFile(bootstrapTlogPath) // bootstrap.tlog~
-                );
+        List<Path> tlogBackupPathsInOrder = Arrays.asList(CommitableFile.getBackupFile(transactionLogPath), // config.tlog~
+                bootstrapTlogPath, // bootstrap.tlog
+                CommitableFile.getBackupFile(bootstrapTlogPath) // bootstrap.tlog~
+        );
         for (Path tlogBackupPath : tlogBackupPathsInOrder) {
             if (ConfigurationReader.validateTlog(tlogBackupPath)) {
-                logger.atError().log("Transaction log {} is invalid, will attempt to load configuration from {}",
-                        transactionLogPath, tlogBackupPath);
+                logger.atError()
+                        .log("Transaction log {} is invalid, will attempt to load configuration from {}",
+                                transactionLogPath, tlogBackupPath);
                 kernel.getConfig().read(tlogBackupPath);
                 return;
             }
         }
-        logger.atWarn().log("Transaction log {} is invalid and no usable backup transaction log exists. Either an "
-                        + "initial Nucleus setup is ongoing or all config tlogs were corrupted",
-                transactionLogPath);
+        logger.atWarn()
+                .log("Transaction log {} is invalid and no usable backup transaction log exists. Either an "
+                        + "initial Nucleus setup is ongoing or all config tlogs were corrupted", transactionLogPath);
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -414,8 +426,9 @@ public class KernelLifecycle {
             pim.withCacheDirectory(nucleusPaths.pluginPath());
             pim.annotated(ImplementsService.class, cl -> {
                 if (!GreengrassService.class.isAssignableFrom(cl)) {
-                    logger.atError().log("{} needs to be a subclass of GreengrassService "
-                            + "in order to use ImplementsService", cl);
+                    logger.atError()
+                            .log("{} needs to be a subclass of GreengrassService "
+                                    + "in order to use ImplementsService", cl);
                     return;
                 }
                 ImplementsService is = cl.getAnnotation(ImplementsService.class);
@@ -462,7 +475,9 @@ public class KernelLifecycle {
      * Make all services startup in order.
      */
     public void startupAllServices() {
-        kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
+        kernel.orderedDependencies()
+                .stream()
+                .filter(GreengrassService::shouldAutoStart)
                 .forEach(GreengrassService::requestStart);
     }
 
@@ -482,7 +497,8 @@ public class KernelLifecycle {
                 arr[i] = d[i].close();
                 arr[i].whenComplete((v, t) -> {
                     if (t != null) {
-                        logger.atError("service-shutdown-error", t).kv(GreengrassService.SERVICE_NAME_KEY, serviceName)
+                        logger.atError("service-shutdown-error", t)
+                                .kv(GreengrassService.SERVICE_NAME_KEY, serviceName)
                                 .log();
                     }
                 });
@@ -501,15 +517,17 @@ public class KernelLifecycle {
             }
             combinedFuture.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (ExecutionException | InterruptedException | TimeoutException e) {
-            List<String> unclosedServices =
-                    IntStream.range(0, arr.length).filter((i) -> !arr[i].isDone() || arr[i].isCompletedExceptionally())
-                            .mapToObj((i) -> d[i].getName()).collect(Collectors.toList());
+            List<String> unclosedServices = IntStream.range(0, arr.length)
+                    .filter((i) -> !arr[i].isDone() || arr[i].isCompletedExceptionally())
+                    .mapToObj((i) -> d[i].getName())
+                    .collect(Collectors.toList());
             logger.atError("services-shutdown-errored", e).kv("unclosedServices", unclosedServices).log();
         }
     }
 
     /**
      * Shutdown transaction log and all services with given timeout.
+     * 
      * @param timeoutSeconds Timeout in seconds
      */
     public void softShutdown(int timeoutSeconds) {
@@ -574,8 +592,9 @@ public class KernelLifecycle {
                     scheduledExecutorService.awaitTermination(executorServiceShutdownTimeoutSecond, TimeUnit.SECONDS);
             logger.atInfo("executor-service-shutdown-complete")
                     .kv("executor-terminated", executorTerminated)
-                    .kv("scheduled-executor-terminated", scheduledExecutorTerminated).log();
-            //Stop the telemetry logger context after each test so we can delete the telemetry log files that are
+                    .kv("scheduled-executor-terminated", scheduledExecutorTerminated)
+                    .log();
+            // Stop the telemetry logger context after each test so we can delete the telemetry log files that are
             // created during the test.
             TelemetryConfig.getInstance().closeContext();
             logger.atInfo("context-shutdown-initiated").log();
@@ -597,11 +616,12 @@ public class KernelLifecycle {
 
     /**
      * Check if all services has reached to terminal state: RUNNING, FINISHED or BROKEN.
+     * 
      * @return true if all services in terminal states
      */
     public boolean allServicesInTerminalState() {
-        List<GreengrassService> servicesToTrack = kernel.findAutoStartableServicesToTrack()
-                .stream().collect(Collectors.toList());
+        List<GreengrassService> servicesToTrack =
+                kernel.findAutoStartableServicesToTrack().stream().collect(Collectors.toList());
         return servicesToTrack.stream().allMatch(service -> {
             State state = service.getState();
             // service is broken

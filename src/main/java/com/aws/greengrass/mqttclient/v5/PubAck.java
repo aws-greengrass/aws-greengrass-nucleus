@@ -25,8 +25,11 @@ public class PubAck {
      */
     public static PubAck fromCrtPubAck(PubAckPacket p) {
         return new PubAck(p.getReasonCode() == null ? 0 : p.getReasonCode().getValue(), p.getReasonString(),
-                p.getUserProperties() == null ? null
-                        : p.getUserProperties().stream().map(u -> new UserProperty(u.key, u.value))
+                p.getUserProperties() == null
+                        ? null
+                        : p.getUserProperties()
+                                .stream()
+                                .map(u -> new UserProperty(u.key, u.value))
                                 .collect(Collectors.toList()));
     }
 

@@ -25,8 +25,8 @@ public class Unarchiver {
     /**
      * Unarchive a given file into a given path.
      *
-     * @param method        type of archive to undo
-     * @param toUnarchive   the file to be unarchived
+     * @param method type of archive to undo
+     * @param toUnarchive the file to be unarchived
      * @param unarchiveInto the path to unarchive the file into
      * @throws IOException if unarchiving fails
      */
@@ -52,10 +52,9 @@ public class Unarchiver {
                     // Only unarchive when the destination file doesn't exist or the file sizes don't match
                     if (!newFile.exists() || zipEntry.getSize() != newFile.length()) {
                         try (FileChannel fc = FileChannel.open(newFile.toPath(), StandardOpenOption.CREATE,
-                                StandardOpenOption.WRITE,
-                                StandardOpenOption.TRUNCATE_EXISTING);
-                             InputStream is = zf.getInputStream(zipEntry);
-                             OutputStream fos = Channels.newOutputStream(fc)) {
+                                StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+                                InputStream is = zf.getInputStream(zipEntry);
+                                OutputStream fos = Channels.newOutputStream(fc)) {
                             IOUtils.copyLarge(is, fos, buffer);
                             // calls sync() to force the file to disk to the best of our abilities
                             fc.force(true);

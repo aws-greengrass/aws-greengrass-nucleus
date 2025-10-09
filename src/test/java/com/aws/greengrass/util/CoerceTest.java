@@ -33,7 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class CoerceTest {
     @Mock
     Context mockContext;
@@ -105,8 +107,12 @@ class CoerceTest {
         t("foo,  bar, baz", "foo", "bar", "baz");
         t("foo, , baz", "foo", "", "baz");
         t(Topic.of(mockContext, "test", null));
-        t(new String[]{"foo", "bar", "baz"}, "foo", "bar", "baz");
-        t(new int[]{1, 2, 3}, "1", "2", "3");
+        t(new String[] {
+                "foo", "bar", "baz"
+        }, "foo", "bar", "baz");
+        t(new int[] {
+                1, 2, 3
+        }, "1", "2", "3");
     }
 
     void t(Object s, String... expect) {
@@ -141,5 +147,7 @@ class CoerceTest {
         assertEquals("null\n", sb.toString());
     }
 
-    enum en {Red, Green, Blue, Gross}
+    enum en {
+        Red, Green, Blue, Gross
+    }
 }

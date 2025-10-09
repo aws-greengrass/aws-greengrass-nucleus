@@ -19,14 +19,18 @@ import static com.aws.greengrass.util.FileSystemPermission.Option.SetMode;
 public final class Permissions {
     static Platform platform = Platform.getInstance();
 
-    static final FileSystemPermission OWNER_RWX_ONLY =  FileSystemPermission.builder()
-            .ownerRead(true).ownerWrite(true).ownerExecute(true).build();
-    static final FileSystemPermission OWNER_RW_ONLY =  FileSystemPermission.builder()
-            .ownerRead(true).ownerWrite(true).build();
+    static final FileSystemPermission OWNER_RWX_ONLY =
+            FileSystemPermission.builder().ownerRead(true).ownerWrite(true).ownerExecute(true).build();
+    static final FileSystemPermission OWNER_RW_ONLY =
+            FileSystemPermission.builder().ownerRead(true).ownerWrite(true).build();
     public static final FileSystemPermission OWNER_RWX_EVERYONE_RX = FileSystemPermission.builder()
-            .ownerRead(true).ownerWrite(true).ownerExecute(true)
-            .groupRead(true).groupExecute(true)
-            .otherRead(true).otherExecute(true)
+            .ownerRead(true)
+            .ownerWrite(true)
+            .ownerExecute(true)
+            .groupRead(true)
+            .groupExecute(true)
+            .otherRead(true)
+            .otherExecute(true)
             .build();
 
     private Permissions() {
@@ -48,7 +52,7 @@ public final class Permissions {
         if (Files.isDirectory(p)) {
             platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
             try (Stream<Path> files = Files.list(p)) {
-                for (Iterator<Path> it = files.iterator(); it.hasNext(); ) {
+                for (Iterator<Path> it = files.iterator(); it.hasNext();) {
                     setArtifactPermission(it.next(), permission);
                 }
             }
@@ -139,8 +143,7 @@ public final class Permissions {
      */
     public static void setIpcSocketPermission(Path p) throws IOException {
         // note this uses File#set methods as using posix permissions fails.
-        boolean succeeded = p.toFile().setReadable(true, false)
-                && p.toFile().setWritable(true, false)
+        boolean succeeded = p.toFile().setReadable(true, false) && p.toFile().setWritable(true, false)
                 && p.toFile().setExecutable(false, false);
         if (!succeeded) {
             throw new IOException("Could not set permissions on " + p.toString());

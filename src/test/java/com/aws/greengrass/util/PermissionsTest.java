@@ -30,7 +30,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class PermissionsTest {
 
     @TempDir
@@ -65,9 +67,7 @@ class PermissionsTest {
         // create test artifact file in the test dir to check everything gets updated
         Path artifactFile = Files.createTempFile(testDir, "my-artifact", "bin");
         FileSystemPermission artifactPermission =
-                FileSystemPermission.builder()
-                        .ownerRead(true).ownerExecute(true)
-                        .otherRead(true).build();
+                FileSystemPermission.builder().ownerRead(true).ownerExecute(true).otherRead(true).build();
 
         lenient().doReturn(false).when(user).isSuperUser();
 
@@ -84,9 +84,7 @@ class PermissionsTest {
         // create test artifact file in the test dir to check everything gets updated
         Path artifactFile = Files.createTempFile(testDir, "my-artifact", "bin");
         FileSystemPermission artifactPermission =
-                FileSystemPermission.builder()
-                        .ownerRead(true).ownerExecute(true)
-                        .otherRead(true).build();
+                FileSystemPermission.builder().ownerRead(true).ownerExecute(true).otherRead(true).build();
 
         lenient().doReturn(true).when(user).isSuperUser();
 
@@ -100,15 +98,13 @@ class PermissionsTest {
     void setArtifactPermissionFileUser() throws Exception {
         Path artifactFile = Files.createTempFile(testDir, "my-artifact", "bin");
         FileSystemPermission artifactPermission =
-                FileSystemPermission.builder()
-                        .ownerRead(true).ownerExecute(true)
-                        .otherRead(true).build();
+                FileSystemPermission.builder().ownerRead(true).ownerExecute(true).otherRead(true).build();
 
         lenient().doReturn(false).when(user).isSuperUser();
 
         Permissions.setArtifactPermission(artifactFile, artifactPermission);
-        FileSystemPermission withOwnerWrite = artifactPermission.toBuilder()
-                .ownerWrite(!PlatformResolver.isWindows).build();
+        FileSystemPermission withOwnerWrite =
+                artifactPermission.toBuilder().ownerWrite(!PlatformResolver.isWindows).build();
         verify(platform).setPermissions(eq(withOwnerWrite), eq(artifactFile), eq(SetMode));
     }
 
@@ -116,9 +112,7 @@ class PermissionsTest {
     void setArtifactPermissionFileRoot() throws Exception {
         Path artifactFile = Files.createTempFile(testDir, "my-artifact", "bin");
         FileSystemPermission artifactPermission =
-                FileSystemPermission.builder()
-                        .ownerRead(true).ownerExecute(true)
-                        .otherRead(true).build();
+                FileSystemPermission.builder().ownerRead(true).ownerExecute(true).otherRead(true).build();
 
         lenient().doReturn(true).when(user).isSuperUser();
 
@@ -175,31 +169,31 @@ class PermissionsTest {
     }
 
     @Test
-    void setConfigPermission() throws Exception  {
+    void setConfigPermission() throws Exception {
         Permissions.setConfigPermission(testDir);
         verify(platform).setPermissions(eq(Permissions.OWNER_RWX_ONLY), eq(testDir));
     }
 
     @Test
-    void setPluginPermission() throws Exception  {
+    void setPluginPermission() throws Exception {
         Permissions.setPluginPermission(testDir);
         verify(platform).setPermissions(eq(Permissions.OWNER_RWX_ONLY), eq(testDir));
     }
 
     @Test
-    void setTelemetryPermission() throws Exception  {
+    void setTelemetryPermission() throws Exception {
         Permissions.setTelemetryPermission(testDir);
         verify(platform).setPermissions(eq(Permissions.OWNER_RWX_ONLY), eq(testDir));
     }
 
     @Test
-    void setLoggerPermission() throws Exception  {
+    void setLoggerPermission() throws Exception {
         Permissions.setLoggerPermission(testDir);
         verify(platform).setPermissions(eq(Permissions.OWNER_RWX_ONLY), eq(testDir));
     }
 
     @Test
-    void setCliIpcInfoPermission() throws Exception  {
+    void setCliIpcInfoPermission() throws Exception {
         Permissions.setCliIpcInfoPermission(testDir);
         verify(platform).setPermissions(eq(Permissions.OWNER_RWX_EVERYONE_RX), eq(testDir));
     }
@@ -208,10 +202,14 @@ class PermissionsTest {
     @DisabledOnOs(OS.WINDOWS)
     void setIpcSocketPermission() throws Exception {
         Permissions.setIpcSocketPermission(testFile);
-        assertThat(testFile, hasPermission(FileSystemPermission.builder()
-                .ownerRead(true).ownerWrite(true)
-                .groupRead(true).groupWrite(true)
-                .otherRead(true).otherWrite(true)
-                .build()));
+        assertThat(testFile,
+                hasPermission(FileSystemPermission.builder()
+                        .ownerRead(true)
+                        .ownerWrite(true)
+                        .groupRead(true)
+                        .groupWrite(true)
+                        .otherRead(true)
+                        .otherWrite(true)
+                        .build()));
     }
 }

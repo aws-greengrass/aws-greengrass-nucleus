@@ -56,13 +56,13 @@ public class AuthenticationHandler implements InjectionActions {
     /**
      * Register an auth token for an external client which is not part of Greengrass. Only authenticated EG service can
      * register such a token.
+     * 
      * @param requestingAuthToken Auth token of the requesting service
      * @param clientIdentifier The identifier to identify the client for which the token is being requested
      * @return Auth token.
      * @throws UnauthenticatedException thrown when the requestAuthToken is invalid
      */
-    public String registerAuthenticationTokenForExternalClient(String requestingAuthToken,
-                                                               String clientIdentifier)
+    public String registerAuthenticationTokenForExternalClient(String requestingAuthToken, String clientIdentifier)
             throws UnauthenticatedException {
         authenticateRequestsForExternalClient(requestingAuthToken);
         return generateAuthenticationToken(clientIdentifier);
@@ -70,8 +70,8 @@ public class AuthenticationHandler implements InjectionActions {
 
     private String generateAuthenticationToken(String clientIdentifier) {
         String authenticationToken = Utils.generateRandomString(16).toUpperCase();
-        Topics tokenTopics = config.lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC,
-                AUTHENTICATION_TOKEN_LOOKUP_KEY);
+        Topics tokenTopics =
+                config.lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC, AUTHENTICATION_TOKEN_LOOKUP_KEY);
         tokenTopics.withParentNeedsToKnow(false);
 
         Topic tokenTopic = tokenTopics.createLeafChild(authenticationToken);
@@ -90,7 +90,8 @@ public class AuthenticationHandler implements InjectionActions {
         String authenticatedService = doAuthentication(requestingAuthToken);
         // Making it available only for 1P service right now.
         if (!authenticatedService.startsWith("aws.greengrass")) {
-            logger.atError().kv("requestingServiceName", authenticatedService)
+            logger.atError()
+                    .kv("requestingServiceName", authenticatedService)
                     .log("Invalid requesting auth token for service to register/revoke external client token");
             throw new UnauthenticatedException("Invalid requesting auth token for service");
         }
@@ -99,6 +100,7 @@ public class AuthenticationHandler implements InjectionActions {
     /**
      * Revoke an auth token for an external client which is not part of Greengrass. Only authenticated EG service can
      * revoke such a token.
+     * 
      * @param requestingAuthToken Auth token of the requesting service
      * @param authTokenToRevoke The auth token to revoke
      * @return true if authTokenToRevoke existed and is now removed, false if authTokenToRevoke does not exist.
@@ -111,8 +113,8 @@ public class AuthenticationHandler implements InjectionActions {
     }
 
     private boolean revokeAuthenticationToken(String authTokenToRevoke) {
-        Topic tokenTopic = config.lookup(GreengrassService.SERVICES_NAMESPACE_TOPIC,
-                AUTHENTICATION_TOKEN_LOOKUP_KEY, authTokenToRevoke);
+        Topic tokenTopic = config.lookup(GreengrassService.SERVICES_NAMESPACE_TOPIC, AUTHENTICATION_TOKEN_LOOKUP_KEY,
+                authTokenToRevoke);
         if (tokenTopic == null) {
             return false;
         }
@@ -122,6 +124,7 @@ public class AuthenticationHandler implements InjectionActions {
 
     /**
      * Lookup the provided authentication token to associate it with a service (or reject it).
+     * 
      * @param authenticationToken token to be looked up.
      * @return service name to which the token is associated.
      * @throws UnauthenticatedException if token is invalid or unassociated.
@@ -130,8 +133,8 @@ public class AuthenticationHandler implements InjectionActions {
         if (authenticationToken == null) {
             throw new UnauthenticatedException("Invalid authentication token");
         }
-        Topic service = config.find(GreengrassService.SERVICES_NAMESPACE_TOPIC,
-                AUTHENTICATION_TOKEN_LOOKUP_KEY, authenticationToken);
+        Topic service = config.find(GreengrassService.SERVICES_NAMESPACE_TOPIC, AUTHENTICATION_TOKEN_LOOKUP_KEY,
+                authenticationToken);
         if (service == null) {
             throw new UnauthenticatedException("Authentication token not found");
         }

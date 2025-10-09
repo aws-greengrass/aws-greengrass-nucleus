@@ -31,8 +31,7 @@ public class ServiceUpdateException extends DeploymentException {
         super.addErrorCode(errorCode);
     }
 
-    public ServiceUpdateException(String message, DeploymentErrorCode errorCode,
-                                  DeploymentErrorType errorType) {
+    public ServiceUpdateException(String message, DeploymentErrorCode errorCode, DeploymentErrorType errorType) {
         super(message);
         super.addErrorCode(COMPONENT_UPDATE_ERROR);
         super.addErrorCode(errorCode);
@@ -40,15 +39,14 @@ public class ServiceUpdateException extends DeploymentException {
     }
 
     public ServiceUpdateException(String message, Throwable e, DeploymentErrorCode errorCode,
-                                  DeploymentErrorType errorType) {
+            DeploymentErrorType errorType) {
         super(message, e);
         super.addErrorCode(COMPONENT_UPDATE_ERROR);
         super.addErrorCode(errorCode);
         super.addErrorType(errorType);
     }
 
-    public ServiceUpdateException(Throwable e, DeploymentErrorCode errorCode,
-                                  DeploymentErrorType errorType) {
+    public ServiceUpdateException(Throwable e, DeploymentErrorCode errorCode, DeploymentErrorType errorType) {
         super(e);
         super.addErrorCode(COMPONENT_UPDATE_ERROR);
         super.addErrorCode(errorCode);

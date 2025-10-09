@@ -24,7 +24,7 @@ public interface SystemResourceController {
     /**
      * Update the resource limits for a generic external service.
      *
-     * @param component     a greengrass service instance
+     * @param component a greengrass service instance
      * @param resourceLimit resource limits
      */
     void updateResourceLimits(GreengrassService component, Map<String, Object> resourceLimit);
@@ -38,8 +38,9 @@ public interface SystemResourceController {
 
     /**
      * Add the processes of a generic external service to the resource controller.
-     *  @param component a greengrass service instance
-     * @param process   the first process of the external service
+     * 
+     * @param component a greengrass service instance
+     * @param process the first process of the external service
      */
     void addComponentProcess(GreengrassService component, Process process);
 

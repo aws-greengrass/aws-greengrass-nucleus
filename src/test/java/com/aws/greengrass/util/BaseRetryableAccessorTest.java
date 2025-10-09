@@ -21,13 +21,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class BaseRetryableAccessorTest {
     private static final String MOCK_RESPONSE = "MockResponse";
     private static final int RETRY_COUNT = 3;
     private static final int BACKOFF_MILLIS = 100;
-    private static final Iterable<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS = new HashSet<>(
-            Arrays.asList(HttpException.class));
+    private static final Iterable<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
+            new HashSet<>(Arrays.asList(HttpException.class));
     @Mock
     private CrashableSupplier func;
 

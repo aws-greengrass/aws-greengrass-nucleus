@@ -61,9 +61,9 @@ public class DefaultDockerClient {
      * Login to given docker registry.
      *
      * @param registry Registry to log into, with credentials encapsulated
-     * @throws DockerLoginException                error in authenticating with the registry
+     * @throws DockerLoginException error in authenticating with the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
-     * @throws DockerServiceUnavailableException   an error that can be potentially fixed through retries
+     * @throws DockerServiceUnavailableException an error that can be potentially fixed through retries
      */
     public void login(Registry registry)
             throws DockerLoginException, UserNotAuthorizedForDockerException, DockerServiceUnavailableException {
@@ -105,12 +105,12 @@ public class DefaultDockerClient {
      * Pull given docker image.
      *
      * @param image Image to download
-     * @throws DockerServiceUnavailableException   an error that can be potentially fixed through retries
+     * @throws DockerServiceUnavailableException an error that can be potentially fixed through retries
      * @throws InvalidImageOrAccessDeniedException an error indicating incorrect image specification or auth issues with
-     *                                             the registry
+     *         the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
-     * @throws ConnectionException                 network error
-     * @throws DockerPullException                 unexpected error
+     * @throws ConnectionException network error
+     * @throws DockerPullException unexpected error
      */
     public void pullImage(Image image) throws DockerServiceUnavailableException, InvalidImageOrAccessDeniedException,
             UserNotAuthorizedForDockerException, DockerPullException, ConnectionException {
@@ -158,12 +158,12 @@ public class DefaultDockerClient {
      * Check if an image exists locally.
      *
      * @param image image to check locally
-     * @throws DockerServiceUnavailableException   an error that can be potentially fixed through retries
+     * @throws DockerServiceUnavailableException an error that can be potentially fixed through retries
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
      * @throws DockerImageQueryException unexpected error
      */
-    public boolean imageExistsLocally(Image image) throws DockerServiceUnavailableException,
-            UserNotAuthorizedForDockerException, DockerImageQueryException {
+    public boolean imageExistsLocally(Image image)
+            throws DockerServiceUnavailableException, UserNotAuthorizedForDockerException, DockerImageQueryException {
 
         CliResponse response = runDockerCmd(String.format("docker images -q %s", image.getImageFullName()));
 
@@ -176,8 +176,8 @@ public class DefaultDockerClient {
             return StringUtils.isNotBlank(response.getOut());
         } else {
             throw new DockerImageQueryException(
-                        String.format("Unexpected error while trying to perform docker images -q %s", response.err),
-                        response.failureCause);
+                    String.format("Unexpected error while trying to perform docker images -q %s", response.err),
+                    response.failureCause);
         }
     }
 
@@ -209,8 +209,8 @@ public class DefaultDockerClient {
 
     private Optional<UserNotAuthorizedForDockerException> checkUserAuthorizationError(CliResponse response) {
         UserNotAuthorizedForDockerException error = null;
-        if (response.exit.isPresent() && response.exit.get() != 0 && response.err
-                .contains("Got permission denied while trying to connect to the Docker daemon socket")) {
+        if (response.exit.isPresent() && response.exit.get() != 0
+                && response.err.contains("Got permission denied while trying to connect to the Docker daemon socket")) {
             error = new UserNotAuthorizedForDockerException("User not authorized to use docker, if you're "
                     + "not running greengrass as root, please add the user you're running with to docker group "
                     + "and redo the deployment");

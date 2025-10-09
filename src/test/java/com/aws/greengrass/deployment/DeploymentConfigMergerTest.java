@@ -78,8 +78,9 @@ import static org.mockito.Mockito.when;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
-
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeploymentConfigMergerTest {
 
     private final Logger logger = LogManager.getLogger(this.getClass());
@@ -241,8 +242,7 @@ class DeploymentConfigMergerTest {
     }
 
     @Test
-    void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully()
-            throws Exception {
+    void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully() throws Exception {
         // GIVEN
         GreengrassService mockService = mock(GreengrassService.class);
 
@@ -308,8 +308,7 @@ class DeploymentConfigMergerTest {
     }
 
     @Test
-    void GIVEN_waitForServicesToStart_WHEN_deployment_is_cancelled_THEN_return_successfully()
-            throws Exception {
+    void GIVEN_waitForServicesToStart_WHEN_deployment_is_cancelled_THEN_return_successfully() throws Exception {
         // GIVEN
         GreengrassService mockService = mock(GreengrassService.class);
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
@@ -343,20 +342,18 @@ class DeploymentConfigMergerTest {
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
+        DeploymentConfigMerger merger =
+                new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setConfigurationArn("NoSafetyCheckDeploy");
-        doc.setComponentUpdatePolicy(
-                new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
-
+        doc.setComponentUpdatePolicy(new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
         verify(updateSystemPolicyService, times(0)).addUpdateAction(any(), any());
 
         doc.setConfigurationArn("DeploymentId");
-        doc.setComponentUpdatePolicy(
-                new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
+        doc.setComponentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
 
@@ -381,16 +378,16 @@ class DeploymentConfigMergerTest {
         });
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
+        DeploymentConfigMerger merger =
+                new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
-        when(doc.getComponentUpdatePolicy()).thenReturn(
-                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
-        Future<DeploymentResult> fut = merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
+        Future<DeploymentResult> fut =
+                merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
 
-        verify(updateSystemPolicyService)
-                .addUpdateAction(any(), cancelledTaskCaptor.capture());
+        verify(updateSystemPolicyService).addUpdateAction(any(), cancelledTaskCaptor.capture());
 
         assertEquals(0, cancelledTaskCaptor.getValue().getTimeout());
         assertEquals("DeploymentId", cancelledTaskCaptor.getValue().getDeploymentId());
@@ -417,11 +414,11 @@ class DeploymentConfigMergerTest {
         when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
+        DeploymentConfigMerger merger =
+                new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
-        when(doc.getComponentUpdatePolicy()).thenReturn(
-                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
 
@@ -438,7 +435,8 @@ class DeploymentConfigMergerTest {
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_deployment_has_new_config_THEN_new_config_is_validated(ExtensionContext extensionContext) throws Throwable {
+    void GIVEN_deployment_activate_WHEN_deployment_has_new_config_THEN_new_config_is_validated(
+            ExtensionContext extensionContext) throws Throwable {
         ArgumentCaptor<UpdateAction> taskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
         UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
         when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);
@@ -452,9 +450,11 @@ class DeploymentConfigMergerTest {
 
         Topic regionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "us-west-2");
         when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
-        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-west-2.amazonaws.com");
+        Topic credEndpointTopic =
+                Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-west-2.amazonaws.com");
         when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
-        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
+        Topic dataEndpointTopic =
+                Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
         when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
         when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
         ArgumentCaptor<String> regionCaptor = ArgumentCaptor.forClass(String.class);
@@ -473,11 +473,11 @@ class DeploymentConfigMergerTest {
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
+        DeploymentConfigMerger merger =
+                new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
-        when(doc.getComponentUpdatePolicy()).thenReturn(
-                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
 
@@ -492,7 +492,8 @@ class DeploymentConfigMergerTest {
         // THEN
         verify(defaultActivator, times(1)).activate(any(), any(), any(Long.class), any());
 
-        verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(), dataEndpointCaptor.capture());
+        verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(),
+                dataEndpointCaptor.capture());
         assertNotNull(regionCaptor.getValue());
         assertEquals("us-east-1", regionCaptor.getValue());
         assertNotNull(credEndpointCaptor.getValue());
@@ -502,7 +503,8 @@ class DeploymentConfigMergerTest {
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_deployment_has_some_new_config_THEN_old_config_is_validated(ExtensionContext extensionContext) throws Throwable {
+    void GIVEN_deployment_activate_WHEN_deployment_has_some_new_config_THEN_old_config_is_validated(
+            ExtensionContext extensionContext) throws Throwable {
         ArgumentCaptor<UpdateAction> taskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
         UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
         when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);
@@ -516,9 +518,11 @@ class DeploymentConfigMergerTest {
 
         Topic regionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "us-west-2");
         when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
-        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-west-2.amazonaws.com");
+        Topic credEndpointTopic =
+                Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-west-2.amazonaws.com");
         when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
-        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
+        Topic dataEndpointTopic =
+                Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
         when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
         when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
         ArgumentCaptor<String> regionCaptor = ArgumentCaptor.forClass(String.class);
@@ -534,11 +538,11 @@ class DeploymentConfigMergerTest {
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
+        DeploymentConfigMerger merger =
+                new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
-        when(doc.getComponentUpdatePolicy()).thenReturn(
-                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
 
@@ -553,7 +557,8 @@ class DeploymentConfigMergerTest {
         // THEN
         verify(defaultActivator, times(1)).activate(any(), any(), any(Long.class), any());
 
-        verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(), dataEndpointCaptor.capture());
+        verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(),
+                dataEndpointCaptor.capture());
 
         assertNotNull(regionCaptor.getValue());
         assertEquals("us-east-1", regionCaptor.getValue());

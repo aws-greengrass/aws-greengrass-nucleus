@@ -39,14 +39,14 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     private final Configuration conf;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean truncateQueued = new AtomicBoolean();
-    private final AtomicLong count = new AtomicLong(0);  // entries written so far
+    private final AtomicLong count = new AtomicLong(0); // entries written so far
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to sync config variable")
     private boolean autoTruncate = false;
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to sync config variable")
-    private long maxCount = DEFAULT_MAX_TLOG_ENTRIES;  // max before truncation
-    private long retryCount = 0;  // retry truncate at this count after error occurred
+    private long maxCount = DEFAULT_MAX_TLOG_ENTRIES; // max before truncation
+    private long retryCount = 0; // retry truncate at this count after error occurred
     private Context context;
 
     private static final Logger logger = LogManager.getLogger(ConfigurationWriter.class);
@@ -174,15 +174,18 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             try {
                 Coerce.appendParseableString(tlogline, out);
             } catch (IOException ex) {
-                logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())
-                        .setCause(ex).log();
+                logger.atError()
+                        .setEventType("config-dump-error")
+                        .addKeyValue("configNode", n.getFullName())
+                        .setCause(ex)
+                        .log();
             }
             if (flushImmediately) {
                 flush(out);
             }
             long currCount = count.incrementAndGet();
-            if (autoTruncate && currCount > maxCount && currCount > retryCount && truncateQueued.compareAndSet(false,
-                    true)) {
+            if (autoTruncate && currCount > maxCount && currCount > retryCount
+                    && truncateQueued.compareAndSet(false, true)) {
                 // childChanged runs on publish thread already. can only queue a task without blocking
                 context.runOnPublishQueue(this::truncateTlog);
                 logger.atDebug(TRUNCATE_TLOG_EVENT).log("queued");
@@ -203,8 +206,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      * @throws IOException if I/O error creating output file or writer
      */
     private static Writer newTlogWriter(Path outputPath) throws IOException {
-        return Files.newBufferedWriter(outputPath, StandardOpenOption.APPEND,
-                StandardOpenOption.SYNC, StandardOpenOption.CREATE);
+        return Files.newBufferedWriter(outputPath, StandardOpenOption.APPEND, StandardOpenOption.SYNC,
+                StandardOpenOption.CREATE);
     }
 
     public static Path getOldTlogPath(Path tlogPath) {

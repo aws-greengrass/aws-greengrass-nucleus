@@ -44,7 +44,8 @@ class TopicsTest {
         topicsB = new Topics(context, "root", null);
         assertTrue(Topics.compareChildren(topicsA, topicsB));
 
-        Map<String, Object> topicsMap = ConfigPlatformResolver.resolvePlatformMap(getClass().getResource("topicsConfig.yaml"));
+        Map<String, Object> topicsMap =
+                ConfigPlatformResolver.resolvePlatformMap(getClass().getResource("topicsConfig.yaml"));
         UpdateBehaviorTree behavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, 0);
         topicsA.updateFromMap(topicsMap, behavior);
         topicsB.updateFromMap(topicsMap, behavior);

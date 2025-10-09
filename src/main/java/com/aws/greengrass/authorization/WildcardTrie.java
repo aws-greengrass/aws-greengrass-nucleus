@@ -12,15 +12,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A Wildcard trie node which contains properties to identify the Node and a map of all it's children.
- * - isTerminal: If the node is a terminal node while adding a resource. It might not necessarily be a leaf node as we
- *   are adding multiple resources having same prefix but terminating on different points.
- * - isTerminalLevel: If the node is the last level before a valid use "#" wildcard (eg: "abc/123/#", 123/ would be the
- *   terminalLevel).
- * - isWildcard: If current Node is a valid glob wildcard (*)
- * - isMQTTWildcard: If current Node is a valid MQTT wildcard (#, +)
- * - matchAll: if current node should match everything. Could be MQTTWildcard or a wildcard and will always be a
- *   terminal Node.
+ * A Wildcard trie node which contains properties to identify the Node and a map of all it's children. - isTerminal: If
+ * the node is a terminal node while adding a resource. It might not necessarily be a leaf node as we are adding
+ * multiple resources having same prefix but terminating on different points. - isTerminalLevel: If the node is the last
+ * level before a valid use "#" wildcard (eg: "abc/123/#", 123/ would be the terminalLevel). - isWildcard: If current
+ * Node is a valid glob wildcard (*) - isMQTTWildcard: If current Node is a valid MQTT wildcard (#, +) - matchAll: if
+ * current node should match everything. Could be MQTTWildcard or a wildcard and will always be a terminal Node.
  */
 public class WildcardTrie {
     protected static final String GLOB_WILDCARD = "*";
@@ -35,21 +32,18 @@ public class WildcardTrie {
     protected static final char singleLevelWildcardChar = MQTT_SINGLELEVEL_WILDCARD.charAt(0);
     protected static final char levelSeparatorChar = MQTT_LEVEL_SEPARATOR.charAt(0);
 
-
     private boolean isTerminal;
     private boolean isTerminalLevel;
     private boolean isWildcard;
     private boolean isMQTTWildcard;
     private boolean matchAll;
-    private final Map<String, WildcardTrie> children =
-            new DefaultConcurrentHashMap<>(WildcardTrie::new);
+    private final Map<String, WildcardTrie> children = new DefaultConcurrentHashMap<>(WildcardTrie::new);
 
     /**
-     * Add allowed resources for a particular operation.
-     * - A new node is created for every occurrence of a wildcard (*, #, +).
-     * - Only nodes with valid usage of wildcards are marked with isWildcard or isMQTTWildcard.
-     * - Any other characters are grouped together to form a node.
-     * - Just a '*' or '#' creates a Node setting matchAll to true and would match all resources
+     * Add allowed resources for a particular operation. - A new node is created for every occurrence of a wildcard (*,
+     * #, +). - Only nodes with valid usage of wildcards are marked with isWildcard or isMQTTWildcard. - Any other
+     * characters are grouped together to form a node. - Just a '*' or '#' creates a Node setting matchAll to true and
+     * would match all resources
      *
      * @param subject resource pattern
      */
@@ -162,8 +156,8 @@ public class WildcardTrie {
     }
 
     /**
-     * The method tries to parse the given string using escape sequence ${c} (where c is a character to be escaped)
-     * and returns the character c if the pattern is matched. In any other scenario it returns null character ('\0')
+     * The method tries to parse the given string using escape sequence ${c} (where c is a character to be escaped) and
+     * returns the character c if the pattern is matched. In any other scenario it returns null character ('\0')
      *
      * @param str string provided to get
      */
@@ -183,7 +177,9 @@ public class WildcardTrie {
      *
      * @param str string to match.
      */
-    @SuppressWarnings({"PMD.UselessParentheses", "PMD.CollapsibleIfStatements"})
+    @SuppressWarnings({
+            "PMD.UselessParentheses", "PMD.CollapsibleIfStatements"
+    })
     public boolean matchesStandard(String str) {
         if (str == null) {
             return true;
@@ -239,12 +235,14 @@ public class WildcardTrie {
     }
 
     /**
-     * Match given string to the corresponding allowed resources trie. MQTT wildcards are processed only if
-     * its a valid usage, otherwise treated as normal characters.
+     * Match given string to the corresponding allowed resources trie. MQTT wildcards are processed only if its a valid
+     * usage, otherwise treated as normal characters.
      *
      * @param str string to match
      */
-    @SuppressWarnings({"PMD.UselessParentheses", "PMD.CollapsibleIfStatements"})
+    @SuppressWarnings({
+            "PMD.UselessParentheses", "PMD.CollapsibleIfStatements"
+    })
     public boolean matchesMQTT(String str) {
         if (str == null) {
             return true;
@@ -269,9 +267,8 @@ public class WildcardTrie {
             WildcardTrie value = e.getValue();
 
             // Process *, # and + wildcards (only process MQTT wildcards that have valid usages)
-            if ((value.isWildcard && key.equals(GLOB_WILDCARD))
-                    || (value.isMQTTWildcard && (key.equals(MQTT_SINGLELEVEL_WILDCARD)
-                    || key.equals(MQTT_MULTILEVEL_WILDCARD)))) {
+            if ((value.isWildcard && key.equals(GLOB_WILDCARD)) || (value.isMQTTWildcard
+                    && (key.equals(MQTT_SINGLELEVEL_WILDCARD) || key.equals(MQTT_MULTILEVEL_WILDCARD)))) {
                 hasMatch = value.matchesMQTT(str);
                 continue;
             }
@@ -286,8 +283,8 @@ public class WildcardTrie {
             }
 
             // Check if it's terminalLevel to allow matching of string without "/" in the end
-            //      "abc/#" should match "abc".
-            //      "abc/*xy/#" should match "abc/12xy"
+            // "abc/#" should match "abc".
+            // "abc/*xy/#" should match "abc/12xy"
             String terminalKey = key.substring(0, key.length() - 1);
             if (value.isTerminalLevel) {
                 if (str.equals(terminalKey)) {
@@ -312,9 +309,8 @@ public class WildcardTrie {
             if (isMQTTWildcard) {
                 int foundChildIndex = str.indexOf(key);
                 // Matched characters inside + should not contain a "/"
-                while (foundChildIndex >= 0
-                        && foundChildIndex < str.length()
-                        && (str.substring(0,foundChildIndex).indexOf(MQTT_LEVEL_SEPARATOR) == -1)) {
+                while (foundChildIndex >= 0 && foundChildIndex < str.length()
+                        && (str.substring(0, foundChildIndex).indexOf(MQTT_LEVEL_SEPARATOR) == -1)) {
                     matchingChildren.put(str.substring(foundChildIndex + keyLength), value);
                     foundChildIndex = str.indexOf(key, foundChildIndex + 1);
                 }
@@ -332,7 +328,6 @@ public class WildcardTrie {
     }
 
     public boolean matches(String str, ResourceLookupPolicy lookupPolicy) {
-        return lookupPolicy == ResourceLookupPolicy.MQTT_STYLE ? matchesMQTT(str)
-                : matchesStandard(str);
+        return lookupPolicy == ResourceLookupPolicy.MQTT_STYLE ? matchesMQTT(str) : matchesStandard(str);
     }
 }

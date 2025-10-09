@@ -94,7 +94,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class FleetStatusServiceTest extends GGServiceTestUtil {
     @Mock
     private MqttClient mockMqttClient;
@@ -127,11 +129,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     private ScheduledThreadPoolExecutor mockSes;
     private FleetStatusService fleetStatusService;
     private static final String VERSION = "2.0.0";
-    private static final ComponentStatusDetails TEST_BROKEN_COMPONENT_STATUS_DETAILS =
-            ComponentStatusDetails.builder()
-                    .statusCodes(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
-                    .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
-                    .build();
+    private static final ComponentStatusDetails TEST_BROKEN_COMPONENT_STATUS_DETAILS = ComponentStatusDetails.builder()
+            .statusCodes(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
+            .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
+            .build();
 
     @BeforeEach
     void setup() {
@@ -144,9 +145,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(mockDeviceConfiguration.getNucleusVersion()).thenReturn(VERSION);
         Topic sequenceNumberTopic = Topic.of(context, FLEET_STATUS_SEQUENCE_NUMBER_TOPIC, "0");
         lenient().when(config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)).thenReturn(sequenceNumberTopic);
-        Topic lastPeriodicUpdateTime = Topic.of(context, FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC, Instant.now().toEpochMilli());
+        Topic lastPeriodicUpdateTime =
+                Topic.of(context, FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC, Instant.now().toEpochMilli());
         lenient().when(config.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC)).thenReturn(lastPeriodicUpdateTime);
-        lenient().when(mockMqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
+        lenient().when(mockMqttClient.publish(any(PublishRequest.class)))
+                .thenReturn(CompletableFuture.completedFuture(0));
     }
 
     @AfterEach
@@ -173,8 +176,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
@@ -182,7 +184,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
@@ -197,7 +200,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.locate("MockService2")).thenReturn(mockGreengrassService2);
-        when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockGreengrassService1, mockGreengrassService2));
+        when(mockKernel.orderedDependencies())
+                .thenReturn(Arrays.asList(mockGreengrassService1, mockGreengrassService2));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         when(mockDeploymentService.isComponentRoot("MockService")).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
@@ -254,12 +258,14 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
-        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(1).getFleetConfigArns());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                fleetStatusDetails.getComponentDetails().get(1).getFleetConfigArns());
         assertServiceIsRootOrNot(fleetStatusDetails.getComponentDetails().get(1));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentDetails().get(1).getComponentName());
         assertNull(fleetStatusDetails.getComponentDetails().get(1).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(1).getState());
-        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(1).getFleetConfigArns());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                fleetStatusDetails.getComponentDetails().get(1).getFleetConfigArns());
         assertThat(serviceNamesToCheck, is(IsEmptyCollection.empty()));
     }
 
@@ -272,8 +278,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
@@ -281,7 +286,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_BROKEN_COMPONENT_STATUS_DETAILS);
@@ -314,7 +320,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         String failureCauseMessage = "Service in broken state after deployment";
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.FAILED.toString());
         Map<String, String> statusDetails = new HashMap<>();
-        statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED.toString());
+        statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY,
+                DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED.toString());
         statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, failureCauseMessage);
         map.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
         consumerArgumentCaptor.getValue().apply(map);
@@ -341,19 +348,23 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
         assertEquals(1, fleetStatusDetails.getComponentDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
-        assertEquals(TEST_BROKEN_COMPONENT_STATUS_DETAILS, fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
+        assertEquals(TEST_BROKEN_COMPONENT_STATUS_DETAILS,
+                fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.BROKEN, fleetStatusDetails.getComponentDetails().get(0).getState());
-        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
     }
 
     @Test
-    void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data() throws InterruptedException {
+    void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data()
+            throws InterruptedException {
         // Set up all the topics
         Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
         statusConfigTopics.createLeafChild(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC).withValue("10000");
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
 
@@ -376,13 +387,15 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_component_status_change_WHEN_MQTT_connection_interrupted_THEN_No_MQTT_Sent_with_fss_data() throws InterruptedException {
+    void GIVEN_component_status_change_WHEN_MQTT_connection_interrupted_THEN_No_MQTT_Sent_with_fss_data()
+            throws InterruptedException {
         // Set up all the topics
         Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
         statusConfigTopics.createLeafChild(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC).withValue("10000");
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
@@ -410,8 +423,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
@@ -419,7 +431,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
@@ -454,7 +467,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
-        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
     }
 
     @Test
@@ -466,8 +480,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
@@ -475,7 +488,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
 
@@ -495,8 +509,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
@@ -504,7 +517,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
 
@@ -525,7 +539,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
@@ -552,8 +567,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         // Update the state of an EG service.
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.RUNNING);
-        fleetStatusService.addServicesToPreviouslyKnownServicesList(Collections.singletonList(
-                mockGreengrassService1), Instant.MIN);
+        fleetStatusService.addServicesToPreviouslyKnownServicesList(Collections.singletonList(mockGreengrassService1),
+                Instant.MIN);
 
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
         Map<String, String> statusDetails = new HashMap<>();
@@ -599,8 +614,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
@@ -608,7 +622,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_BROKEN_COMPONENT_STATUS_DETAILS);
@@ -645,9 +660,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(1, fleetStatusDetails.getComponentDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
-        assertEquals(TEST_BROKEN_COMPONENT_STATUS_DETAILS, fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
+        assertEquals(TEST_BROKEN_COMPONENT_STATUS_DETAILS,
+                fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.BROKEN, fleetStatusDetails.getComponentDetails().get(0).getState());
-        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
     }
 
     @Test
@@ -658,14 +675,14 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         statusConfigTopics.createLeafChild(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC).withValue("10000");
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_BROKEN_COMPONENT_STATUS_DETAILS);
@@ -717,9 +734,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(1, fleetStatusDetails.getComponentDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
-        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
 
     }
+
     @Test
     void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent() throws InterruptedException {
         // Set up all the topics
@@ -727,7 +746,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         statusConfigTopics.createLeafChild(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC).withValue("3000");
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
 
@@ -756,8 +776,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
@@ -765,7 +784,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
@@ -780,7 +800,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockKernel.locate("MockService2")).thenReturn(mockGreengrassService2);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
 
-        when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockGreengrassService1, mockGreengrassService2));
+        when(mockKernel.orderedDependencies())
+                .thenReturn(Arrays.asList(mockGreengrassService1, mockGreengrassService2));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
@@ -825,7 +846,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             PublishRequest publishRequest = publishRequests.get(i);
             assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
             assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
-            FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
+            FleetStatusDetails fleetStatusDetails =
+                    mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
             assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
@@ -840,7 +862,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
                 assertNull(componentDetails.getComponentStatusDetails());
                 assertEquals(State.RUNNING, componentDetails.getState());
-                assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                assertEquals(
+                        Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
                         componentDetails.getFleetConfigArns());
             } else {
                 assertEquals(Trigger.RECONNECT, fleetStatusDetails.getTrigger());
@@ -857,7 +880,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
@@ -881,8 +905,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
         ObjectMapper mapper = new ObjectMapper();
         assertEquals(1, publishRequests.size());
-        FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequests.get(0).getPayload(),
-                FleetStatusDetails.class);
+        FleetStatusDetails fleetStatusDetails =
+                mapper.readValue(publishRequests.get(0).getPayload(), FleetStatusDetails.class);
         assertEquals(Trigger.RECONNECT, fleetStatusDetails.getTrigger());
     }
 
@@ -895,8 +919,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
         Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
         groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
         groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
         allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
@@ -904,7 +927,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
@@ -943,7 +967,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
-        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
     }
 
     @Test
@@ -954,8 +979,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
         statusConfigTopics.createLeafChild(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC).withValue("10000");
         Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
-                true);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12", true);
 
         List<GreengrassService> greengrassServices = new ArrayList<>();
         Set<String> serviceNamesToCheck = new HashSet<>();
@@ -977,7 +1001,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
         // Set up all the mocks
-        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(),
+                anyString())).thenReturn(true);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.orderedDependencies()).thenReturn(greengrassServices);
         when(mockDeploymentService.getConfig()).thenReturn(config);
@@ -1013,7 +1038,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             PublishRequest publishRequest = publishRequests.get(i);
             assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
             assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
-            FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
+            FleetStatusDetails fleetStatusDetails =
+                    mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
             assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
@@ -1025,7 +1051,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 serviceNamesToCheck.remove(componentDetails.getComponentName());
                 assertNull(componentDetails.getComponentStatusDetails());
                 assertEquals(State.RUNNING, componentDetails.getState());
-                assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                assertEquals(
+                        Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
                         componentDetails.getFleetConfigArns());
             }
         }
@@ -1034,9 +1061,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
     private FleetStatusService createFSS() {
         PlatformResolver platformResolver = new PlatformResolver(null);
-        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,
-                mockKernelLifecycle, ses);
+        FleetStatusService fleetStatusService =
+                new FleetStatusService(config, mockMqttClient, mockDeploymentStatusKeeper, mockKernel,
+                        mockDeviceConfiguration, platformResolver, mockKernelLifecycle, ses);
         fleetStatusService.postInject();
         fleetStatusService.setWaitBetweenPublishDisabled(true);
         fleetStatusService.getIsLaunchMessageSent().set(true);
@@ -1045,9 +1072,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
     private FleetStatusService createFSSWithMockSes() {
         PlatformResolver platformResolver = new PlatformResolver(null);
-        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,
-                mockKernelLifecycle, mockSes);
+        FleetStatusService fleetStatusService =
+                new FleetStatusService(config, mockMqttClient, mockDeploymentStatusKeeper, mockKernel,
+                        mockDeviceConfiguration, platformResolver, mockKernelLifecycle, mockSes);
         fleetStatusService.postInject();
         fleetStatusService.setWaitBetweenPublishDisabled(true);
         fleetStatusService.getIsLaunchMessageSent().set(true);
@@ -1056,9 +1083,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
     private FleetStatusService createFSS(int periodicUpdateIntervalSec) {
         PlatformResolver platformResolver = new PlatformResolver(null);
-        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,mockKernelLifecycle,
-                ses, periodicUpdateIntervalSec);
+        FleetStatusService fleetStatusService =
+                new FleetStatusService(config, mockMqttClient, mockDeploymentStatusKeeper, mockKernel,
+                        mockDeviceConfiguration, platformResolver, mockKernelLifecycle, ses, periodicUpdateIntervalSec);
         fleetStatusService.postInject();
         fleetStatusService.setWaitBetweenPublishDisabled(true);
         fleetStatusService.getIsLaunchMessageSent().set(true);

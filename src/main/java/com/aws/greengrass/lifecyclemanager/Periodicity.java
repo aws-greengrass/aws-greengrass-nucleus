@@ -31,8 +31,7 @@ import static com.aws.greengrass.util.Utils.parseLong;
  */
 public final class Periodicity {
     /**
-     * Just using raw milliseconds: finer precision isn't realistic at this
-     * point.
+     * Just using raw milliseconds: finer precision isn't realistic at this point.
      */
     private final Topic interval;
     private final Topic phase;
@@ -88,8 +87,11 @@ public final class Periodicity {
             }
             return ret;
         } catch (NumberFormatException t) {
-            s.logger.atError("service-invalid-config").setCause(t).kv("parameter", Utils.deepToString(n))
-                    .kv(GreengrassService.SERVICE_NAME_KEY, s.getName()).log("Unparseable periodic parameter");
+            s.logger.atError("service-invalid-config")
+                    .setCause(t)
+                    .kv("parameter", Utils.deepToString(n))
+                    .kv(GreengrassService.SERVICE_NAME_KEY, s.getName())
+                    .log("Unparseable periodic parameter");
             s.serviceErrored(t);
         }
         return null;
@@ -100,41 +102,41 @@ public final class Periodicity {
         CharBuffer p = CharBuffer.wrap(v);
         long n = parseLong(p);
         String u = p.toString().trim().toLowerCase();
-        //        TimeUnit tu;   Bugger: doesn't support weeks
+        // TimeUnit tu; Bugger: doesn't support weeks
         long tu;
         switch (u) {
-            case "ms":
-            case "millis":
-            case "milliseconds":
-                tu = 1;
-                break;
-            case "":
-            case "s":
-            case "seconds":
-            case "second":
-                tu = 1000;
-                break;
-            default:
-            case "m":
-            case "minutes":
-            case "minute":
-                tu = 1000 * 60;
-                break;
-            case "h":
-            case "hours":
-            case "hour":
-                tu = 1000 * 60 * 60;
-                break;
-            case "d":
-            case "days":
-            case "day":
-                tu = 1000 * 60 * 60 * 24;
-                break;
-            case "w":
-            case "weeks":
-            case "week":
-                tu = 1000 * 60 * 60 * 24 * 7;
-                break;
+        case "ms":
+        case "millis":
+        case "milliseconds":
+            tu = 1;
+            break;
+        case "":
+        case "s":
+        case "seconds":
+        case "second":
+            tu = 1000;
+            break;
+        default:
+        case "m":
+        case "minutes":
+        case "minute":
+            tu = 1000 * 60;
+            break;
+        case "h":
+        case "hours":
+        case "hour":
+            tu = 1000 * 60 * 60;
+            break;
+        case "d":
+        case "days":
+        case "day":
+            tu = 1000 * 60 * 60 * 24;
+            break;
+        case "w":
+        case "weeks":
+        case "week":
+            tu = 1000 * 60 * 60 * 24 * 7;
+            break;
         }
         return n * tu;
     }
@@ -148,7 +150,7 @@ public final class Periodicity {
             long now = System.currentTimeMillis();
             long timeIntervalMillis = parseInterval(Coerce.toString(interval));
             long phase = parseInterval(Coerce.toString(this.phase));
-            float fuzzFactor;  // The fraction of the interval to "fuzz" the start time
+            float fuzzFactor; // The fraction of the interval to "fuzz" the start time
             try {
                 fuzzFactor = Float.parseFloat(Coerce.toString(fuzz));
                 if (fuzzFactor < 0) {
@@ -158,8 +160,11 @@ public final class Periodicity {
                     fuzzFactor = 1;
                 }
             } catch (NumberFormatException t) {
-                service.logger.atWarn().addKeyValue("factor", Coerce.toString(fuzz)).setCause(t)
-                        .addKeyValue("default", DEFAULT_FUZZ_FACTOR).log("Error parsing fuzz factor. Using default");
+                service.logger.atWarn()
+                        .addKeyValue("factor", Coerce.toString(fuzz))
+                        .setCause(t)
+                        .addKeyValue("default", DEFAULT_FUZZ_FACTOR)
+                        .log("Error parsing fuzz factor. Using default");
                 fuzzFactor = DEFAULT_FUZZ_FACTOR;
             }
 

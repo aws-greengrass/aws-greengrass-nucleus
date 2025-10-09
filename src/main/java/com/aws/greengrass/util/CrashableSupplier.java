@@ -6,8 +6,8 @@
 package com.aws.greengrass.util;
 
 /**
- * Like Supplier, but exceptions pass through. It is normally used in situations where
- * the caller is prepared to take corrective action on the exception.
+ * Like Supplier, but exceptions pass through. It is normally used in situations where the caller is prepared to take
+ * corrective action on the exception.
  */
 @FunctionalInterface
 public interface CrashableSupplier<R, E extends Throwable> {

@@ -25,10 +25,10 @@ import java.util.Map;
 @Getter
 @Builder
 public class LocalOverrideRequest {
-    String requestId;   // UUID
+    String requestId; // UUID
     long requestTimestamp;
 
-    Map<String, String> componentsToMerge;  // name to version
+    Map<String, String> componentsToMerge; // name to version
     List<String> componentsToRemove; // remove just need name
     String groupName;
     List<String> requiredCapabilities;

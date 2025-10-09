@@ -14,8 +14,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
- * Some functionality is enabled only for integration testing. Such functionality is subject to change between
- * releases of the Greengrass Nucleus and/or may result in unstable behavior in production and should be avoided.
+ * Some functionality is enabled only for integration testing. Such functionality is subject to change between releases
+ * of the Greengrass Nucleus and/or may result in unstable behavior in production and should be avoided.
  */
 public final class TestFeatureParameters {
     private static final Logger LOGGER = LogManager.getLogger(TestFeatureParameters.class);
@@ -37,15 +37,15 @@ public final class TestFeatureParameters {
     };
 
     private static final AtomicReference<TestFeatureParameterInterface> handler =
-                                                                            new AtomicReference<>(DEFAULT_HANDLER);
+            new AtomicReference<>(DEFAULT_HANDLER);
 
     private TestFeatureParameters() {
         // No instance methods
     }
 
     /**
-     * Retrieve either the provided default (production) value of a parameter, or, under test conditions, an
-     * alternative value specific for the test being undertaken.
+     * Retrieve either the provided default (production) value of a parameter, or, under test conditions, an alternative
+     * value specific for the test being undertaken.
      *
      * @param cls Expected type to handle runtime validation of override type
      * @param featureParameterName Name of parameter to query.
@@ -59,13 +59,15 @@ public final class TestFeatureParameters {
         T value = actualHandler.retrieveWithDefault(cls, featureParameterName, defaultValue);
         if (defaultValue == value) {
             // Pass through default value logged at debug level
-            LOGGER.atDebug().addKeyValue("FeatureParameterName", featureParameterName)
+            LOGGER.atDebug()
+                    .addKeyValue("FeatureParameterName", featureParameterName)
                     .addKeyValue("DefaultValue", defaultValue)
                     .log("Default Feature Parameter \"{}\"=\"{}\" via {}", featureParameterName, value,
                             actualHandler.getClass().getName());
         } else {
             // Override occurred, this is intentionally noisy
-            LOGGER.atWarn().addKeyValue("FeatureParameterName", featureParameterName)
+            LOGGER.atWarn()
+                    .addKeyValue("FeatureParameterName", featureParameterName)
                     .addKeyValue("ProductionValue", defaultValue)
                     .addKeyValue("OverrideValue", value)
                     .log("Override Feature Parameter \"{}\"=\"{}\" via {}", featureParameterName, value,
@@ -106,8 +108,9 @@ public final class TestFeatureParameters {
 
     /**
      * Register a callback to notify when the handler is set.
-     * @param serviceName   Name of the service requesting a callback.
-     * @param callback      The callback function.
+     * 
+     * @param serviceName Name of the service requesting a callback.
+     * @param callback The callback function.
      */
     public static void registerHandlerCallback(String serviceName, Consumer<Boolean> callback) {
         handlerRegistrationCallbacks.put(serviceName, callback);
@@ -115,7 +118,8 @@ public final class TestFeatureParameters {
 
     /**
      * Unregister a service from getting handler set notification.
-     * @param serviceName   Name of the service unregistering.
+     * 
+     * @param serviceName Name of the service unregistering.
      */
     public static void unRegisterHandlerCallback(String serviceName) {
         handlerRegistrationCallbacks.remove(serviceName);

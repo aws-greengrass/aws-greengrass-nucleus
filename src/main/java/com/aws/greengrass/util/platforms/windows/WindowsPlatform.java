@@ -92,37 +92,27 @@ public class WindowsPlatform extends Platform {
     protected static final String LOCAL_SYSTEM_USERNAME = Advapi32Util.getAccountBySid(LOCAL_SYSTEM_SID).name;
     private static final String EVERYONE_GROUP_NAME = Advapi32Util.getAccountBySid(EVERYONE_SID).name;
     private static final String ADMINISTRATORS_GROUP_NAME = Advapi32Util.getAccountBySid(ADMINISTRATORS_SID).name;
-    protected static final WindowsUserAttributes LOCAL_SYSTEM_USER_ATTRIBUTES =
-            WindowsUserAttributes.builder().superUser(true).superUserKnown(true)
-                    .principalIdentifier(LOCAL_SYSTEM_SID).principalName(LOCAL_SYSTEM_USERNAME)
-                    .build();
+    protected static final WindowsUserAttributes LOCAL_SYSTEM_USER_ATTRIBUTES = WindowsUserAttributes.builder()
+            .superUser(true)
+            .superUserKnown(true)
+            .principalIdentifier(LOCAL_SYSTEM_SID)
+            .principalName(LOCAL_SYSTEM_USERNAME)
+            .build();
     private static final Lock lock = LockFactory.newReentrantLock(WindowsPlatform.class.getSimpleName());
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private static WindowsUserAttributes CURRENT_USER;
 
-    static final Set<AclEntryPermission> READ_PERMS = new HashSet<>(Arrays.asList(
-            AclEntryPermission.READ_DATA,
-            AclEntryPermission.READ_NAMED_ATTRS,
-            AclEntryPermission.READ_ATTRIBUTES,
-            AclEntryPermission.READ_ACL,
-            AclEntryPermission.SYNCHRONIZE));
-    static final Set<AclEntryPermission> WRITE_PERMS = new HashSet<>(Arrays.asList(
-            AclEntryPermission.WRITE_DATA,
-            AclEntryPermission.APPEND_DATA,
-            AclEntryPermission.WRITE_NAMED_ATTRS,
-            AclEntryPermission.DELETE_CHILD,
-            AclEntryPermission.WRITE_ATTRIBUTES,
-            AclEntryPermission.DELETE,
-            AclEntryPermission.WRITE_ACL,
-            AclEntryPermission.WRITE_OWNER,
-            AclEntryPermission.SYNCHRONIZE));
-    static final Set<AclEntryPermission> EXECUTE_PERMS = new HashSet<>(Arrays.asList(
-            AclEntryPermission.READ_NAMED_ATTRS,
-            AclEntryPermission.EXECUTE,
-            AclEntryPermission.READ_ATTRIBUTES,
-            AclEntryPermission.READ_ACL,
-            AclEntryPermission.SYNCHRONIZE));
+    static final Set<AclEntryPermission> READ_PERMS =
+            new HashSet<>(Arrays.asList(AclEntryPermission.READ_DATA, AclEntryPermission.READ_NAMED_ATTRS,
+                    AclEntryPermission.READ_ATTRIBUTES, AclEntryPermission.READ_ACL, AclEntryPermission.SYNCHRONIZE));
+    static final Set<AclEntryPermission> WRITE_PERMS = new HashSet<>(Arrays.asList(AclEntryPermission.WRITE_DATA,
+            AclEntryPermission.APPEND_DATA, AclEntryPermission.WRITE_NAMED_ATTRS, AclEntryPermission.DELETE_CHILD,
+            AclEntryPermission.WRITE_ATTRIBUTES, AclEntryPermission.DELETE, AclEntryPermission.WRITE_ACL,
+            AclEntryPermission.WRITE_OWNER, AclEntryPermission.SYNCHRONIZE));
+    static final Set<AclEntryPermission> EXECUTE_PERMS =
+            new HashSet<>(Arrays.asList(AclEntryPermission.READ_NAMED_ATTRS, AclEntryPermission.EXECUTE,
+                    AclEntryPermission.READ_ATTRIBUTES, AclEntryPermission.READ_ACL, AclEntryPermission.SYNCHRONIZE));
     static final Set<AclEntryPermission> ALL_PERMS = new HashSet<>();
 
     static {
@@ -133,8 +123,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                               UserDecorator decorator)
-            throws IOException, InterruptedException {
+            UserDecorator decorator) throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
         ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
@@ -248,12 +237,15 @@ public class WindowsPlatform extends Platform {
 
     @Override
     protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
-        AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
-                LinkOption.NOFOLLOW_LINKS);
+        AclFileAttributeView view =
+                Files.getFileAttributeView(path, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
 
         if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
-                    .kv("owner", userPrincipal.toString()).log();
+            logger.atTrace()
+                    .setEventType(SET_PERMISSIONS_EVENT)
+                    .kv(PATH_LOG_KEY, path)
+                    .kv("owner", userPrincipal.toString())
+                    .log();
 
             // Changing ownership on Windows does not automatically grant any rights to the new owner.
             // To make this behave like Unix we will actually move the permissions from the old owner over to
@@ -261,14 +253,14 @@ public class WindowsPlatform extends Platform {
 
             UserPrincipal existingOwner = view.getOwner();
             List<AclEntry> currentAcl = view.getAcl();
-            Set<AclEntry> newAcl = currentAcl.stream()
-                    .filter((a) -> !existingOwner.equals(a.principal()))
-                    .collect(Collectors.toSet());
+            Set<AclEntry> newAcl =
+                    currentAcl.stream().filter((a) -> !existingOwner.equals(a.principal())).collect(Collectors.toSet());
 
-            Stream<AclEntry> s = currentAcl.stream()
-                    .filter((a) -> existingOwner.equals(a.principal())); // Find all rights of the current owner
+            Stream<AclEntry> s = currentAcl.stream().filter((a) -> existingOwner.equals(a.principal())); // Find all
+            // rights of the current owner
 
-            GroupPrincipal greengrassPrincipal = path.getFileSystem().getUserPrincipalLookupService()
+            GroupPrincipal greengrassPrincipal = path.getFileSystem()
+                    .getUserPrincipalLookupService()
                     .lookupPrincipalByGroupName(getPrivilegedGroup());
             // If the current owner is the Administrator's group, then we need to do a bit of filtering
             // so that Greengrass retains all the permissions we require.
@@ -296,8 +288,7 @@ public class WindowsPlatform extends Platform {
                     .setPermissions(a.permissions())
                     .setType(a.type())
                     .setPrincipal(userPrincipal)
-                    .build())
-                    .collect(Collectors.toSet()));
+                    .build()).collect(Collectors.toSet()));
             view.setAcl(new ArrayList<>(newAcl));
             view.setOwner(userPrincipal);
         }
@@ -361,8 +352,8 @@ public class WindowsPlatform extends Platform {
             if (Utils.isEmpty(permission.getOwnerUser())) {
                 // On Linux, when we set the file permission for the owner, it applies to the current owner and we don't
                 // need to know who the actual owner is. But on Windows, Acl must be associated with an owner.
-                AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
-                        LinkOption.NOFOLLOW_LINKS);
+                AclFileAttributeView view =
+                        Files.getFileAttributeView(path, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
                 ownerPrincipal = view.getOwner();
             } else {
                 ownerPrincipal = WindowsPlatform.getInstance().lookupUserByName(path, permission.getOwnerUser());
@@ -457,7 +448,8 @@ public class WindowsPlatform extends Platform {
             // We automatically add permissions for Administrators group since Greengrass will always run as
             // someone in the Administrators group. This ensures that Greengrass will have the requisite permissions
             // to change ownership and permissions as needed.
-            GroupPrincipal systemPrincipal = path.getFileSystem().getUserPrincipalLookupService()
+            GroupPrincipal systemPrincipal = path.getFileSystem()
+                    .getUserPrincipalLookupService()
                     .lookupPrincipalByGroupName(WindowsPlatform.getInstance().getPrivilegedGroup());
             aclEntries.add(AclEntry.newBuilder()
                     .setType(AclEntryType.ALLOW)
@@ -483,12 +475,15 @@ public class WindowsPlatform extends Platform {
                     (WindowsFileSystemPermissionView) permissionView;
             List<AclEntry> acl = windowsFileSystemPermissionView.getAcl();
 
-            AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
-                    LinkOption.NOFOLLOW_LINKS);
+            AclFileAttributeView view =
+                    Files.getFileAttributeView(path, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
 
             List<AclEntry> currentAcl = view.getAcl();
             if (!currentAcl.equals(acl)) {
-                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).kv("perm", acl.toString())
+                logger.atTrace()
+                        .setEventType(SET_PERMISSIONS_EVENT)
+                        .kv(PATH_LOG_KEY, path)
+                        .kv("perm", acl.toString())
                         .log();
                 view.setAcl(acl); // This also clears existing acl!
             }
@@ -508,14 +503,18 @@ public class WindowsPlatform extends Platform {
     @Override
     public WindowsGroupAttributes lookupGroupByName(String group) {
         Advapi32Util.Account account = Advapi32Util.getAccountByName(group);
-        return WindowsGroupAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+        return WindowsGroupAttributes.builder()
+                .principalName(account.name)
+                .principalIdentifier(account.sidString)
                 .build();
     }
 
     @Override
     public WindowsGroupAttributes lookupGroupByIdentifier(String identifier) {
         Advapi32Util.Account account = Advapi32Util.getAccountBySid(identifier);
-        return WindowsGroupAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+        return WindowsGroupAttributes.builder()
+                .principalName(account.name)
+                .principalIdentifier(account.sidString)
                 .build();
     }
 
@@ -556,9 +555,12 @@ public class WindowsPlatform extends Platform {
                 }
             }
 
-            CURRENT_USER =
-                    WindowsUserAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
-                            .superUserKnown(true).superUser(superUser).build();
+            CURRENT_USER = WindowsUserAttributes.builder()
+                    .principalName(account.name)
+                    .principalIdentifier(account.sidString)
+                    .superUserKnown(true)
+                    .superUser(superUser)
+                    .build();
             return CURRENT_USER;
         }
     }
@@ -591,16 +593,16 @@ public class WindowsPlatform extends Platform {
                 return this;
             }
             switch (shell) {
-                case CMD:
-                    this.shell = CMD;
-                    this.arg = CMD_ARG;
-                    break;
-                case POWERSHELL:
-                    this.shell = POWERSHELL;
-                    this.arg = POWERSHELL_ARG;
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Invalid Windows shell: " + shell);
+            case CMD:
+                this.shell = CMD;
+                this.arg = CMD_ARG;
+                break;
+            case POWERSHELL:
+                this.shell = POWERSHELL;
+                this.arg = POWERSHELL_ARG;
+                break;
+            default:
+                throw new UnsupportedOperationException("Invalid Windows shell: " + shell);
             }
             return this;
         }
@@ -630,13 +632,8 @@ public class WindowsPlatform extends Platform {
     public void setIpcFilePermissions(Path rootPath, Path ipcPath) {
         String namedPipe = prepareIpcFilepathForRpcServer(rootPath, ipcPath);
         // Open up the named pipe using CreateFile to give us a Win32 handle
-        HANDLE handle = Kernel32.INSTANCE.CreateFile(namedPipe,
-                GENERIC_ALL | WRITE_OWNER,
-                FILE_SHARE_READ,
-                new WinBase.SECURITY_ATTRIBUTES(),
-                OPEN_EXISTING,
-                FILE_ATTRIBUTE_NORMAL,
-                null);
+        HANDLE handle = Kernel32.INSTANCE.CreateFile(namedPipe, GENERIC_ALL | WRITE_OWNER, FILE_SHARE_READ,
+                new WinBase.SECURITY_ATTRIBUTES(), OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
         if (WinBase.INVALID_HANDLE_VALUE == handle) {
             throw new RuntimeException("Got invalid handle for named pipe " + namedPipe);
         }
@@ -668,48 +665,41 @@ public class WindowsPlatform extends Platform {
     @SuppressWarnings("PMD.DoubleBraceInitialization")
     @Override
     public Map<String, Object> getOSAndKernelMetrics() {
-        return new HashMap<String, Object>() {{
-            put("OSBuildMajor", Advapi32Util.registryGetStringValue(
-                    WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME,
-                    "CurrentBuild"
-            ));
-            put("OSBuildMinor", Advapi32Util.registryGetIntValue(
-                    WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME,
-                    "UBR"
-            ));
-            put("Family", Advapi32Util.registryGetStringValue(
-                    WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME,
-                    "ProductName"
-            ));
-            put("CPUArchitecture", Advapi32Util.registryGetStringValue(
-                    WinReg.HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
-                    "PROCESSOR_ARCHITECTURE"
-            ));
-            put("OSName", getOSName());
-            put("OSVersion", getOSVersion());
-            put("KnowledgeBaseArticles", getInstalledKBs());
-        }};
+        return new HashMap<String, Object>() {
+            {
+                put("OSBuildMajor", Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME,
+                        "CurrentBuild"));
+                put("OSBuildMinor",
+                        Advapi32Util.registryGetIntValue(WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME, "UBR"));
+                put("Family", Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME,
+                        "ProductName"));
+                put("CPUArchitecture", Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE,
+                        "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "PROCESSOR_ARCHITECTURE"));
+                put("OSName", getOSName());
+                put("OSVersion", getOSVersion());
+                put("KnowledgeBaseArticles", getInstalledKBs());
+            }
+        };
     }
 
     private String getOSName() {
-        return executePowerShellCommand("Get-CimInstance -ClassName Win32_OperatingSystem "
-                + "| Select-Object -ExpandProperty Caption");
+        return executePowerShellCommand(
+                "Get-CimInstance -ClassName Win32_OperatingSystem " + "| Select-Object -ExpandProperty Caption");
     }
 
     private String getOSVersion() {
-        return executePowerShellCommand("Get-CimInstance -ClassName Win32_OperatingSystem "
-                + "| Select-Object -ExpandProperty Version");
+        return executePowerShellCommand(
+                "Get-CimInstance -ClassName Win32_OperatingSystem " + "| Select-Object -ExpandProperty Version");
     }
 
     private String getInstalledKBs() {
         List<String> installedKnowledgeBaseArticles = new ArrayList<>();
         String knowledgeBaseQueryCommand = "Get-HotFix | Select-Object -ExpandProperty HotFixID";
         try {
-            ProcessBuilder builder = new ProcessBuilder("powershell.exe",
-                    "-Command", knowledgeBaseQueryCommand);
+            ProcessBuilder builder = new ProcessBuilder("powershell.exe", "-Command", knowledgeBaseQueryCommand);
             Process process = builder.start();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    process.getInputStream(), StandardCharsets.UTF_8))) {
+            try (BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line = reader.readLine();
                 while (line != null) {
                     String trimmed = line.trim();
@@ -730,8 +720,8 @@ public class WindowsPlatform extends Platform {
         try {
             ProcessBuilder builder = new ProcessBuilder("powershell.exe", "-Command", command);
             Process process = builder.start();
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            try (BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String output = reader.readLine();
                 return output != null ? output.trim() : "";
             }

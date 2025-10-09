@@ -30,7 +30,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-@SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
+@SuppressWarnings({
+        "PMD.AvoidDuplicateLiterals"
+})
 public class PlatformResolver {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     public static final String ALL_KEYWORD = "all";
@@ -57,8 +59,7 @@ public class PlatformResolver {
 
     private final Lock lock = LockFactory.newReentrantLock(this);
 
-    private static final AtomicReference<Platform> DETECTED_PLATFORM =
-            new AtomicReference<>();
+    private static final AtomicReference<Platform> DETECTED_PLATFORM = new AtomicReference<>();
 
     private static Platform initializePlatform() {
         return Platform.builder()
@@ -74,8 +75,7 @@ public class PlatformResolver {
     }
 
     /**
-     * Get current platform.
-     * Detect current platform and apply device configuration override.
+     * Get current platform. Detect current platform and apply device configuration override.
      *
      * @return Platform key-value map
      */
@@ -89,7 +89,7 @@ public class PlatformResolver {
             return detected;
         }
         Map<String, String> platform = new HashMap<>(detected);
-        for (Map.Entry<String, Object> entry: platformOverride.toPOJO().entrySet()) {
+        for (Map.Entry<String, Object> entry : platformOverride.toPOJO().entrySet()) {
             if (entry.getValue() instanceof String) {
                 // platform doesn't support Map/List value
                 platform.put(entry.getKey(), (String) entry.getValue());
@@ -156,7 +156,9 @@ public class PlatformResolver {
             // on arm.
             if (ARCH_ARM.equals(arch) || ARCH_AARCH64.equals(arch)) {
                 String archDetail = com.aws.greengrass.util.platforms.Platform.getInstance()
-                        .createNewProcessRunner().sh("uname -m").toLowerCase();
+                        .createNewProcessRunner()
+                        .sh("uname -m")
+                        .toLowerCase();
                 // TODO: "uname -m" is not sufficient to capture arch details on all platforms.
                 // Currently only return if detected arm, as required by lambda launcher.
                 if ("armv6l".equals(archDetail) || "armv7l".equals(archDetail) || "armv8l".equals(archDetail)) {
@@ -180,17 +182,16 @@ public class PlatformResolver {
     }
 
     /**
-     * Filters lifecycle (or any other section). Input set of allowed platform keywords, and selectors
-     * that are being applied in priority order. Configuration is not assumed to be deep. Note, nulls
-     * are treated as "no value".
+     * Filters lifecycle (or any other section). Input set of allowed platform keywords, and selectors that are being
+     * applied in priority order. Configuration is not assumed to be deep. Note, nulls are treated as "no value".
      *
-     * @param source     Source configuration (e.g. lifecycle section)
-     * @param keywords   Set of platform keywords that are filtered. Assumed to contain ALL keyword
-     * @param selectors  Set of selectors in priority order. ALL keyword is optional.
+     * @param source Source configuration (e.g. lifecycle section)
+     * @param keywords Set of platform keywords that are filtered. Assumed to contain ALL keyword
+     * @param selectors Set of selectors in priority order. ALL keyword is optional.
      * @return filtered config, or empty if removed through filtering
      */
     public static Optional<Object> filterPlatform(Map<String, Object> source, Set<String> keywords,
-                                         List<String> selectors) {
+            List<String> selectors) {
 
         //
         // Trying to preserve nulls will make this logic much more difficult than it is. Since this is
@@ -199,10 +200,9 @@ public class PlatformResolver {
         if (source.keySet().stream().anyMatch(keywords::contains)) {
             // Selectors are provided in priority order with highest priority selector first.
             // Find the first selector (if any) that has a match at this level of the multi-level map.
-            Optional<Object> selected = selectors == null ? Optional.empty() :
-                    selectors.stream().map(source::get)
-                            .filter(Objects::nonNull)
-                            .findFirst();
+            Optional<Object> selected = selectors == null
+                    ? Optional.empty()
+                    : selectors.stream().map(source::get).filter(Objects::nonNull).findFirst();
             if (!selected.isPresent()) {
                 // consider ALL keyword (this may not be in list of selectors).
                 // Note, do not confuse this with set of keywords which does include "ALL".
@@ -220,24 +220,24 @@ public class PlatformResolver {
             return Optional.empty();
         }
         // recursively filter platform
-        return Optional.of(source.entrySet().stream()
+        return Optional.of(source.entrySet()
+                .stream()
                 .map(e -> filterPlatformMapEntry(e, keywords, selectors))
                 .filter(Objects::nonNull)
-                .collect(Collectors.toMap(
-                    Map.Entry::getKey,
-                    Map.Entry::getValue)));
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     /**
      * Diagnostic reporting for bad selector section.
+     * 
      * @param source Source map
      * @param keywords Set of valid selector keywords (including ALL)
      * @param selected Selected section if any, else empty.
      */
     private static void checkForBadSelectorMap(Map<String, Object> source, Set<String> keywords,
-                                               Optional<Object> selected) {
-        List<String> notSelector = source.keySet().stream()
-                .filter(k -> !keywords.contains(k)).collect(Collectors.toList());
+            Optional<Object> selected) {
+        List<String> notSelector =
+                source.keySet().stream().filter(k -> !keywords.contains(k)).collect(Collectors.toList());
         if (!notSelector.isEmpty()) {
             List<String> yesSelector =
                     source.keySet().stream().filter(k -> !keywords.contains(k)).collect(Collectors.toList());
@@ -252,13 +252,14 @@ public class PlatformResolver {
 
     /**
      * Givenn a key/value pair of a map, filter the platform recursively.
-     * @param entry      Key/Value pair
-     * @param keywords   Set of platform keywords that are filtered. Assumed to contain ALL keyword
-     * @param selectors  Set of selectors in priority order. ALL keyword is optional.
+     * 
+     * @param entry Key/Value pair
+     * @param keywords Set of platform keywords that are filtered. Assumed to contain ALL keyword
+     * @param selectors Set of selectors in priority order. ALL keyword is optional.
      * @return new key/value pair, or null if platform filtering eliminated value
      */
-    private static Map.Entry<String,Object> filterPlatformMapEntry(Map.Entry<String,Object> entry, Set<String> keywords,
-                                                                   List<String> selectors) {
+    private static Map.Entry<String, Object> filterPlatformMapEntry(Map.Entry<String, Object> entry,
+            Set<String> keywords, List<String> selectors) {
         Optional<Object> v = filterPlatformIfMap(entry.getValue(), keywords, selectors);
         if (v.isPresent()) {
             return new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), v.get());
@@ -270,13 +271,12 @@ public class PlatformResolver {
     /**
      * Filters lifecycle (or any other section). Source is unknown to be a map.
      *
-     * @param source     Source configuration (e.g. lifecycle section)
-     * @param keywords   Set of platform keywords that are filtered. Assumed to contain ALL keyword
-     * @param selectors  Set of selectors in priority order. ALL keyword is optional.
+     * @param source Source configuration (e.g. lifecycle section)
+     * @param keywords Set of platform keywords that are filtered. Assumed to contain ALL keyword
+     * @param selectors Set of selectors in priority order. ALL keyword is optional.
      * @return filtered config, or empty()
      */
-    private static Optional<Object> filterPlatformIfMap(Object source, Set<String> keywords,
-                                              List<String> selectors) {
+    private static Optional<Object> filterPlatformIfMap(Object source, Set<String> keywords, List<String> selectors) {
         if (source instanceof Map) {
             return filterPlatform((Map<String, Object>) source, keywords, selectors);
         } else {

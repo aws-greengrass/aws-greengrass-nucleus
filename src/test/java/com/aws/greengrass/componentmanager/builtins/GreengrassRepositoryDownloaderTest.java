@@ -63,7 +63,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class GreengrassRepositoryDownloaderTest {
     private static final String SHA256 = "SHA-256";
     private static final String TEST_ARN = "arn";
@@ -98,8 +100,11 @@ class GreengrassRepositoryDownloaderTest {
                 .resolve("monitor_artifact_100.txt");
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
-        ComponentArtifact artifact = ComponentArtifact.builder().algorithm(SHA256).checksum(checksum)
-                .artifactUri(new URI("greengrass:774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt")).build();
+        ComponentArtifact artifact = ComponentArtifact.builder()
+                .algorithm(SHA256)
+                .checksum(checksum)
+                .artifactUri(new URI("greengrass:774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt"))
+                .build();
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
@@ -108,15 +113,15 @@ class GreengrassRepositoryDownloaderTest {
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Files.createDirectories(saveToPath);
 
-        GreengrassRepositoryDownloader downloader =
-                spy(new GreengrassRepositoryDownloader(clientFactory, pkgId, artifact, saveToPath, componentStore, deviceConfiguration));
+        GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,
+                artifact, saveToPath, componentStore, deviceConfiguration));
 
         assertThat(downloader.getArtifactFilename(), is("artifact.txt"));
 
         // mock requests to get downloadSize and local file name
-        GetComponentVersionArtifactResponse result =
-                GetComponentVersionArtifactResponse.builder()
-                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
+        GetComponentVersionArtifactResponse result = GetComponentVersionArtifactResponse.builder()
+                .preSignedUrl("https://www.amazon.com/artifact.txt")
+                .build();
         when(client.getComponentVersionArtifact(getComponentVersionArtifactRequestArgumentCaptor.capture()))
                 .thenReturn(result);
 
@@ -125,13 +130,17 @@ class GreengrassRepositoryDownloaderTest {
         doReturn(request).when(httpClient).prepareRequest(any());
         when(request.call())
                 .thenReturn(HttpExecuteResponse.builder()
-                        .response(SdkHttpResponse.builder().statusCode(HTTP_OK)
-                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath))).build())
+                        .response(SdkHttpResponse.builder()
+                                .statusCode(HTTP_OK)
+                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath)))
+                                .build())
                         .responseBody(AbortableInputStream.create(Files.newInputStream(mockArtifactPath)))
                         .build())
                 .thenReturn(HttpExecuteResponse.builder()
-                        .response(SdkHttpResponse.builder().statusCode(HTTP_PARTIAL)
-                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath))).build())
+                        .response(SdkHttpResponse.builder()
+                                .statusCode(HTTP_PARTIAL)
+                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath)))
+                                .build())
                         .responseBody(AbortableInputStream.create(Files.newInputStream(mockArtifactPath)))
                         .build());
 
@@ -150,24 +159,28 @@ class GreengrassRepositoryDownloaderTest {
     }
 
     @Test
-    void GIVEN_http_connection_error_WHEN_attempt_download_THEN_retry_called(ExtensionContext context) throws Exception {
+    void GIVEN_http_connection_error_WHEN_attempt_download_THEN_retry_called(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, IOException.class);
 
-        GetComponentVersionArtifactResponse result =
-                GetComponentVersionArtifactResponse.builder().preSignedUrl("https://www.amazon.com/artifact.txt")
-                        .build();
+        GetComponentVersionArtifactResponse result = GetComponentVersionArtifactResponse.builder()
+                .preSignedUrl("https://www.amazon.com/artifact.txt")
+                .build();
         when(client.getComponentVersionArtifact(any(GetComponentVersionArtifactRequest.class))).thenReturn(result);
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
         GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null, componentStore, deviceConfiguration));
+                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null, componentStore,
+                deviceConfiguration));
 
         doReturn(httpClient).when(downloader).getSdkHttpClient();
         doReturn(request).when(httpClient).prepareRequest(any());
         when(request.call()).thenThrow(IOException.class);
 
-        downloader.setClientExceptionRetryConfig(RetryUtils.RetryConfig.builder().maxAttempt(2)
-                .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build());
+        downloader.setClientExceptionRetryConfig(RetryUtils.RetryConfig.builder()
+                .maxAttempt(2)
+                .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class))
+                .build());
 
         PackageDownloadException e = assertThrows(PackageDownloadException.class,
                 () -> downloader.download(0, 100, MessageDigest.getInstance("SHA-256")));
@@ -178,7 +191,8 @@ class GreengrassRepositoryDownloaderTest {
     }
 
     @Test
-    void GIVEN_get_download_size_response_as_5xx_WHEN_attempt_get_download_size_THEN_retry(ExtensionContext context) throws Exception {
+    void GIVEN_get_download_size_response_as_5xx_WHEN_attempt_get_download_size_THEN_retry(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, RetryableServerErrorException.class);
         // build downloader
         Path mockArtifactPath = ComponentTestResourceHelper
@@ -186,8 +200,11 @@ class GreengrassRepositoryDownloaderTest {
                 .resolve("monitor_artifact_100.txt");
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
-        ComponentArtifact artifact = ComponentArtifact.builder().algorithm(SHA256).checksum(checksum)
-                .artifactUri(new URI("greengrass:774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt")).build();
+        ComponentArtifact artifact = ComponentArtifact.builder()
+                .algorithm(SHA256)
+                .checksum(checksum)
+                .artifactUri(new URI("greengrass:774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt"))
+                .build();
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
@@ -196,30 +213,30 @@ class GreengrassRepositoryDownloaderTest {
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Files.createDirectories(saveToPath);
 
-        GreengrassRepositoryDownloader downloader =
-                spy(new GreengrassRepositoryDownloader(clientFactory, pkgId, artifact, saveToPath, componentStore, deviceConfiguration));
+        GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,
+                artifact, saveToPath, componentStore, deviceConfiguration));
 
         downloader.setClientExceptionRetryConfig(
                 downloader.getClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
         assertThat(downloader.getArtifactFilename(), is("artifact.txt"));
 
         // mock requests to get downloadSize and local file name
-        GetComponentVersionArtifactResponse result =
-                GetComponentVersionArtifactResponse.builder()
-                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
+        GetComponentVersionArtifactResponse result = GetComponentVersionArtifactResponse.builder()
+                .preSignedUrl("https://www.amazon.com/artifact.txt")
+                .build();
         when(client.getComponentVersionArtifact(getComponentVersionArtifactRequestArgumentCaptor.capture()))
                 .thenReturn(result);
 
         // mock requests to return 500 error code
         doReturn(httpClient).when(downloader).getSdkHttpClient();
         doReturn(request).when(httpClient).prepareRequest(any());
-        when(request.call())
+        when(request.call()).thenReturn(
+                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(500).build()).build())
                 .thenReturn(HttpExecuteResponse.builder()
-                        .response(SdkHttpResponse.builder().statusCode(500).build())
-                        .build())
-                .thenReturn(HttpExecuteResponse.builder()
-                        .response(SdkHttpResponse.builder().statusCode(HTTP_OK)
-                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath))).build())
+                        .response(SdkHttpResponse.builder()
+                                .statusCode(HTTP_OK)
+                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath)))
+                                .build())
                         .responseBody(AbortableInputStream.create(Files.newInputStream(mockArtifactPath)))
                         .build());
 
@@ -231,14 +248,15 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_http_connection_bad_request_WHEN_attempt_download_THEN_download_error_thrown() throws Exception {
-        GetComponentVersionArtifactResponse result =
-                GetComponentVersionArtifactResponse.builder()
-                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
+        GetComponentVersionArtifactResponse result = GetComponentVersionArtifactResponse.builder()
+                .preSignedUrl("https://www.amazon.com/artifact.txt")
+                .build();
         when(client.getComponentVersionArtifact(any(GetComponentVersionArtifactRequest.class))).thenReturn(result);
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
         GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null, componentStore, deviceConfiguration));
+                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null, componentStore,
+                deviceConfiguration));
 
         doReturn(httpClient).when(downloader).getSdkHttpClient();
         doReturn(request).when(httpClient).prepareRequest(any());
@@ -274,8 +292,11 @@ class GreengrassRepositoryDownloaderTest {
                 .resolve("monitor_artifact_100.txt");
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
-        ComponentArtifact artifact = ComponentArtifact.builder().algorithm(SHA256).checksum(checksum)
-                .artifactUri(new URI("greengrass:774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt")).build();
+        ComponentArtifact artifact = ComponentArtifact.builder()
+                .algorithm(SHA256)
+                .checksum(checksum)
+                .artifactUri(new URI("greengrass:774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt"))
+                .build();
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
@@ -284,16 +305,15 @@ class GreengrassRepositoryDownloaderTest {
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Files.createDirectories(saveToPath);
 
-        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE,
-                "REGIONAL");
+        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE, "REGIONAL");
         when(deviceConfiguration.gets3EndpointType()).thenReturn(s3Endpoint);
-        GreengrassRepositoryDownloader downloader =
-                spy(new GreengrassRepositoryDownloader(clientFactory, pkgId, artifact, saveToPath, componentStore, deviceConfiguration));
+        GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,
+                artifact, saveToPath, componentStore, deviceConfiguration));
 
         // mock requests to get downloadSize and local file name
-        GetComponentVersionArtifactResponse result =
-                GetComponentVersionArtifactResponse.builder()
-                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
+        GetComponentVersionArtifactResponse result = GetComponentVersionArtifactResponse.builder()
+                .preSignedUrl("https://www.amazon.com/artifact.txt")
+                .build();
         when(client.getComponentVersionArtifact(getComponentVersionArtifactRequestArgumentCaptor.capture()))
                 .thenReturn(result);
 
@@ -302,13 +322,17 @@ class GreengrassRepositoryDownloaderTest {
         doReturn(request).when(httpClient).prepareRequest(any());
         when(request.call())
                 .thenReturn(HttpExecuteResponse.builder()
-                        .response(SdkHttpResponse.builder().statusCode(HTTP_OK)
-                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath))).build())
+                        .response(SdkHttpResponse.builder()
+                                .statusCode(HTTP_OK)
+                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath)))
+                                .build())
                         .responseBody(AbortableInputStream.create(Files.newInputStream(mockArtifactPath)))
                         .build())
                 .thenReturn(HttpExecuteResponse.builder()
-                        .response(SdkHttpResponse.builder().statusCode(HTTP_PARTIAL)
-                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath))).build())
+                        .response(SdkHttpResponse.builder()
+                                .statusCode(HTTP_PARTIAL)
+                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath)))
+                                .build())
                         .responseBody(AbortableInputStream.create(Files.newInputStream(mockArtifactPath)))
                         .build());
 

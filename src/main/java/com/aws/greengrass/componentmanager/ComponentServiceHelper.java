@@ -45,8 +45,7 @@ public class ComponentServiceHelper {
     private final PlatformResolver platformResolver;
 
     @Inject
-    public ComponentServiceHelper(GreengrassServiceClientFactory clientFactory,
-                                  PlatformResolver platformResolver) {
+    public ComponentServiceHelper(GreengrassServiceClientFactory clientFactory, PlatformResolver platformResolver) {
         this.clientFactory = clientFactory;
         this.platformResolver = platformResolver;
     }
@@ -55,37 +54,44 @@ public class ComponentServiceHelper {
      * Resolve a component version with greengrass cloud service. The dependency resolution algorithm goes through the
      * dependencies node by node, so one component got resolve a time.
      *
-     * @param componentName             component name to be resolve
-     * @param localCandidateVersion     component local candidate version if available
-     * @param versionRequirements       component dependents version requirement map
+     * @param componentName component name to be resolve
+     * @param localCandidateVersion component local candidate version if available
+     * @param versionRequirements component dependents version requirement map
      * @return resolved component version and recipe
      * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
      * @throws Exception when not able to retrieve greengrassV2DataClient
      */
-    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.SignatureDeclareThrowsException"})
+    @SuppressWarnings({
+            "PMD.PreserveStackTrace", "PMD.SignatureDeclareThrowsException"
+    })
     ResolvedComponentVersion resolveComponentVersion(String componentName, Semver localCandidateVersion,
             Map<String, Requirement> versionRequirements) throws NoAvailableComponentVersionException, Exception {
 
-        ComponentPlatform platform = ComponentPlatform.builder()
-                .attributes(platformResolver.getCurrentPlatform()).build();
-        Map<String, String> versionRequirementsInString = versionRequirements.entrySet().stream()
+        ComponentPlatform platform =
+                ComponentPlatform.builder().attributes(platformResolver.getCurrentPlatform()).build();
+        Map<String, String> versionRequirementsInString = versionRequirements.entrySet()
+                .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toString()));
-        ComponentCandidate candidate = ComponentCandidate.builder().componentName(componentName)
+        ComponentCandidate candidate = ComponentCandidate.builder()
+                .componentName(componentName)
                 .componentVersion(localCandidateVersion == null ? null : localCandidateVersion.getValue())
-                .versionRequirements(versionRequirementsInString).build();
+                .versionRequirements(versionRequirementsInString)
+                .build();
         ResolveComponentCandidatesRequest request = ResolveComponentCandidatesRequest.builder()
                 .platform(platform)
-                .componentCandidates(Collections.singletonList(candidate)).build();
+                .componentCandidates(Collections.singletonList(candidate))
+                .build();
 
         ResolveComponentCandidatesResponse result;
 
         Duration retryInterval = TestFeatureParameters.retrieveWithDefault(Duration.class,
-                CLIENT_RETRY_INTERVAL_MILLIS_FEATURE,
-                Duration.ofSeconds(30));
-        RetryUtils.RetryConfig clientExceptionRetryConfig =
-                RetryUtils.RetryConfig.builder().initialRetryInterval(retryInterval)
-                        .maxRetryInterval(retryInterval).maxAttempt(CLIENT_RETRY_COUNT)
-                        .retryableExceptions(Arrays.asList(DeviceConfigurationException.class)).build();
+                CLIENT_RETRY_INTERVAL_MILLIS_FEATURE, Duration.ofSeconds(30));
+        RetryUtils.RetryConfig clientExceptionRetryConfig = RetryUtils.RetryConfig.builder()
+                .initialRetryInterval(retryInterval)
+                .maxRetryInterval(retryInterval)
+                .maxAttempt(CLIENT_RETRY_COUNT)
+                .retryableExceptions(Arrays.asList(DeviceConfigurationException.class))
+                .build();
 
         try (GreengrassV2DataClient greengrassV2DataClient = RetryUtils.runWithRetry(clientExceptionRetryConfig,
                 clientFactory::fetchGreengrassV2DataClient, "get-greengrass-v2-data-client", logger)) {
@@ -93,29 +99,37 @@ public class ComponentServiceHelper {
         } catch (ResourceNotFoundException e) {
             if (e.getMessage() == null) {
                 throw new NoAvailableComponentVersionException("No cloud component version satisfies the requirements.",
-                    componentName, versionRequirements);
+                        componentName, versionRequirements);
             }
 
             String message = e.getMessage();
             if (message.contains("claim platform")) {
-                logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                logger.atDebug()
+                        .kv("componentName", componentName)
+                        .kv("versionRequirements", versionRequirements)
                         .log("The version of component requested does not claim platform compatibility", e);
-                throw new IncompatiblePlatformClaimByComponentException("The version of component requested does not"
-                        + " claim platform compatibility.", componentName, platformResolver.getCurrentPlatform());
+                throw new IncompatiblePlatformClaimByComponentException(
+                        "The version of component requested does not" + " claim platform compatibility.", componentName,
+                        platformResolver.getCurrentPlatform());
             } else if (message.contains("no usable version")) {
-                logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                logger.atDebug()
+                        .kv("componentName", componentName)
+                        .kv("versionRequirements", versionRequirements)
                         .log("No applicable version found in cloud registry", e);
                 throw new NoAvailableComponentVersionException("No cloud component version satisfies the requirements.",
                         componentName, versionRequirements);
             } else {
-                logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                logger.atDebug()
+                        .kv("componentName", componentName)
+                        .kv("versionRequirements", versionRequirements)
                         .log(e.getMessage(), e);
                 throw new NoAvailableComponentVersionException(e.getMessage(), componentName, versionRequirements);
             }
         } catch (GreengrassV2DataException e) {
             if (RetryUtils.retryErrorCodes(e.statusCode())) {
-                throw new RetryableServerErrorException("Failed with retryable error " + e.statusCode()
-                        + " when calling resolveComponentCandidates", e);
+                throw new RetryableServerErrorException(
+                        "Failed with retryable error " + e.statusCode() + " when calling resolveComponentCandidates",
+                        e);
             }
             throw e;
         }

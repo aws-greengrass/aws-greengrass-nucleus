@@ -20,7 +20,6 @@ import java.util.concurrent.locks.Lock;
 public class WindowsCredUtils {
     private static final Lock lock = LockFactory.newReentrantLock(WindowsCredUtils.class.getSimpleName());
 
-
     private WindowsCredUtils() {
     }
 
@@ -62,8 +61,8 @@ public class WindowsCredUtils {
     }
 
     /**
-     * Add credential entry. Will overwrite if the entry key already exists.
-     * Caveat: the given blob array will be zeroed-out for security.
+     * Add credential entry. Will overwrite if the entry key already exists. Caveat: the given blob array will be
+     * zeroed-out for security.
      */
     public static void add(String key, byte[] blob) throws IOException {
         CredAdvapi32.CREDENTIAL cred = buildCred(key, blob);

@@ -133,7 +133,8 @@ public class KernelAlternatives {
     }
 
     private Path getLoaderPathFromLaunchDir(Path path) {
-        return path.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR)
+        return path.resolve(KERNEL_DISTRIBUTION_DIR)
+                .resolve(KERNEL_BIN_DIR)
                 .resolve(Platform.getInstance().loaderFilename());
     }
 
@@ -239,8 +240,8 @@ public class KernelAlternatives {
      * Unconditionally relink alts/init to the provided path and alts/current to alts/init.
      *
      * @param pathToNucleusDistro path to the unzipped Nucleus distribution
-     * @param linkCurrentToInit relink the current path to the init path, false if current should be left alone and
-     *                          only init should be relinked.
+     * @param linkCurrentToInit relink the current path to the init path, false if current should be left alone and only
+     *        init should be relinked.
      * @throws IOException on I/O error
      */
     public void relinkInitLaunchDir(Path pathToNucleusDistro, boolean linkCurrentToInit) throws IOException {
@@ -256,18 +257,14 @@ public class KernelAlternatives {
         }
 
         if (!isLaunchDirSetup()) {
-            throw new IOException("Failed to setup initial launch directory. Expecting loader script at: "
-                    + getLoaderPath());
+            throw new IOException(
+                    "Failed to setup initial launch directory. Expecting loader script at: " + getLoaderPath());
         }
     }
 
     /**
-     * Locate launch directory of Kernel, assuming unpack directory tree as below.
-     * ├── bin
-     * │   ├── greengrass.service.template
-     * │   └── loader
-     * └── lib
-     *     └── Greengrass.jar
+     * Locate launch directory of Kernel, assuming unpack directory tree as below. ├── bin │ ├──
+     * greengrass.service.template │ └── loader └── lib └── Greengrass.jar
      *
      * @return Path of the unpack directory
      * @throws IOException if directory structure does not match the expectation
@@ -279,9 +276,10 @@ public class KernelAlternatives {
         Path parentDir;
         try {
             parentDir = new File(KernelAlternatives.class.getProtectionDomain().getCodeSource().getLocation().toURI())
-                    .toPath().getParent();
-            if (parentDir == null || !Files.exists(parentDir) || parentDir.getFileName() != null && !KERNEL_LIB_DIR
-                    .equals(parentDir.getFileName().toString())) {
+                    .toPath()
+                    .getParent();
+            if (parentDir == null || !Files.exists(parentDir)
+                    || parentDir.getFileName() != null && !KERNEL_LIB_DIR.equals(parentDir.getFileName().toString())) {
                 throw new IOException("Unable to locate the unpack directory of Nucleus Jar file");
             }
         } catch (IllegalArgumentException e) {
@@ -304,7 +302,7 @@ public class KernelAlternatives {
      * @return DeploymentStage
      */
     public Deployment.DeploymentStage determineDeploymentStage(BootstrapManager bootstrapManager,
-                                                               DeploymentDirectoryManager deploymentDirectoryManager) {
+            DeploymentDirectoryManager deploymentDirectoryManager) {
         if (getOldDir().toFile().exists()) {
             try {
                 Path persistedBootstrapTasks = deploymentDirectoryManager.getBootstrapTaskFilePath();
@@ -345,9 +343,11 @@ public class KernelAlternatives {
         Path launchDirToCleanUp = Files.readSymbolicLink(getOldDir()).toAbsolutePath();
         Files.delete(getOldDir());
         if (Files.isSameFile(launchDirToCleanUp, getCurrentDir())) {
-            logger.atInfo().kv("oldDir", launchDirToCleanUp).log("Skipping launch directory cleanup after kernel "
-                    + "update due to matching directory names. Likely the same deployment was executed twice on the "
-                    + "device");
+            logger.atInfo()
+                    .kv("oldDir", launchDirToCleanUp)
+                    .log("Skipping launch directory cleanup after kernel "
+                            + "update due to matching directory names. Likely the same deployment was executed twice on the "
+                            + "device");
             return;
         }
         logger.atDebug().kv("oldDir", launchDirToCleanUp).log("Cleaning up previous kernel launch directory");
@@ -408,14 +408,14 @@ public class KernelAlternatives {
     }
 
     /**
-     * Cleans up loader logs dumped in loader.log by acquiring a lock on the file first as
-     * Windows FS does not allow a brute force truncate.
+     * Cleans up loader logs dumped in loader.log by acquiring a lock on the file first as Windows FS does not allow a
+     * brute force truncate.
      */
     @SuppressWarnings("PMD.AvoidFileStream")
     protected void cleanupLoaderLogs() {
         logger.atDebug().kv("logs-path", getLoaderLogsPath().toAbsolutePath()).log("Cleaning up Nucleus logs");
         try (FileOutputStream fos = new FileOutputStream(getLoaderLogsPath().toAbsolutePath().toString());
-             FileChannel channel = fos.getChannel()) {
+                FileChannel channel = fos.getChannel()) {
             // Try to acquire a lock
             FileLock lock = channel.tryLock();
 
@@ -466,8 +466,7 @@ public class KernelAlternatives {
      * @return true if bootstrapping is required during rollback, otherwise false
      */
     public boolean prepareBootstrapOnRollbackIfNeeded(Context context,
-                                                      DeploymentDirectoryManager deploymentDirectoryManager,
-                                                      BootstrapManager bootstrapManager) {
+            DeploymentDirectoryManager deploymentDirectoryManager, BootstrapManager bootstrapManager) {
         Configuration rollbackConfig = new Configuration(context);
         try {
             rollbackConfig.read(deploymentDirectoryManager.getSnapshotFilePath());
@@ -480,8 +479,8 @@ public class KernelAlternatives {
             // Check if we need to execute component bootstrap steps during the rollback deployment.
             final Set<String> componentsToExclude =
                     getComponentsToExcludeFromBootstrapOnRollback(bootstrapManager, rollbackConfig);
-            bootstrapOnRollbackRequired = bootstrapManager.isBootstrapRequired(rollbackConfig.toPOJO(),
-                    componentsToExclude);
+            bootstrapOnRollbackRequired =
+                    bootstrapManager.isBootstrapRequired(rollbackConfig.toPOJO(), componentsToExclude);
         } catch (ServiceUpdateException | ComponentConfigurationValidationException exc) {
             logger.atError().log("Rollback config invalid or could not be parsed", exc);
             return false;
@@ -502,8 +501,9 @@ public class KernelAlternatives {
                 return false;
             }
         } else {
-            logger.atInfo().log("No component with a pending rollback bootstrap task found: "
-                    + "No rollback deployment exists or rollback deployment has no bootstrap tasks");
+            logger.atInfo()
+                    .log("No component with a pending rollback bootstrap task found: "
+                            + "No rollback deployment exists or rollback deployment has no bootstrap tasks");
             // Bootstrap-on-rollback is not required, so ensure that the task file is deleted.
             try {
                 bootstrapManager.deleteBootstrapTaskList(rollbackBootstrapTaskFilePath);
@@ -516,15 +516,17 @@ public class KernelAlternatives {
     }
 
     private Set<String> getComponentsToExcludeFromBootstrapOnRollback(BootstrapManager bootstrapManager,
-                                                                      Configuration rollbackConfig) {
+            Configuration rollbackConfig) {
         // Exclude components with bootstrap steps that did not execute during the target deployment.
         final Set<String> componentsToExclude = bootstrapManager.getUnstartedTasks();
-        logger.atDebug().kv("components", componentsToExclude)
+        logger.atDebug()
+                .kv("components", componentsToExclude)
                 .log("These components did not bootstrap during the target deployment. "
                         + "They will be excluded from bootstrap-on-rollback.");
         // Exclude components that are not explicitly configured to bootstrap-on-rollback
         Set<String> unconfiguredComponents = getComponentsNotConfiguredToBootstrapOnRollback(rollbackConfig);
-        logger.atDebug().kv("components", unconfiguredComponents)
+        logger.atDebug()
+                .kv("components", unconfiguredComponents)
                 .log("These components are not configured to execute bootstrap steps during rollback. "
                         + "They will be excluded from bootstrap-on-rollback.");
         componentsToExclude.addAll(unconfiguredComponents);
@@ -540,9 +542,9 @@ public class KernelAlternatives {
         services.forEach((service) -> {
             String serviceName = service.getName();
             if (service instanceof Topics) {
-                boolean bootstrapOnRollback = Coerce.toBoolean(((Topics) service).findOrDefault(false,
-                        SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC,
-                        BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY));
+                boolean bootstrapOnRollback =
+                        Coerce.toBoolean(((Topics) service).findOrDefault(false, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                                LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY));
                 if (!bootstrapOnRollback) {
                     componentsNotConfiguredToBootstrapOnRollback.add(serviceName);
                 }
@@ -555,8 +557,9 @@ public class KernelAlternatives {
         try {
             Files.deleteIfExists(link);
         } catch (IOException e) {
-            logger.atWarn().kv("link", link).log(
-                    "Failed to clean up launch directory link from previous deployments", e);
+            logger.atWarn()
+                    .kv("link", link)
+                    .log("Failed to clean up launch directory link from previous deployments", e);
         }
     }
 

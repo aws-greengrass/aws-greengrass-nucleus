@@ -8,10 +8,7 @@ package com.aws.greengrass.status.model;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
 public enum Trigger {
-    LOCAL_DEPLOYMENT,
-    THING_DEPLOYMENT,
-    THING_GROUP_DEPLOYMENT,
-    COMPONENT_STATUS_CHANGE,
+    LOCAL_DEPLOYMENT, THING_DEPLOYMENT, THING_GROUP_DEPLOYMENT, COMPONENT_STATUS_CHANGE,
     // when mqtt connection resumes
     RECONNECT,
     // when nucleus initially connects IoT Core, a complete FSS update is sent
@@ -30,14 +27,14 @@ public enum Trigger {
      */
     public static Trigger fromDeploymentType(DeploymentType deploymentType) {
         switch (deploymentType) {
-            case LOCAL:
-                return LOCAL_DEPLOYMENT;
-            case SHADOW:
-                return THING_DEPLOYMENT;
-            case IOT_JOBS:
-                return THING_GROUP_DEPLOYMENT;
-            default:
-                throw new IllegalArgumentException("Invalid deployment type: " + deploymentType);
+        case LOCAL:
+            return LOCAL_DEPLOYMENT;
+        case SHADOW:
+            return THING_DEPLOYMENT;
+        case IOT_JOBS:
+            return THING_GROUP_DEPLOYMENT;
+        default:
+            throw new IllegalArgumentException("Invalid deployment type: " + deploymentType);
         }
     }
 

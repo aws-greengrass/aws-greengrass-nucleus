@@ -54,11 +54,11 @@ public class ProcdUtils implements SystemServiceUtils {
 
             // The "service" command of procd is a function instead of an executable daemon, and it's not default
             // configured in "/bin/sh". So we launch this service through System V style.
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " reload", false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " stop", false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " enable", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, SERVICE_CONFIG_FILE_PATH + " reload", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, SERVICE_CONFIG_FILE_PATH + " stop", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, SERVICE_CONFIG_FILE_PATH + " enable", false);
             if (start) {
-                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " start", false);
+                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, SERVICE_CONFIG_FILE_PATH + " start", false);
             }
 
             logger.atInfo(LOG_EVENT_NAME).log("Successfully set up procd service");
@@ -75,8 +75,7 @@ public class ProcdUtils implements SystemServiceUtils {
     private void interpolateServiceTemplate(Path src, Path dst, KernelAlternatives kernelAlternatives)
             throws IOException {
         String javaHome = System.getProperty("java.home");
-        try (BufferedReader r = Files.newBufferedReader(src);
-             BufferedWriter w = Files.newBufferedWriter(dst)) {
+        try (BufferedReader r = Files.newBufferedReader(src); BufferedWriter w = Files.newBufferedWriter(dst)) {
             String line = r.readLine();
             while (line != null) {
                 w.write(line.replace(PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath().toString())

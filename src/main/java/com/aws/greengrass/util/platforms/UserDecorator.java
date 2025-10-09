@@ -18,6 +18,7 @@ public abstract class UserDecorator implements CommandDecorator {
 
     /**
      * Set the user to run with.
+     * 
      * @param user a user identifier.
      * @return this.
      */
@@ -28,6 +29,7 @@ public abstract class UserDecorator implements CommandDecorator {
 
     /**
      * Set the group to run with.
+     * 
      * @param group a group identifier.
      * @return this.
      */

@@ -19,28 +19,35 @@ import java.util.Map;
 import java.util.concurrent.locks.Lock;
 
 /**
- * <p>DeploymentQueue is a thread-safe deployment queue that automatically de-duplicates by deployment id, and
- * also de-duplicates shadow deployments, i.e. there can be at-most-one shadow deployment enqueued.</p>
+ * <p>
+ * DeploymentQueue is a thread-safe deployment queue that automatically de-duplicates by deployment id, and also
+ * de-duplicates shadow deployments, i.e. there can be at-most-one shadow deployment enqueued.
+ * </p>
  *
- * <p>DeploymentQueue is implemented internally as a LinkedHashMap of id -> deployment.</p>
+ * <p>
+ * DeploymentQueue is implemented internally as a LinkedHashMap of id -> deployment.
+ * </p>
  *
- * <p>When an offered deployment has a unique deployment id, it is enqueued normally.</p>
+ * <p>
+ * When an offered deployment has a unique deployment id, it is enqueued normally.
+ * </p>
  *
- * <p>When an offered deployment has the same deployment id as an already-enqueued element:
- *     - if the offered deployment meets replacement criteria, then the enqueued element is replaced by the offered
- *       element, preserving queue order.
- *     - otherwise, the offered deployment is ignored.</p>
+ * <p>
+ * When an offered deployment has the same deployment id as an already-enqueued element: - if the offered deployment
+ * meets replacement criteria, then the enqueued element is replaced by the offered element, preserving queue order. -
+ * otherwise, the offered deployment is ignored.
+ * </p>
  *
- * <p>Replacement criteria are as follows:
- *     - if enqueued.getDeploymentStage() != DEFAULT, then do not replace
- *     - else replace if:
- *          - offered.getDeploymentStage() != DEFAULT, OR
- *          - offered.isCancelled() == true, OR
- *          - offered.getDeploymentType().equals(SHADOW)</p>
+ * <p>
+ * Replacement criteria are as follows: - if enqueued.getDeploymentStage() != DEFAULT, then do not replace - else
+ * replace if: - offered.getDeploymentStage() != DEFAULT, OR - offered.isCancelled() == true, OR -
+ * offered.getDeploymentType().equals(SHADOW)
+ * </p>
  *
- * <p>When an offered deployment is a shadow deployment:
- *     - if there is already a shadow deployment in the queue, then replace it and preserve queue order.
- *     - otherwise, enqueue normally.</p>
+ * <p>
+ * When an offered deployment is a shadow deployment: - if there is already a shadow deployment in the queue, then
+ * replace it and preserve queue order. - otherwise, enqueue normally.
+ * </p>
  */
 public class DeploymentQueue {
 
@@ -61,23 +68,26 @@ public class DeploymentQueue {
     private final Lock lock = LockFactory.newReentrantLock(this);
 
     /**
-     * <p>If the offered deployment id is unique, then insert the offered deployment at the tail of the queue.</p>
+     * <p>
+     * If the offered deployment id is unique, then insert the offered deployment at the tail of the queue.
+     * </p>
      *
-     * <p>When an offered deployment has the same deployment id as an already-enqueued element:
-     *     - if the offered deployment meets replacement criteria, then the enqueued element is replaced by the offered
-     *       element, preserving queue order.
-     *     - otherwise, the offered deployment is ignored.</p>
+     * <p>
+     * When an offered deployment has the same deployment id as an already-enqueued element: - if the offered deployment
+     * meets replacement criteria, then the enqueued element is replaced by the offered element, preserving queue order.
+     * - otherwise, the offered deployment is ignored.
+     * </p>
      *
-     * <p>Replacement criteria are as follows:
-     *     - if enqueued.getDeploymentStage() != DEFAULT, then do not replace
-     *     - else replace if:
-     *          - offered.getDeploymentStage() != DEFAULT, OR
-     *          - offered.isCancelled() == true, OR
-     *          - offered.getDeploymentType().equals(SHADOW)</p>
+     * <p>
+     * Replacement criteria are as follows: - if enqueued.getDeploymentStage() != DEFAULT, then do not replace - else
+     * replace if: - offered.getDeploymentStage() != DEFAULT, OR - offered.isCancelled() == true, OR -
+     * offered.getDeploymentType().equals(SHADOW)
+     * </p>
      *
-     * <p>When an offered deployment is a shadow deployment:
-     *     - if there is already a shadow deployment in the queue, then replace it and preserve queue order.
-     *     - otherwise, enqueue normally.</p>
+     * <p>
+     * When an offered deployment is a shadow deployment: - if there is already a shadow deployment in the queue, then
+     * replace it and preserve queue order. - otherwise, enqueue normally.
+     * </p>
      *
      * @param offeredDeployment the offered deployment instance.
      * @return true if the queue was modified, otherwise false.
@@ -100,15 +110,18 @@ public class DeploymentQueue {
                 // internal queue id is already in use; check the replacement criteria
                 final Deployment enqueuedDeployment = deploymentMap.get(offeredDeploymentInternalId);
                 if (checkReplacementCriteria(enqueuedDeployment, offeredDeployment)) {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, offeredDeployment.getId())
+                    logger.atInfo()
+                            .kv(DEPLOYMENT_ID_LOG_KEY, offeredDeployment.getId())
                             .kv(DISCARDED_DEPLOYMENT_ID_LOG_KEY,
-                                    deploymentMap.get(offeredDeploymentInternalId) == null ? null
+                                    deploymentMap.get(offeredDeploymentInternalId) == null
+                                            ? null
                                             : deploymentMap.get(offeredDeploymentInternalId).getId())
                             .log("New deployment replacing enqueued deployment");
                     deploymentMap.put(offeredDeploymentInternalId, offeredDeployment);
                     return true;
                 }
-                logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, offeredDeployment.getId())
+                logger.atInfo()
+                        .kv(DEPLOYMENT_ID_LOG_KEY, offeredDeployment.getId())
                         .log("New deployment ignored as duplicate");
                 return false;
             }

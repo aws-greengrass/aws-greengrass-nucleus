@@ -15,11 +15,13 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 @SuppressWarnings("PMD.ClassWithOnlyPrivateConstructorsShouldBeFinal")
 @Value
 public class PublishRequest {
-    @NonNull String topic;
-    @NonNull QualityOfService qos;
+    @NonNull
+    String topic;
+    @NonNull
+    QualityOfService qos;
     /**
-     * Retain the message in the cloud MQTT broker (only last message with retain is actually kept).
-     * Subscribers will immediately receive the last retained message when they first subscribe.
+     * Retain the message in the cloud MQTT broker (only last message with retain is actually kept). Subscribers will
+     * immediately receive the last retained message when they first subscribe.
      */
     boolean retain;
     byte[] payload;
@@ -42,8 +44,11 @@ public class PublishRequest {
      * @return {@link Publish}
      */
     public Publish toPublish() {
-        return Publish.builder().topic(getTopic()).payload(getPayload())
+        return Publish.builder()
+                .topic(getTopic())
+                .payload(getPayload())
                 .qos(QOS.fromInt(getQos().getValue()))
-                .retain(isRetain()).build();
+                .retain(isRetain())
+                .build();
     }
 }

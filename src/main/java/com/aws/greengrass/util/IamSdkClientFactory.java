@@ -28,25 +28,30 @@ public final class IamSdkClientFactory {
     private static final Set<Class<? extends Exception>> retryableIamExceptions = new HashSet<>(
             Arrays.asList(IamException.class, LimitExceededException.class, ServiceFailureException.class));
 
-    private static final RetryCondition retryCondition = OrRetryCondition
-            .create(RetryCondition.defaultRetryCondition(), RetryOnExceptionsCondition.create(retryableIamExceptions));
+    private static final RetryCondition retryCondition = OrRetryCondition.create(RetryCondition.defaultRetryCondition(),
+            RetryOnExceptionsCondition.create(retryableIamExceptions));
 
-    private static final RetryPolicy retryPolicy =
-            RetryPolicy.builder().numRetries(5).backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
-                    .retryCondition(retryCondition).build();
+    private static final RetryPolicy retryPolicy = RetryPolicy.builder()
+            .numRetries(5)
+            .backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
+            .retryCondition(retryCondition)
+            .build();
 
     private IamSdkClientFactory() {
     }
 
     /**
      * Build IamClient.
+     * 
      * @param awsRegion aws region
      * @return IamClient instance
      */
     public static IamClient getIamClient(String awsRegion) {
         Region globalRegionByPartition = RegionUtils.getGlobalRegion(awsRegion);
-        return IamClient.builder().region(globalRegionByPartition)
+        return IamClient.builder()
+                .region(globalRegionByPartition)
                 .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
-                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build()).build();
+                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build())
+                .build();
     }
 }

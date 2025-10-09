@@ -44,7 +44,6 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
-
 /**
  * Easy setup for getting started with Greengrass kernel on a device.
  */
@@ -52,18 +51,15 @@ public class GreengrassSetup {
     private static final String SHOW_HELP_RESPONSE = "DESCRIPTION\n"
             + "\tInstall the Greengrass Nucleus, (optional) install local development tools, and (optional)\n"
             + "\tregister your device as an AWS IoT thing. This creates device certificates, attaches a role\n"
-            + "\tto use the AWS IoT credentials provider, and creates a role that provides AWS credentials.\n"
-            + "\n"
-            + "OPTIONS\n"
-            + "\t--help, -h\t\t\t(Optional) Show this help information and then exit.\n"
+            + "\tto use the AWS IoT credentials provider, and creates a role that provides AWS credentials.\n" + "\n"
+            + "OPTIONS\n" + "\t--help, -h\t\t\t(Optional) Show this help information and then exit.\n"
             + "\t--version\t\t\t(Optional) Show the version of the AWS IoT Greengrass Core software, and then exit.\n"
             + "\t--aws-region, -ar\t\t\tThe AWS Region to use. The AWS IoT Greengrass Core software uses this Region\n"
             + "\t\t\t\t\t to retrieve or create the AWS resources that it requires\n"
             + "\t--root, -r\t\t\t(Optional) The path to the folder to use as the root for the AWS IoT Greengrass Core\n"
             + "\t\t\t\t\tsoftware. Defaults to ~/.greengrass.\n"
             + "\t--init-config, -init\t\t\t(Optional) The path to the configuration file that you use to run the AWS "
-            + "IoT Greengrass Core software.\n"
-            + "\t\t\t\t\tsoftware. Defaults to ~/.greengrass.\n"
+            + "IoT Greengrass Core software.\n" + "\t\t\t\t\tsoftware. Defaults to ~/.greengrass.\n"
             + "\t--provision, -p\t\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core software"
             + " registers this\n"
             + "\t\t\t\t\tdevice as an AWS IoT thing, and provisions the AWS resources that the software requires. The\n"
@@ -101,8 +97,7 @@ public class GreengrassSetup {
             + "\t--setup-system-service, -ss\t(Optional) Specify true or false. If true, then the AWS IoT Greengrass "
             + "Core software sets\n"
             + "\t\t\t\t\titself up as a system service that runs when this device boots. The system service name is "
-            + "greengrass.\n"
-            + "\t\t\t\t\tDefaults to false.\n"
+            + "greengrass.\n" + "\t\t\t\t\tDefaults to false.\n"
             + "\t--component-default-user, -u\t(Optional) The name of ID of the system user and group that the AWS "
             + "IoT Greengrass Core\n"
             + "\t\t\t\t\tsoftware uses to run components. This argument accepts the user and group separated by a\n"
@@ -124,8 +119,7 @@ public class GreengrassSetup {
             + "\n\t--start, -s\t\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core software "
             + "runs setup steps,\n"
             + "\t\t\t\t\t(optional) provisions resources, and starts the software. If false, the software runs only "
-            + "setup\n"
-            + "\t\t\t\t\tsteps and (optional) provisions resources. Defaults to true.\n"
+            + "setup\n" + "\t\t\t\t\tsteps and (optional) provisions resources. Defaults to true.\n"
             + "\n\t--trusted-plugin, -tp\t\t(Optional) Path of a plugin jar file. The plugin will be included as "
             + "trusted plugin in nucleus. Specify multiple times for including multiple plugins.\n"
             + "\n\t--cert-path\t\t\t(Optional) Path where certificates and keys are written "
@@ -201,10 +195,10 @@ public class GreengrassSetup {
     private static final String DEFAULT_POSIX_USER = String.format("%s:%s", GGC_USER, GGC_GROUP);
 
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
-    private static final String TRUSTED_PLUGIN_PATH_NON_JAR_ERROR
-            = "The trusted plugin path should point to a jar file";
-    private static final String TRUSTED_PLUGIN_JAR_DOES_NOT_EXIST
-            = "The trusted plugin jar file does not exist or is not accessible";
+    private static final String TRUSTED_PLUGIN_PATH_NON_JAR_ERROR =
+            "The trusted plugin path should point to a jar file";
+    private static final String TRUSTED_PLUGIN_JAR_DOES_NOT_EXIST =
+            "The trusted plugin jar file does not exist or is not accessible";
     private final String[] setupArgs;
     private final List<String> kernelArgs = new ArrayList<>();
     @Setter
@@ -248,15 +242,15 @@ public class GreengrassSetup {
     /**
      * Constructor for unit tests.
      *
-     * @param outStream                writer to use to send text response to user
-     * @param errStream                writer to use to send error response to user
+     * @param outStream writer to use to send text response to user
+     * @param errStream writer to use to send error response to user
      * @param deviceProvisioningHelper Prebuilt DeviceProvisioningHelper instance
-     * @param platform                 a platform to use
-     * @param kernel                   a kernel instance
-     * @param setupArgs                CLI args for setup script
+     * @param platform a platform to use
+     * @param kernel a kernel instance
+     * @param setupArgs CLI args for setup script
      */
     GreengrassSetup(PrintStream outStream, PrintStream errStream, DeviceProvisioningHelper deviceProvisioningHelper,
-                    Platform platform, Kernel kernel, String... setupArgs) {
+            Platform platform, Kernel kernel, String... setupArgs) {
         this.setupArgs = setupArgs;
         this.outStream = outStream;
         this.errStream = errStream;
@@ -271,8 +265,9 @@ public class GreengrassSetup {
      * @param args CLI args for setup script
      * @throws Exception error in setup
      */
-    @SuppressWarnings(
-            {"PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.DoNotCallSystemExit", "PMD.SystemPrintln"})
+    @SuppressWarnings({
+            "PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.DoNotCallSystemExit", "PMD.SystemPrintln"
+    })
     public static void main(String[] args) {
         GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, args);
         try {
@@ -286,8 +281,8 @@ public class GreengrassSetup {
         }
     }
 
-    void performSetup() throws IOException, DeviceConfigurationException, URISyntaxException,
-            InvalidEnvironmentStageException {
+    void performSetup()
+            throws IOException, DeviceConfigurationException, URISyntaxException, InvalidEnvironmentStageException {
         // Describe usage of the command
         if (showHelp) {
             outStream.println(SHOW_HELP_RESPONSE);
@@ -296,15 +291,15 @@ public class GreengrassSetup {
         if (showVersion) {
             // Use getVersionFromBuildMetadataFile so that we don't need to startup the Nucleus which is slow and will
             // start creating files and directories which may not be desired
-            outStream.println(String.format(SHOW_VERSION_RESPONSE,
-                    DeviceConfiguration.getVersionFromBuildRecipeFile()));
+            outStream
+                    .println(String.format(SHOW_VERSION_RESPONSE, DeviceConfiguration.getVersionFromBuildRecipeFile()));
             return;
         }
 
         if (kernel == null) {
             kernel = new Kernel();
         }
-        kernel.parseArgs(kernelArgs.toArray(new String[]{}));
+        kernel.parseArgs(kernelArgs.toArray(new String[] {}));
 
         try {
             IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
@@ -333,7 +328,9 @@ public class GreengrassSetup {
 
         if (setupSystemService) {
             kernel.getContext().get(KernelLifecycle.class).softShutdown(30);
-            boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance()
+            boolean ok = kernel.getContext()
+                    .get(SystemServiceUtilsFactory.class)
+                    .getInstance()
                     .setupSystemService(kernel.getContext().get(KernelAlternatives.class), kernel.getNucleusPaths(),
                             kernelStart);
             if (ok) {
@@ -358,12 +355,12 @@ public class GreengrassSetup {
     private void copyTrustedPlugins(Kernel kernel, List<String> trustedPluginPaths) {
         Path trustedPluginPath;
         try {
-            trustedPluginPath = kernel.getContext().get(EZPlugins.class)
+            trustedPluginPath = kernel.getContext()
+                    .get(EZPlugins.class)
                     .withCacheDirectory(kernel.getNucleusPaths().pluginPath())
                     .getTrustedCacheDirectory();
         } catch (IOException e) {
-            logger.atError().setCause(e)
-                    .log("Caught exception while getting trusted plugins directory path");
+            logger.atError().setCause(e).log("Caught exception while getting trusted plugins directory path");
             throw new RuntimeException(e);
         }
         trustedPluginPaths.forEach(pluginPath -> {
@@ -371,7 +368,9 @@ public class GreengrassSetup {
                 Files.copy(Paths.get(pluginPath), trustedPluginPath.resolve(Utils.namePart(pluginPath)),
                         StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                logger.atError().kv("pluginPath", pluginPath).setCause(e)
+                logger.atError()
+                        .kv("pluginPath", pluginPath)
+                        .setCause(e)
                         .log("Caught exception while copying plugin jar to trusted plugins directory");
                 throw new RuntimeException(e);
             }
@@ -381,102 +380,101 @@ public class GreengrassSetup {
     void parseArgs() {
         loop: while (getArg() != null) {
             switch (arg.toLowerCase()) {
-                case HELP_ARG:
-                case HELP_ARG_SHORT:
-                    this.showHelp = true;
-                    break loop;
-                case VERSION_ARG:
-                case VERSION_ARG_SHORT:
-                    this.showVersion = true;
-                    break loop;
-                case KERNEL_CONFIG_ARG:
-                case KERNEL_CONFIG_ARG_SHORT:
-                case KERNEL_ROOT_ARG:
-                case KERNEL_ROOT_ARG_SHORT:
-                case KERNEL_INIT_CONFIG_ARG:
-                case KERNEL_INIT_CONFIG_ARG_SHORT:
-                    kernelArgs.add(arg);
-                    kernelArgs.add(getArg());
-                    break;
-                case THING_NAME_ARG:
-                case THING_NAME_ARG_SHORT:
-                    this.thingName = getArg();
-                    break;
-                case THING_GROUP_NAME_ARG:
-                case THING_GROUP_NAME_ARG_SHORT:
-                    this.thingGroupName = getArg();
-                    break;
-                case THING_POLICY_NAME_ARG:
-                case THING_POLICY_NAME_ARG_SHORT:
-                    this.thingPolicyName = getArg();
-                    break;
-                case TES_ROLE_NAME_ARG:
-                case TES_ROLE_NAME_ARG_SHORT:
-                    this.tesRoleName = getArg();
-                    break;
-                case TES_ROLE_ALIAS_NAME_ARG:
-                case TES_ROLE_ALIAS_NAME_ARG_SHORT:
-                    this.tesRoleAliasName = getArg();
-                    break;
-                case AWS_REGION_ARG:
-                case AWS_REGION_ARG_SHORT:
-                    kernelArgs.add(arg);
-                    this.awsRegion = getArg();
-                    if (!Region.regions().contains(Region.of(awsRegion))) {
-                        throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
-                    }
-                    kernelArgs.add(awsRegion);
-                    break;
+            case HELP_ARG:
+            case HELP_ARG_SHORT:
+                this.showHelp = true;
+                break loop;
+            case VERSION_ARG:
+            case VERSION_ARG_SHORT:
+                this.showVersion = true;
+                break loop;
+            case KERNEL_CONFIG_ARG:
+            case KERNEL_CONFIG_ARG_SHORT:
+            case KERNEL_ROOT_ARG:
+            case KERNEL_ROOT_ARG_SHORT:
+            case KERNEL_INIT_CONFIG_ARG:
+            case KERNEL_INIT_CONFIG_ARG_SHORT:
+                kernelArgs.add(arg);
+                kernelArgs.add(getArg());
+                break;
+            case THING_NAME_ARG:
+            case THING_NAME_ARG_SHORT:
+                this.thingName = getArg();
+                break;
+            case THING_GROUP_NAME_ARG:
+            case THING_GROUP_NAME_ARG_SHORT:
+                this.thingGroupName = getArg();
+                break;
+            case THING_POLICY_NAME_ARG:
+            case THING_POLICY_NAME_ARG_SHORT:
+                this.thingPolicyName = getArg();
+                break;
+            case TES_ROLE_NAME_ARG:
+            case TES_ROLE_NAME_ARG_SHORT:
+                this.tesRoleName = getArg();
+                break;
+            case TES_ROLE_ALIAS_NAME_ARG:
+            case TES_ROLE_ALIAS_NAME_ARG_SHORT:
+                this.tesRoleAliasName = getArg();
+                break;
+            case AWS_REGION_ARG:
+            case AWS_REGION_ARG_SHORT:
+                kernelArgs.add(arg);
+                this.awsRegion = getArg();
+                if (!Region.regions().contains(Region.of(awsRegion))) {
+                    throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
+                }
+                kernelArgs.add(awsRegion);
+                break;
 
-                case ENV_STAGE_ARG:
-                case ENV_STAGE_ARG_SHORT:
-                    kernelArgs.add(arg);
-                    this.environmentStage = getArg();
-                    kernelArgs.add(environmentStage.toLowerCase());
-                    break;
-                case PROVISION_THING_ARG:
-                case PROVISION_THING_ARG_SHORT:
-                    this.needProvisioning = parseBooleanArg();
-                    break;
-                case SETUP_SYSTEM_SERVICE_ARG:
-                case SETUP_SYSTEM_SERVICE_ARG_SHORT:
-                    this.setupSystemService = parseBooleanArg();
-                    break;
-                case KERNEL_START_ARG:
-                case KERNEL_START_ARG_SHORT:
-                    this.kernelStart = parseBooleanArg();
-                    break;
-                case DEFAULT_USER_ARG:
-                case DEFAULT_USER_ARG_SHORT:
-                    String argument = arg;
-                    kernelArgs.add(argument);
-                    this.defaultUser = Coerce.toString(getArg());
-                    if (Utils.isEmpty(defaultUser)) {
-                        throw new RuntimeException(String.format("No user specified with %s", argument));
-                    }
-                    kernelArgs.add(defaultUser);
-                    break;
-                case DEPLOY_DEV_TOOLS_ARG:
-                case DEPLOY_DEV_TOOLS_ARG_SHORT:
-                    this.deployDevTools = parseBooleanArg();
-                    break;
-                case TRUSTED_PLUGIN_ARG:
-                case TRUSTED_PLUGIN_ARG_SHORT:
-                    String pluginJarPath = Coerce.toString(getArg());
-                    validatePluginJarPath(pluginJarPath);
-                    if (trustedPluginPaths == null) {
-                        trustedPluginPaths = new ArrayList<>();
-                    }
-                    trustedPluginPaths.add(pluginJarPath);
-                    break;
-                case CERT_PATH_ARG:
-                    this.certPath = getArg();
-                    break;
-                default:
-                    RuntimeException rte =
-                            new RuntimeException(String.format("Undefined command line argument: %s", arg));
-                    logger.atError().setEventType("parse-args-error").setCause(rte).log();
-                    throw rte;
+            case ENV_STAGE_ARG:
+            case ENV_STAGE_ARG_SHORT:
+                kernelArgs.add(arg);
+                this.environmentStage = getArg();
+                kernelArgs.add(environmentStage.toLowerCase());
+                break;
+            case PROVISION_THING_ARG:
+            case PROVISION_THING_ARG_SHORT:
+                this.needProvisioning = parseBooleanArg();
+                break;
+            case SETUP_SYSTEM_SERVICE_ARG:
+            case SETUP_SYSTEM_SERVICE_ARG_SHORT:
+                this.setupSystemService = parseBooleanArg();
+                break;
+            case KERNEL_START_ARG:
+            case KERNEL_START_ARG_SHORT:
+                this.kernelStart = parseBooleanArg();
+                break;
+            case DEFAULT_USER_ARG:
+            case DEFAULT_USER_ARG_SHORT:
+                String argument = arg;
+                kernelArgs.add(argument);
+                this.defaultUser = Coerce.toString(getArg());
+                if (Utils.isEmpty(defaultUser)) {
+                    throw new RuntimeException(String.format("No user specified with %s", argument));
+                }
+                kernelArgs.add(defaultUser);
+                break;
+            case DEPLOY_DEV_TOOLS_ARG:
+            case DEPLOY_DEV_TOOLS_ARG_SHORT:
+                this.deployDevTools = parseBooleanArg();
+                break;
+            case TRUSTED_PLUGIN_ARG:
+            case TRUSTED_PLUGIN_ARG_SHORT:
+                String pluginJarPath = Coerce.toString(getArg());
+                validatePluginJarPath(pluginJarPath);
+                if (trustedPluginPaths == null) {
+                    trustedPluginPaths = new ArrayList<>();
+                }
+                trustedPluginPaths.add(pluginJarPath);
+                break;
+            case CERT_PATH_ARG:
+                this.certPath = getArg();
+                break;
+            default:
+                RuntimeException rte = new RuntimeException(String.format("Undefined command line argument: %s", arg));
+                logger.atError().setEventType("parse-args-error").setCause(rte).log();
+                throw rte;
             }
         }
     }
@@ -525,10 +523,12 @@ public class GreengrassSetup {
 
         outStream.printf("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...%n", thingName);
         // handle endpoints provided by external config
-        String iotDataEndpoint  = Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC,
-                DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_IOT_DATA_ENDPOINT));
-        String iotCredEndpoint = Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC,
-                DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_IOT_CRED_ENDPOINT));
+        String iotDataEndpoint = Coerce.toString(kernel.getConfig()
+                .find(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                        DEVICE_PARAM_IOT_DATA_ENDPOINT));
+        String iotCredEndpoint = Coerce.toString(kernel.getConfig()
+                .find(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                        DEVICE_PARAM_IOT_CRED_ENDPOINT));
 
         final ThingInfo thingInfo = deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(),
                 thingPolicyName, thingName, iotDataEndpoint, iotCredEndpoint);
@@ -537,8 +537,8 @@ public class GreengrassSetup {
                 thingName);
         if (!Utils.isEmpty(thingGroupName)) {
             outStream.printf("Adding IoT Thing [%s] into Thing Group: [%s]...%n", thingName, thingGroupName);
-            deviceProvisioningHelper
-                    .addThingToGroup(deviceProvisioningHelper.getIotClient(), thingName, thingGroupName);
+            deviceProvisioningHelper.addThingToGroup(deviceProvisioningHelper.getIotClient(), thingName,
+                    thingGroupName);
             outStream.printf("Successfully added Thing into Thing Group: [%s]%n", thingGroupName);
         }
         outStream.printf("Setting up resources for %s ... %n", TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS);
@@ -556,8 +556,8 @@ public class GreengrassSetup {
         // Dump config since we've just provisioned so that the bootstrap config will enable us to
         // reach the cloud when needed. Must do this now because we normally would never overwrite the bootstrap
         // file, however we need to do it since we've only just learned about our endpoints, certs, etc.
-        kernel.writeEffectiveConfigAsTransactionLog(kernel.getNucleusPaths().configPath()
-                .resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE));
+        kernel.writeEffectiveConfigAsTransactionLog(
+                kernel.getNucleusPaths().configPath().resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE));
     }
 
     @SuppressWarnings("PMD.PreserveStackTrace")

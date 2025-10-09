@@ -38,19 +38,17 @@ import javax.annotation.Nullable;
 
 /**
  * Vaguely like ProcessBuilder, but more flexible and lambda-friendly.
+ * 
  * <pre>
  * // set wd to current working directory
  * String wd = Exec.sh("pwd");
  *
  * // run a shell in the background, and print "Yahoo!"
  * // when "wifi" appears in the system log
- * Platform.getInstance().createNewProcessRunner()
- * .withShell("tail -F /var/log/system.log")
- * .withOut(str->{
- * if(str.toString().contains("wifi"))
- * System.out.println("Yahoo!");
- * })
- * .background(exc -> System.out.println("exit "+exc));
+ * Platform.getInstance().createNewProcessRunner().withShell("tail -F /var/log/system.log").withOut(str -> {
+ *     if (str.toString().contains("wifi"))
+ *         System.out.println("Yahoo!");
+ * }).background(exc -> System.out.println("exit " + exc));
  * </pre>
  */
 public abstract class Exec implements Closeable {
@@ -140,7 +138,7 @@ public abstract class Exec implements Closeable {
      * @return the Path of the command, or null if not found.
      */
     @Nullable
-    public abstract Path which(String fn);  // mirrors shell command
+    public abstract Path which(String fn); // mirrors shell command
 
     protected static String deTilde(String s) {
         if (s.startsWith("~/")) {
@@ -192,6 +190,7 @@ public abstract class Exec implements Closeable {
 
     /**
      * Set the command to execute.
+     * 
      * @param c a command.
      * @return this.
      */
@@ -361,7 +360,7 @@ public abstract class Exec implements Closeable {
      *
      * @return String of output.
      * @throws InterruptedException if thread is interrupted while executing
-     * @throws IOException          if execution of the process fails to start
+     * @throws IOException if execution of the process fails to start
      */
     public String execAndGetStringOutput() throws InterruptedException, IOException {
         StringBuilder sb = new StringBuilder();

@@ -45,16 +45,20 @@ public class MqttChunkedPayloadPublisher<T> {
         try {
             payloadCommonInformationSize = SERIALIZER.writeValueAsBytes(chunkablePayload).length;
         } catch (JsonProcessingException e) {
-            logger.atError().cause(e).kv(topicKey, updateTopic)
+            logger.atError()
+                    .cause(e)
+                    .kv(topicKey, updateTopic)
                     .log("Unable to write common payload as bytes. Dropping the message");
             return;
         }
 
         // if common info already exceeds limit, drop the publish request
         if (payloadCommonInformationSize > maxPayloadLengthBytes) {
-            logger.atError().kv(topicKey, updateTopic).log("Failed to publish payload via "
-                    + "MqttChunkedPayloadPublisher because the common information payload size "
-                    + "exceeded the max limit allowed");
+            logger.atError()
+                    .kv(topicKey, updateTopic)
+                    .log("Failed to publish payload via "
+                            + "MqttChunkedPayloadPublisher because the common information payload size "
+                            + "exceeded the max limit allowed");
             return;
         }
 
@@ -69,8 +73,8 @@ public class MqttChunkedPayloadPublisher<T> {
                 this.mqttClient.publish(PublishRequest.builder()
                         .qos(QualityOfService.AT_LEAST_ONCE)
                         .topic(this.updateTopic)
-                        .payload(payloadInBytes).build())
-                        .whenComplete((r, t) -> {
+                        .payload(payloadInBytes)
+                        .build()).whenComplete((r, t) -> {
                             if (t == null) {
                                 logger.atDebug().kv(topicKey, updateTopic).log("MQTT publish succeeded");
                             } else {
@@ -78,8 +82,11 @@ public class MqttChunkedPayloadPublisher<T> {
                             }
                         });
             } catch (JsonProcessingException e) {
-                logger.atError().cause(e).kv(topicKey, updateTopic).log("Failed to publish message via "
-                        + "MqttChunkedPayloadPublisher. Unable to write message as bytes");
+                logger.atError()
+                        .cause(e)
+                        .kv(topicKey, updateTopic)
+                        .log("Failed to publish message via "
+                                + "MqttChunkedPayloadPublisher. Unable to write message as bytes");
             }
         }
     }
@@ -101,23 +108,28 @@ public class MqttChunkedPayloadPublisher<T> {
                 return chunkedVariablePayloadList;
             }
         } catch (JsonProcessingException e) {
-            logger.atError().cause(e).kv(topicKey, updateTopic)
+            logger.atError()
+                    .cause(e)
+                    .kv(topicKey, updateTopic)
                     .log("Unable to write chunkable payload as bytes. Will continue with chunking");
         }
-
 
         chunkedVariablePayloadList.add(new ArrayList<>());
         for (T payload : variablePayloads) {
             // if the single payload size plus common info size exceeds the max limit, drop the payload
             try {
-                if (getUpdatedChunkablePayloadSize(chunkablePayload, Collections.singletonList(payload))
-                        > maxPayloadLengthBytes) {
-                    logger.atWarn().kv(topicKey, updateTopic).log("Dropping a variable payload in "
-                            + "chunkable payload publish because its size exceed the max limit allowed");
+                if (getUpdatedChunkablePayloadSize(chunkablePayload,
+                        Collections.singletonList(payload)) > maxPayloadLengthBytes) {
+                    logger.atWarn()
+                            .kv(topicKey, updateTopic)
+                            .log("Dropping a variable payload in "
+                                    + "chunkable payload publish because its size exceed the max limit allowed");
                     continue;
                 }
             } catch (JsonProcessingException e) {
-                logger.atError().cause(e).kv(topicKey, updateTopic)
+                logger.atError()
+                        .cause(e)
+                        .kv(topicKey, updateTopic)
                         .log("Unable to write chunkable payload as bytes. Dropping the variable payload");
                 continue;
             }
@@ -136,7 +148,9 @@ public class MqttChunkedPayloadPublisher<T> {
                         chunk.remove(chunk.size() - 1);
                     }
                 } catch (JsonProcessingException e) {
-                    logger.atError().cause(e).kv(topicKey, updateTopic)
+                    logger.atError()
+                            .cause(e)
+                            .kv(topicKey, updateTopic)
                             .log("Unable to write chunkable payload as bytes. Dropping the variable payload");
                     chunk.remove(chunk.size() - 1);
                     break;

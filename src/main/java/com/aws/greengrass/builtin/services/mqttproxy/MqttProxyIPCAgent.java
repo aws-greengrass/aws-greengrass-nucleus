@@ -91,7 +91,9 @@ public class MqttProxyIPCAgent {
 
         }
 
-        @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.AvoidInstanceofChecksInCatchClause"})
+        @SuppressWarnings({
+                "PMD.PreserveStackTrace", "PMD.AvoidInstanceofChecksInCatchClause"
+        })
         @Override
         public PublishToIoTCoreResponse handleRequest(PublishToIoTCoreRequest request) {
             return translateExceptions(() -> {
@@ -115,13 +117,16 @@ public class MqttProxyIPCAgent {
                         .correlationData(request.getCorrelationData())
                         .responseTopic(request.getResponseTopic())
                         .messageExpiryIntervalSeconds(request.getMessageExpiryIntervalSeconds())
-                        .userProperties(request.getUserProperties() == null ? null :
-                                request.getUserProperties().stream()
+                        .userProperties(request.getUserProperties() == null
+                                ? null
+                                : request.getUserProperties()
+                                        .stream()
                                         .map((u) -> new UserProperty(u.getKey(), u.getValue()))
                                         .collect(Collectors.toList()))
                         .payloadFormat(
                                 request.getPayloadFormat() == null || request.getPayloadFormat() == PayloadFormat.BYTES
-                                        ? Publish.PayloadFormatIndicator.BYTES : Publish.PayloadFormatIndicator.UTF8)
+                                        ? Publish.PayloadFormatIndicator.BYTES
+                                        : Publish.PayloadFormatIndicator.UTF8)
                         .build();
 
                 try {
@@ -130,8 +135,8 @@ public class MqttProxyIPCAgent {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
                     }
-                    throw new ServiceError(String.format("Publish to topic %s failed: %s", topic,
-                            Utils.getUltimateMessage(e)));
+                    throw new ServiceError(
+                            String.format("Publish to topic %s failed: %s", topic, Utils.getUltimateMessage(e)));
                 }
 
                 return new PublishToIoTCoreResponse();
@@ -174,7 +179,10 @@ public class MqttProxyIPCAgent {
                         return null;
                     });
                 } catch (MqttRequestException e) {
-                    LOGGER.atError().cause(e).kv(TOPIC_KEY, subscribedTopic).kv(COMPONENT_NAME, serviceName)
+                    LOGGER.atError()
+                            .cause(e)
+                            .kv(TOPIC_KEY, subscribedTopic)
+                            .kv(COMPONENT_NAME, serviceName)
                             .log("Stream closed but unable to unsubscribe from topic");
                 }
             }
@@ -185,7 +193,9 @@ public class MqttProxyIPCAgent {
             return null;
         }
 
-        @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"})
+        @SuppressWarnings({
+                "PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"
+        })
         @Override
         public CompletableFuture<SubscribeToIoTCoreResponse> handleRequestAsync(SubscribeToIoTCoreRequest request) {
             return translateExceptions(() -> {
@@ -200,15 +210,17 @@ public class MqttProxyIPCAgent {
 
                 Consumer<Publish> callback = this::forwardToSubscriber;
                 com.aws.greengrass.mqttclient.v5.QOS qos = validateQoS(request.getQosAsString(), serviceName);
-                Subscribe subscribeRequest = Subscribe.builder().callback(callback).topic(topic)
-                        .qos(qos).build();
+                Subscribe subscribeRequest = Subscribe.builder().callback(callback).topic(topic).qos(qos).build();
 
                 try {
                     subscribedTopic = topic;
                     subscriptionCallback = callback;
 
                     return mqttClient.subscribe(subscribeRequest).exceptionally((t) -> {
-                        LOGGER.atError().cause(t).kv(TOPIC_KEY, topic).kv(COMPONENT_NAME, serviceName)
+                        LOGGER.atError()
+                                .cause(t)
+                                .kv(TOPIC_KEY, topic)
+                                .kv(COMPONENT_NAME, serviceName)
                                 .log("Unable to subscribe to topic");
                         throw new ServiceError(String.format("Subscribe to topic %s failed with error %s", topic, t));
                     }).thenApply((i) -> {
@@ -221,15 +233,17 @@ public class MqttProxyIPCAgent {
                             }
 
                             throw new ServiceError(
-                                    String.format("Subscribe to topic %s failed with error %s", topic,
-                                            rcString))
-                                    .withContext(Utils.immutableMap("reasonString", i.getReasonString(),
-                                            "reasonCode", i.getReasonCode()));
+                                    String.format("Subscribe to topic %s failed with error %s", topic, rcString))
+                                    .withContext(Utils.immutableMap("reasonString", i.getReasonString(), "reasonCode",
+                                            i.getReasonCode()));
                         }
                         return new SubscribeToIoTCoreResponse();
                     });
                 } catch (MqttRequestException e) {
-                    LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(COMPONENT_NAME, serviceName)
+                    LOGGER.atError()
+                            .cause(e)
+                            .kv(TOPIC_KEY, topic)
+                            .kv(COMPONENT_NAME, serviceName)
                             .log("Unable to subscribe to topic");
                     throw new ServiceError(String.format("Subscribe to topic %s failed with error %s", topic, e));
                 }
@@ -247,20 +261,25 @@ public class MqttProxyIPCAgent {
         }
 
         private void forwardToSubscriber(Publish m) {
-            IoTCoreMessage message = new IoTCoreMessage().withMessage(
-                    new MQTTMessage().withTopicName(m.getTopic()).withPayload(m.getPayload())
-                            .withCorrelationData(m.getCorrelationData())
-                            .withMessageExpiryIntervalSeconds(m.getMessageExpiryIntervalSeconds())
-                            .withResponseTopic(m.getResponseTopic()).withRetain(m.isRetain())
-                            .withContentType(m.getContentType())
-                            .withPayloadFormat(
-                                    m.getPayloadFormat() == null
-                                            || m.getPayloadFormat() == Publish.PayloadFormatIndicator.BYTES
-                                            ? PayloadFormat.BYTES : PayloadFormat.UTF8).withUserProperties(
-                                    m.getUserProperties() == null ? null : m.getUserProperties().stream()
-                                            .map((u) -> new software.amazon.awssdk.aws.greengrass.model.UserProperty()
-                                                    .withKey(u.getKey()).withValue(u.getValue()))
-                                            .collect(Collectors.toList())));
+            IoTCoreMessage message = new IoTCoreMessage().withMessage(new MQTTMessage().withTopicName(m.getTopic())
+                    .withPayload(m.getPayload())
+                    .withCorrelationData(m.getCorrelationData())
+                    .withMessageExpiryIntervalSeconds(m.getMessageExpiryIntervalSeconds())
+                    .withResponseTopic(m.getResponseTopic())
+                    .withRetain(m.isRetain())
+                    .withContentType(m.getContentType())
+                    .withPayloadFormat(
+                            m.getPayloadFormat() == null || m.getPayloadFormat() == Publish.PayloadFormatIndicator.BYTES
+                                    ? PayloadFormat.BYTES
+                                    : PayloadFormat.UTF8)
+                    .withUserProperties(m.getUserProperties() == null
+                            ? null
+                            : m.getUserProperties()
+                                    .stream()
+                                    .map((u) -> new software.amazon.awssdk.aws.greengrass.model.UserProperty()
+                                            .withKey(u.getKey())
+                                            .withValue(u.getValue()))
+                                    .collect(Collectors.toList())));
 
             // Only allow forwarding messages if our initial response has been sent already.
             // If we don't do this, the callback may be invoked and send the streaming response
@@ -268,8 +287,8 @@ public class MqttProxyIPCAgent {
             if (subscriptionResponseSent.get()) {
                 this.sendStreamEvent(message);
             } else {
-                LOGGER.warn("Not forwarding message on topic {} to {} "
-                                + "because subscription response is not yet sent",
+                LOGGER.warn(
+                        "Not forwarding message on topic {} to {} " + "because subscription response is not yet sent",
                         m.getTopic(), serviceName);
             }
         }
@@ -313,8 +332,7 @@ public class MqttProxyIPCAgent {
                 AuthorizationHandler.ResourceLookupPolicy.MQTT_STYLE)) {
             return;
         }
-        throw new AuthorizationException(
-                String.format("Principal %s is not authorized to perform %s:%s on resource %s", serviceName,
-                        MQTT_PROXY_SERVICE_NAME, opName, topic));
+        throw new AuthorizationException(String.format("Principal %s is not authorized to perform %s:%s on resource %s",
+                serviceName, MQTT_PROXY_SERVICE_NAME, opName, topic));
     }
 }

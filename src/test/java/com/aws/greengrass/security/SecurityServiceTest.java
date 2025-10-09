@@ -43,7 +43,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class SecurityServiceTest {
 
     @InjectMocks
@@ -197,8 +199,8 @@ class SecurityServiceTest {
 
     @Test
     void GIVEN_key_service_provider_not_registered_WHEN_get_key_managers_THEN_throw_exception() {
-        assertThrows(ServiceUnavailableException.class,
-                () -> service.getKeyManagers(new URI("pkcs11:object=key-label"), new URI("file:///path/to/certificate")));
+        assertThrows(ServiceUnavailableException.class, () -> service.getKeyManagers(new URI("pkcs11:object=key-label"),
+                new URI("file:///path/to/certificate")));
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -225,15 +227,14 @@ class SecurityServiceTest {
 
     @Test
     void GIVEN_mqtt_connection_provider_not_registered_WHEN_get_mqtt_builder_THEN_throw_exception() {
-        assertThrows(ServiceUnavailableException.class,
-                () -> service.getMqttConnectionBuilder(new URI("pkcs11:object=key-label"),
-                        new URI("file:///path/to/certificate")));
+        assertThrows(ServiceUnavailableException.class, () -> service
+                .getMqttConnectionBuilder(new URI("pkcs11:object=key-label"), new URI("file:///path/to/certificate")));
     }
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_mqtt_connection_provider_registered_but_not_available_WHEN_get_mqtt_builder_THEN_retry(ExtensionContext context)
-            throws Exception {
+    void GIVEN_mqtt_connection_provider_registered_but_not_available_WHEN_get_mqtt_builder_THEN_retry(
+            ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceUnavailableException.class);
 
         when(mockConnectionProvider.supportedKeyType()).thenReturn("PKCS11");
@@ -243,7 +244,8 @@ class SecurityServiceTest {
         URI certificateUri = new URI(certUriStr);
         AwsIotMqttConnectionBuilder mockBuilder = mock(AwsIotMqttConnectionBuilder.class);
         when(mockConnectionProvider.getMqttConnectionBuilder(keyUri, certificateUri))
-                .thenThrow(ServiceUnavailableException.class).thenReturn(mockBuilder);
+                .thenThrow(ServiceUnavailableException.class)
+                .thenReturn(mockBuilder);
         Topic keyTopic = mock(Topic.class);
         when(keyTopic.getOnce()).thenReturn(keyUriStr);
         when(deviceConfiguration.getPrivateKeyFilePath()).thenReturn(keyTopic);
@@ -259,14 +261,12 @@ class SecurityServiceTest {
     @Test
     void GIVEN_key_and_cert_uri_WHEN_get_key_managers_from_default_THEN_succeed() throws Exception {
         Path certPath =
-                EncryptionUtilsTest.generateCertificateFile(2048, true, resourcePath.resolve("certificate.pem"),
-                        false).getLeft();
-        Path privateKeyPath =
-                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true, resourcePath.resolve("privateKey.pem"),
-                        false);
+                EncryptionUtilsTest.generateCertificateFile(2048, true, resourcePath.resolve("certificate.pem"), false)
+                        .getLeft();
+        Path privateKeyPath = EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true,
+                resourcePath.resolve("privateKey.pem"), false);
 
-        KeyManager[] keyManagers =
-                defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
+        KeyManager[] keyManagers = defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
         assertThat(keyManagers.length, is(1));
         X509KeyManager keyManager = (X509KeyManager) keyManagers[0];
         assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
@@ -274,23 +274,19 @@ class SecurityServiceTest {
         assertThat(keyManager.getCertificateChain("private-key").length, is(1));
         assertThat(keyManager.getCertificateChain("private-key")[0].getSigAlgName(), is("SHA256withRSA"));
 
-        privateKeyPath =
-                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(256, true, resourcePath.resolve("privateKey.pem"),
-                        true);
+        privateKeyPath = EncryptionUtilsTest.generatePkCS8PrivateKeyFile(256, true,
+                resourcePath.resolve("privateKey.pem"), true);
 
-        keyManagers =
-                defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
+        keyManagers = defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
         assertThat(keyManagers.length, is(1));
         keyManager = (X509KeyManager) keyManagers[0];
         assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
         assertThat(keyManager.getPrivateKey("private-key").getAlgorithm(), is("EC"));
 
-        privateKeyPath =
-                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(256, false, resourcePath.resolve("privateKey.der"),
-                        true);
+        privateKeyPath = EncryptionUtilsTest.generatePkCS8PrivateKeyFile(256, false,
+                resourcePath.resolve("privateKey.der"), true);
 
-        keyManagers =
-                defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
+        keyManagers = defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
         assertThat(keyManagers.length, is(1));
         keyManager = (X509KeyManager) keyManagers[0];
         assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
@@ -308,9 +304,8 @@ class SecurityServiceTest {
     void GIVEN_non_compatible_cert_uri_WHEN_get_key_managers_from_default_THEN_throw_exception() throws Exception {
         Path privateKeyPath = resourcePath.resolve("good-key.pem");
         EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true, privateKeyPath, false);
-        Exception e = assertThrows(KeyLoadingException.class,
-                () -> defaultProvider.getKeyManagers(privateKeyPath.toFile().toURI(),
-                        new URI("pkcs11:object=key-label")));
+        Exception e = assertThrows(KeyLoadingException.class, () -> defaultProvider
+                .getKeyManagers(privateKeyPath.toFile().toURI(), new URI("pkcs11:object=key-label")));
         assertThat(e.getMessage(), containsString("Only support file type certificate"));
     }
 
@@ -320,28 +315,27 @@ class SecurityServiceTest {
         EncryptionUtilsTest.writePemFile("RSA PRIVATE KEY", "this is private key".getBytes(), privateKeyPath);
         Exception e = assertThrows(KeyLoadingException.class,
                 () -> defaultProvider.getKeyManagers(privateKeyPath.toUri(), new URI("file:///path/to/certificate")));
-        assertThat(e.getMessage(), containsString( "Failed to get keypair"));
+        assertThat(e.getMessage(), containsString("Failed to get keypair"));
     }
 
     @Test
     void GIVEN_non_compatible_key_uri_WHEN_get_mqtt_builder_from_default_THEN_throw_exception() {
-        Exception e = assertThrows(MqttConnectionProviderException.class,
-                () -> defaultProvider.getMqttConnectionBuilder(new URI("pkcs11:object=key-label"), new URI("file:///path")));
+        Exception e = assertThrows(MqttConnectionProviderException.class, () -> defaultProvider
+                .getMqttConnectionBuilder(new URI("pkcs11:object=key-label"), new URI("file:///path")));
         assertThat(e.getMessage(), containsString("Only support file type private key"));
     }
 
     @Test
     void GIVEN_non_compatible_cert_uri_WHEN_get_mqtt_builder_from_default_THEN_throw_exception() throws Exception {
-        Exception e = assertThrows(MqttConnectionProviderException.class,
-                () -> defaultProvider.getMqttConnectionBuilder(new URI("file:///path/to/key"),
-                        new URI("pkcs11:object=key-label")));
+        Exception e = assertThrows(MqttConnectionProviderException.class, () -> defaultProvider
+                .getMqttConnectionBuilder(new URI("file:///path/to/key"), new URI("pkcs11:object=key-label")));
         assertThat(e.getMessage(), containsString("Only support file type certificate"));
     }
 
     @Test
     void GIVEN_key_and_cert_uri_WHEN_get_mqtt_builder_from_default_THEN_succeed() throws Exception {
-        try (AwsIotMqttConnectionBuilder builder = defaultProvider.getMqttConnectionBuilder(
-                new URI("file:///path/to/key"), new URI("file:///path/to/cert"))) {
+        try (AwsIotMqttConnectionBuilder builder = defaultProvider
+                .getMqttConnectionBuilder(new URI("file:///path/to/key"), new URI("file:///path/to/cert"))) {
             assertThat(builder, IsNull.notNullValue());
         }
     }

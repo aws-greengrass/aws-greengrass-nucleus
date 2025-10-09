@@ -31,7 +31,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 public class UnloadableServiceTest extends GGServiceTestUtil {
 
     private UnloadableService unloadableService;
@@ -55,25 +57,31 @@ public class UnloadableServiceTest extends GGServiceTestUtil {
 
         assertFalse(unloadableService.isBootstrapRequired(Collections.emptyMap()));
 
-        assertFalse(unloadableService.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICE_TYPE_TOPIC_KEY, "PLUGIN");
-        }}));
+        assertFalse(unloadableService.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICE_TYPE_TOPIC_KEY, "PLUGIN");
+            }
+        }));
 
         // Plugin jar not found
-        assertFalse(unloadableService.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICE_TYPE_TOPIC_KEY, "PLUGIN");
-            put(VERSION_CONFIG_KEY, "1.0.0");
-        }}));
+        assertFalse(unloadableService.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICE_TYPE_TOPIC_KEY, "PLUGIN");
+                put(VERSION_CONFIG_KEY, "1.0.0");
+            }
+        }));
     }
 
     @Test
     void GIVEN_new_config_with_plugin_version_change_WHEN_isBootstrapRequired_THEN_return_true() {
         doReturn(Topic.of(context, VERSION_CONFIG_KEY, "1.0.0")).when(config).find(eq(VERSION_CONFIG_KEY));
 
-        assertTrue(unloadableService.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.1");
-            put(SERVICE_TYPE_TOPIC_KEY, "PLUGIN");
-        }}));
+        assertTrue(unloadableService.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.1");
+                put(SERVICE_TYPE_TOPIC_KEY, "PLUGIN");
+            }
+        }));
     }
 
     @Test
@@ -83,9 +91,11 @@ public class UnloadableServiceTest extends GGServiceTestUtil {
         // Sleep 1 second here before modifying file, because last modified timestamp gives 1 second precision
         Thread.sleep(1_000L);
         Files.createFile(tempDir.resolve("GreengrassServiceFullName.jar"));
-        assertTrue(unloadableService.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICE_TYPE_TOPIC_KEY, "PLUGIN");
-            put(VERSION_CONFIG_KEY, "1.0.0");
-        }}));
+        assertTrue(unloadableService.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICE_TYPE_TOPIC_KEY, "PLUGIN");
+                put(VERSION_CONFIG_KEY, "1.0.0");
+            }
+        }));
     }
 }

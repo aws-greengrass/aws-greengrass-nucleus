@@ -45,7 +45,7 @@ public class ComponentMetricIPCService implements Startable, InjectionActions {
 
     @Override
     public void startup() {
-        greengrassCoreIPCService.setPutComponentMetricHandler(
-                context -> eventStreamAgent.getPutComponentMetricHandler(context));
+        greengrassCoreIPCService
+                .setPutComponentMetricHandler(context -> eventStreamAgent.getPutComponentMetricHandler(context));
     }
 }

@@ -33,7 +33,9 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static com.aws.greengrass.deployment.DeviceConfiguration.S3_ENDPOINT_PROP_NAME;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 public class S3SdkClientFactoryTest {
     private final Context context = new Context();
     private S3Client cachedClient;
@@ -58,7 +60,7 @@ public class S3SdkClientFactoryTest {
     @AfterEach
     void clearCache() {
         S3SdkClientFactory.clientCache.clear();
-        if(cachedClient != null) {
+        if (cachedClient != null) {
             cachedClient.close();
         }
         System.clearProperty(S3_ENDPOINT_PROP_NAME);
@@ -67,7 +69,7 @@ public class S3SdkClientFactoryTest {
     @Test
     void GIVEN_valid_configuration_WHEN_get_client_THEN_client_returned() throws DeviceConfigurationException {
         S3SdkClientFactory factory = new S3SdkClientFactory(deviceConfig, credentialProvider);
-        factory.handleRegionUpdate();   // simulate topics firing during initialization
+        factory.handleRegionUpdate(); // simulate topics firing during initialization
 
         try (S3Client client = factory.getS3Client()) {
             assertThat("has client", client, is(notNullValue()));
@@ -82,7 +84,7 @@ public class S3SdkClientFactoryTest {
 
         S3SdkClientFactory factory = new S3SdkClientFactory(deviceConfig, credentialProvider);
 
-        factory.handleRegionUpdate();   // simulate topics firing during initialization
+        factory.handleRegionUpdate(); // simulate topics firing during initialization
 
         assertThrowsExactly(DeviceConfigurationException.class, factory::getS3Client, "test");
         assertThat(factory.getConfigValidationError(), is("test"));
@@ -138,8 +140,7 @@ public class S3SdkClientFactoryTest {
         S3SdkClientFactory factory = new S3SdkClientFactory(deviceConfig, credentialProvider);
         factory.handleRegionUpdate();
         assertEquals(null, System.getProperty(S3_ENDPOINT_PROP_NAME));
-        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE,
-                "REGIONAL");
+        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE, "REGIONAL");
         when(deviceConfig.gets3EndpointType()).thenReturn(s3Endpoint);
         try (S3Client client = factory.getS3Client()) {
             assertThat("has client", client, is(notNullValue()));
@@ -153,8 +154,7 @@ public class S3SdkClientFactoryTest {
         S3SdkClientFactory factory = new S3SdkClientFactory(deviceConfig, credentialProvider);
         factory.handleRegionUpdate();
 
-        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE,
-                "REGIONAL");
+        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE, "REGIONAL");
         when(deviceConfig.gets3EndpointType()).thenReturn(s3Endpoint);
         try (S3Client client = factory.getS3Client()) {
             cachedClient = client;
@@ -162,8 +162,7 @@ public class S3SdkClientFactoryTest {
             assertEquals("regional", System.getProperty(S3_ENDPOINT_PROP_NAME));
         }
 
-        s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE,
-                "GLOBAL");
+        s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE, "GLOBAL");
         when(deviceConfig.gets3EndpointType()).thenReturn(s3Endpoint);
 
         try (S3Client client = factory.getS3Client()) {
@@ -179,8 +178,7 @@ public class S3SdkClientFactoryTest {
         S3SdkClientFactory factory = new S3SdkClientFactory(deviceConfig, credentialProvider);
         factory.handleRegionUpdate();
         System.setProperty(S3_ENDPOINT_PROP_NAME, "regional");
-        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE,
-                "REGIONAL");
+        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE, "REGIONAL");
         when(deviceConfig.gets3EndpointType()).thenReturn(s3Endpoint);
         try (S3Client client = factory.getS3Client()) {
             cachedClient = client;

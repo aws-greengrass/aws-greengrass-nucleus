@@ -52,8 +52,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 
-@SuppressFBWarnings(value = "JLM_JSR166_UTILCONCURRENT_MONITORENTER",
-        justification = "We're synchronizing on the desired state list which is fine")
+@SuppressFBWarnings(value = "JLM_JSR166_UTILCONCURRENT_MONITORENTER", justification = "We're synchronizing on the desired state list which is fine")
 public class Lifecycle {
     public static final String LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC = "bootstrap";
     public static final String LIFECYCLE_INSTALL_NAMESPACE_TOPIC = "install";
@@ -80,22 +79,21 @@ public class Lifecycle {
     private static final long DEFAULT_ERROR_RESET_TIME_IN_SEC = Duration.ofHours(1).getSeconds();
 
     /*
-     * State generation is a value representing how many times the service has been in the NEW/STARTING state.
-     * It is to used determine if an action should be taken when that action would be run asynchronously.
-     * It is not sufficient to check if the state is what you want it to be, because the service may have
-     * restarted again by the time you are performing this check. Therefore, the generation is used to know
-     * that the service is still in the same state as you want it to be.
+     * State generation is a value representing how many times the service has been in the NEW/STARTING state. It is to
+     * used determine if an action should be taken when that action would be run asynchronously. It is not sufficient to
+     * check if the state is what you want it to be, because the service may have restarted again by the time you are
+     * performing this check. Therefore, the generation is used to know that the service is still in the same state as
+     * you want it to be.
      *
-     * For example, if we want to move the service to errored if installed takes too long, then we setup a callback
-     * to move it to errored if the state is installed. But this won't necessarily be correct because the service
-     * could have restarted in the mean time, so this old callback should not move it to errored since it's view
-     * of the world is outdated. If the callback checks both the state and the generation then it is assured to
-     * properly move the service into errored only when the callback's view of the world is correct.
+     * For example, if we want to move the service to errored if installed takes too long, then we setup a callback to
+     * move it to errored if the state is installed. But this won't necessarily be correct because the service could
+     * have restarted in the mean time, so this old callback should not move it to errored since it's view of the world
+     * is outdated. If the callback checks both the state and the generation then it is assured to properly move the
+     * service into errored only when the callback's view of the world is correct.
      */
     @Getter(AccessLevel.PACKAGE)
     private final AtomicLong stateGeneration = new AtomicLong();
     private final GreengrassService greengrassService;
-
 
     // lastReportedState stores the last reported state (not necessarily processed)
     private final AtomicReference<State> lastReportedState = new AtomicReference<>();
@@ -130,12 +128,12 @@ public class Lifecycle {
 
     static {
         ALLOWED_STATE_TRANSITION_FOR_REPORTING.put(State.NEW, Collections.singletonList(State.ERRORED));
-        ALLOWED_STATE_TRANSITION_FOR_REPORTING
-                .put(State.STARTING, new HashSet<>(Arrays.asList(State.RUNNING, State.ERRORED, State.FINISHED)));
-        ALLOWED_STATE_TRANSITION_FOR_REPORTING
-                .put(State.RUNNING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
-        ALLOWED_STATE_TRANSITION_FOR_REPORTING
-                .put(State.STOPPING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING.put(State.STARTING,
+                new HashSet<>(Arrays.asList(State.RUNNING, State.ERRORED, State.FINISHED)));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING.put(State.RUNNING,
+                new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING.put(State.STOPPING,
+                new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
     }
 
     private final Lock lock = LockFactory.newReentrantLock(this);
@@ -146,8 +144,8 @@ public class Lifecycle {
      * Constructor for lifecycle.
      *
      * @param greengrassService service that this is the lifecycle for
-     * @param logger           service's logger
-     * @param topics           config namespace for storing the state topic
+     * @param logger service's logger
+     * @param topics config namespace for storing the state topic
      */
     public Lifecycle(GreengrassService greengrassService, Logger logger, Topics topics) {
         this.greengrassService = greengrassService;
@@ -179,13 +177,13 @@ public class Lifecycle {
         reportState(newState, statusCode, exitCode, null);
     }
 
-    void reportState(State newState, ComponentStatusCode statusCode, Integer exitCode,
-                                  String statusReason) {
+    void reportState(State newState, ComponentStatusCode statusCode, Integer exitCode, String statusReason) {
         try (LockScope ls = LockScope.lock(lock)) {
             Collection<State> allowedStatesForReporting =
                     ALLOWED_STATE_TRANSITION_FOR_REPORTING.get(getLastReportedState());
             if (allowedStatesForReporting == null || !allowedStatesForReporting.contains(newState)) {
-                logger.atWarn(INVALID_STATE_ERROR_EVENT).kv(NEW_STATE_METRIC_NAME, newState)
+                logger.atWarn(INVALID_STATE_ERROR_EVENT)
+                        .kv(NEW_STATE_METRIC_NAME, newState)
                         .log("Invalid reported state");
                 return;
             }
@@ -244,18 +242,23 @@ public class Lifecycle {
             }
             if (stateToErroredCount.get(currentState) != null
                     && stateToErroredCount.get(currentState).size() >= MAXIMUM_CONTINUAL_ERROR) {
-                enqueueStateEvent(StateTransitionEvent.builder().newState(State.BROKEN).statusCode(statusCode)
-                        .statusReason(statusReason).build());
+                enqueueStateEvent(StateTransitionEvent.builder()
+                        .newState(State.BROKEN)
+                        .statusCode(statusCode)
+                        .statusReason(statusReason)
+                        .build());
             } else {
-                enqueueStateEvent(StateTransitionEvent.builder().newState(newState).statusCode(statusCode)
-                        .statusReason(statusReason).build());
+                enqueueStateEvent(StateTransitionEvent.builder()
+                        .newState(newState)
+                        .statusCode(statusCode)
+                        .statusReason(statusReason)
+                        .build());
             }
         }
     }
 
     /**
-     * Returns true if either the current or the very last reported state (if any)
-     * is equal to the provided state.
+     * Returns true if either the current or the very last reported state (if any) is equal to the provided state.
      *
      * @param state state to check against
      */
@@ -277,7 +280,7 @@ public class Lifecycle {
                 .build();
     }
 
-    protected Topic getStateTopic()  {
+    protected Topic getStateTopic() {
         return stateTopic;
     }
 
@@ -364,33 +367,33 @@ public class Lifecycle {
             }
 
             switch (current) {
-                case BROKEN:
-                    handleCurrentStateBroken(desiredState, prevState);
-                    break;
-                case NEW:
-                    handleCurrentStateNew(desiredState);
-                    break;
-                case INSTALLED:
-                    handleCurrentStateInstalledAsync(desiredState, asyncFinishAction);
-                    break;
-                case STARTING:
-                    handleCurrentStateStartingAsync(desiredState, asyncFinishAction);
-                    break;
-                case RUNNING:
-                    handleCurrentStateRunning(desiredState);
-                    break;
-                case STOPPING:
-                    handleCurrentStateStopping();
-                    break;
-                case FINISHED:
-                    handleCurrentStateFinished(desiredState);
-                    break;
-                case ERRORED:
-                    handleCurrentStateErrored(desiredState, prevState);
-                    break;
-                default:
-                    logger.atError(INVALID_STATE_ERROR_EVENT).log("Unrecognized current state");
-                    break;
+            case BROKEN:
+                handleCurrentStateBroken(desiredState, prevState);
+                break;
+            case NEW:
+                handleCurrentStateNew(desiredState);
+                break;
+            case INSTALLED:
+                handleCurrentStateInstalledAsync(desiredState, asyncFinishAction);
+                break;
+            case STARTING:
+                handleCurrentStateStartingAsync(desiredState, asyncFinishAction);
+                break;
+            case RUNNING:
+                handleCurrentStateRunning(desiredState);
+                break;
+            case STOPPING:
+                handleCurrentStateStopping();
+                break;
+            case FINISHED:
+                handleCurrentStateFinished(desiredState);
+                break;
+            case ERRORED:
+                handleCurrentStateErrored(desiredState, prevState);
+                break;
+            default:
+                logger.atError(INVALID_STATE_ERROR_EVENT).log("Unrecognized current state");
+                break;
             }
 
             boolean canFinish = false;
@@ -428,9 +431,8 @@ public class Lifecycle {
     }
 
     /**
-     * !!WARNING!!
-     * This method is package-private for unit testing purposes, but it must NEVER be called
-     * from anything but the lifecycle thread in this class.
+     * !!WARNING!! This method is package-private for unit testing purposes, but it must NEVER be called from anything
+     * but the lifecycle thread in this class.
      *
      * @param current current state to transition out of
      * @param stateTransitionEvent new state to transition into
@@ -452,35 +454,35 @@ public class Lifecycle {
     private void handleCurrentStateBroken(Optional<State> desiredState, State previousState)
             throws InterruptedException {
         switch (previousState) {
-            case STARTING:
-            case RUNNING:
-            case ERRORED: // shouldn't happen. Try to stop the service anyways.
-                logger.atInfo("Stopping service in BROKEN state");
-                Future<?> shutdownFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
-                    try {
-                        greengrassService.shutdown();
-                    } catch (InterruptedException i) {
-                        logger.atWarn("service-shutdown-interrupted").log("Service interrupted while running shutdown");
-                    } catch (Throwable i) {
-                        logger.atError("service-shutdown-error").setCause(i).log();
-                    }
-                });
-
+        case STARTING:
+        case RUNNING:
+        case ERRORED: // shouldn't happen. Try to stop the service anyways.
+            logger.atInfo("Stopping service in BROKEN state");
+            Future<?> shutdownFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
                 try {
-                    Integer timeout = getTimeoutConfigValue(
-                            LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
-                    shutdownFuture.get(timeout, TimeUnit.SECONDS);
-                } catch (ExecutionException e) {
-                    logger.atError("service-shutdown-error").setCause(e).log();
-                } catch (TimeoutException te) {
-                    logger.atWarn("service-shutdown-timeout").log();
-                    shutdownFuture.cancel(true);
-                } finally {
-                    stopBackingTask();
+                    greengrassService.shutdown();
+                } catch (InterruptedException i) {
+                    logger.atWarn("service-shutdown-interrupted").log("Service interrupted while running shutdown");
+                } catch (Throwable i) {
+                    logger.atError("service-shutdown-error").setCause(i).log();
                 }
-                break;
-            default:
-                // do nothing
+            });
+
+            try {
+                Integer timeout = getTimeoutConfigValue(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC,
+                        DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
+                shutdownFuture.get(timeout, TimeUnit.SECONDS);
+            } catch (ExecutionException e) {
+                logger.atError("service-shutdown-error").setCause(e).log();
+            } catch (TimeoutException te) {
+                logger.atWarn("service-shutdown-timeout").log();
+                shutdownFuture.cancel(true);
+            } finally {
+                stopBackingTask();
+            }
+            break;
+        default:
+            // do nothing
         }
         if (!desiredState.isPresent()) {
             return;
@@ -517,8 +519,8 @@ public class Lifecycle {
             }
         }, LIFECYCLE_INSTALL_NAMESPACE_TOPIC);
 
-        Integer installTimeOut = getTimeoutConfigValue(
-                LIFECYCLE_INSTALL_NAMESPACE_TOPIC, DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC);
+        Integer installTimeOut =
+                getTimeoutConfigValue(LIFECYCLE_INSTALL_NAMESPACE_TOPIC, DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC);
 
         try {
             backingTask.get().get(installTimeOut, TimeUnit.SECONDS);
@@ -534,9 +536,8 @@ public class Lifecycle {
         }
     }
 
-
     private void handleCurrentStateInstalledAsync(Optional<State> desiredState,
-                                                  AtomicReference<Predicate<Object>> asyncFinishAction) {
+            AtomicReference<Predicate<Object>> asyncFinishAction) {
         if (!desiredState.isPresent()) {
             return;
         }
@@ -563,7 +564,7 @@ public class Lifecycle {
     }
 
     private void handleCurrentStateStartingAsync(Optional<State> desiredState,
-                                                  AtomicReference<Predicate<Object>> asyncFinishAction) {
+            AtomicReference<Predicate<Object>> asyncFinishAction) {
         if (!desiredState.isPresent()) {
             return;
         }
@@ -580,17 +581,18 @@ public class Lifecycle {
         }
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.AvoidGettingFutureWithoutTimeout"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingThrowable", "PMD.AvoidGettingFutureWithoutTimeout"
+    })
     private void handleStateTransitionStartingToRunningAsync(AtomicReference<Predicate<Object>> asyncFinishAction) {
         long currentStateGeneration = stateGeneration.incrementAndGet();
-        Integer timeout = getTimeoutConfigValue(
-                LIFECYCLE_STARTUP_NAMESPACE_TOPIC, DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC);
-        Future<?> schedule =
-            greengrassService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
-                if (getState().equals(State.STARTING) && currentStateGeneration == getStateGeneration().get()) {
-                    greengrassService.serviceErrored(ComponentStatusCode.STARTUP_TIMEOUT, "startup timeout");
-                }
-            }, timeout, TimeUnit.SECONDS);
+        Integer timeout =
+                getTimeoutConfigValue(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC);
+        Future<?> schedule = greengrassService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
+            if (getState().equals(State.STARTING) && currentStateGeneration == getStateGeneration().get()) {
+                greengrassService.serviceErrored(ComponentStatusCode.STARTUP_TIMEOUT, "startup timeout");
+            }
+        }, timeout, TimeUnit.SECONDS);
 
         replaceBackingTask(() -> {
             try {
@@ -625,7 +627,6 @@ public class Lifecycle {
         });
     }
 
-
     private void handleCurrentStateRunning(Optional<State> desiredState) {
         if (!desiredState.isPresent()) {
             return;
@@ -649,8 +650,8 @@ public class Lifecycle {
         });
 
         try {
-            Integer timeout = getTimeoutConfigValue(
-                        LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
+            Integer timeout =
+                    getTimeoutConfigValue(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
             shutdownFuture.get(timeout, TimeUnit.SECONDS);
             stoppingFromStartupError.set(false);
             if (!State.ERRORED.equals(lastReportedState.get())) {
@@ -691,35 +692,33 @@ public class Lifecycle {
         }
 
         switch (prevState) {
-            // For both starting and running, make sure we stop first before retrying
-            case STARTING:
-                stoppingFromStartupError.set(true);
-                internalReportState(State.STOPPING);
-                break;
-            case RUNNING:
-                internalReportState(State.STOPPING);
-                break;
-            case NEW: // error in installing.
-                internalReportState(State.NEW);
-                break;
-            case STOPPING:
-                // not handled;
-                // reset stoppingFromStartupError since the last stopping lifecycle errored
-                stoppingFromStartupError.set(false);
-                desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
-                serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
-                break;
-            default:
-                logger.atError(INVALID_STATE_ERROR_EVENT).kv("previousState", prevState)
-                        .log("Unexpected previous state");
-                internalReportState(State.FINISHED);
-                break;
+        // For both starting and running, make sure we stop first before retrying
+        case STARTING:
+            stoppingFromStartupError.set(true);
+            internalReportState(State.STOPPING);
+            break;
+        case RUNNING:
+            internalReportState(State.STOPPING);
+            break;
+        case NEW: // error in installing.
+            internalReportState(State.NEW);
+            break;
+        case STOPPING:
+            // not handled;
+            // reset stoppingFromStartupError since the last stopping lifecycle errored
+            stoppingFromStartupError.set(false);
+            desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
+            serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
+            break;
+        default:
+            logger.atError(INVALID_STATE_ERROR_EVENT).kv("previousState", prevState).log("Unexpected previous state");
+            internalReportState(State.FINISHED);
+            break;
         }
     }
 
     /**
-     * Given the service is terminated, move to desired state.
-     * Only use in service lifecycle thread.
+     * Given the service is terminated, move to desired state. Only use in service lifecycle thread.
      *
      * @param desiredState the desiredState to go, not null
      */
@@ -730,20 +729,19 @@ public class Lifecycle {
             return;
         }
         switch (desiredState) {
-            case NEW:
-                internalReportState(State.NEW);
-                break;
-            case INSTALLED:
-            case RUNNING:
-                internalReportState(State.INSTALLED);
-                break;
-            case FINISHED:
-                internalReportState(State.FINISHED);
-                break;
-            default:
-                // not allowed to set desired state to STOPPING, ERRORED, BROKEN
-                logger.atError(INVALID_STATE_ERROR_EVENT).kv("desiredState", desiredState)
-                        .log("Unexpected desired state");
+        case NEW:
+            internalReportState(State.NEW);
+            break;
+        case INSTALLED:
+        case RUNNING:
+            internalReportState(State.INSTALLED);
+            break;
+        case FINISHED:
+            internalReportState(State.FINISHED);
+            break;
+        default:
+            // not allowed to set desired state to STOPPING, ERRORED, BROKEN
+            logger.atError(INVALID_STATE_ERROR_EVENT).kv("desiredState", desiredState).log("Unexpected desired state");
         }
     }
 
@@ -801,9 +799,9 @@ public class Lifecycle {
                         }
                     }
                 } finally {
-                    Thread.currentThread()
-                            .setName(threadName); // reset thread name so that if the thread is recycled it
-                    // will not falsely claim to be a lifecycle thread.
+                    // reset thread name so that if the thread is recycled
+                    // it will not falsely claim to be a lifecycle thread.
+                    Thread.currentThread().setName(threadName);
                 }
             });
         }
@@ -811,6 +809,7 @@ public class Lifecycle {
 
     /**
      * Return the lifecycle thread future.
+     * 
      * @return the lifecycle thread future.
      */
     public Future<?> getLifecycleThread() {
@@ -829,8 +828,7 @@ public class Lifecycle {
     final void requestStart() {
         // It's ok to start service again if the lifecycle thread is in the middle of closing
         if (isClosed.compareAndSet(true, false)) {
-            logger.atWarn("service-shutdown-in-progress")
-                    .log("Requesting service to start while it is closing");
+            logger.atWarn("service-shutdown-in-progress").log("Requesting service to start while it is closing");
         }
         try (LockScope ls = LockScope.lock(desiredStateLock)) {
             if (desiredStateList.isEmpty() || desiredStateList.equals(Collections.singletonList(State.FINISHED))) {
@@ -854,8 +852,7 @@ public class Lifecycle {
     final void requestReinstall() {
         // It's ok to reinstall service again if the lifecycle thread is in the middle of closing
         if (isClosed.compareAndSet(true, false)) {
-            logger.atWarn("service-shutdown-in-progress")
-                    .log("Requesting service to reinstall while it is closing");
+            logger.atWarn("service-shutdown-in-progress").log("Requesting service to reinstall while it is closing");
         }
         try (LockScope ls = LockScope.lock(desiredStateLock)) {
             setDesiredState(State.NEW, State.RUNNING);
@@ -910,13 +907,15 @@ public class Lifecycle {
     }
 
     private Integer getTimeoutConfigValue(String nameSpace, Integer defaultValue) {
-        return Coerce.toInt(greengrassService.getConfig().findOrDefault(defaultValue,
-                GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, nameSpace, TIMEOUT_NAMESPACE_TOPIC));
+        return Coerce.toInt(greengrassService.getConfig()
+                .findOrDefault(defaultValue, GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, nameSpace,
+                        TIMEOUT_NAMESPACE_TOPIC));
     }
 
     private int getErrorResetTime() {
-        return Coerce.toInt(greengrassService.getConfig().findOrDefault(DEFAULT_ERROR_RESET_TIME_IN_SEC,
-                GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, ERROR_RESET_TIME_TOPIC));
+        return Coerce.toInt(greengrassService.getConfig()
+                .findOrDefault(DEFAULT_ERROR_RESET_TIME_IN_SEC, GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                        ERROR_RESET_TIME_TOPIC));
     }
 
     static class StateEvent {

@@ -19,7 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class ProxyUtilsTest {
 
     @Mock
@@ -61,7 +63,8 @@ class ProxyUtilsTest {
 
     @Test
     void testGetProxyUsername() {
-        assertEquals("user@aws", ProxyUtils.getProxyUsername("https://user%40aws:password@localhost:8080", "test-user"));
+        assertEquals("user@aws",
+                ProxyUtils.getProxyUsername("https://user%40aws:password@localhost:8080", "test-user"));
         assertEquals("usernameOnly", ProxyUtils.getProxyUsername("https://usernameOnly@localhost:8080", "test-user"));
         assertEquals("test-user", ProxyUtils.getProxyUsername("https://myproxy:8080", "test-user"));
         assertNull(ProxyUtils.getProxyUsername("https://myproxy:8080", ""));

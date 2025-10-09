@@ -58,8 +58,7 @@ public class RecipeLoader {
      * @throws PackageLoadingException when there are issues parsing the string
      */
     public static com.amazon.aws.iot.greengrass.component.common.ComponentRecipe parseRecipe(String recipe,
-                                                                                             RecipeFormat recipeFormat)
-            throws PackageLoadingException {
+            RecipeFormat recipeFormat) throws PackageLoadingException {
         ObjectMapper mapper = getObjectMapperForRecipeFormat(recipeFormat);
 
         try {
@@ -75,13 +74,12 @@ public class RecipeLoader {
 
     private static ObjectMapper getObjectMapperForRecipeFormat(RecipeFormat recipeFormat) {
         switch (recipeFormat) {
-            case JSON:
-                return SerializerFactory.getRecipeSerializerJson();
-            case YAML:
-                return SerializerFactory.getRecipeSerializer();
-            default:
-                throw new IllegalArgumentException(
-                        String.format("No object mapper for recipe format %s", recipeFormat));
+        case JSON:
+            return SerializerFactory.getRecipeSerializerJson();
+        case YAML:
+            return SerializerFactory.getRecipeSerializer();
+        default:
+            throw new IllegalArgumentException(String.format("No object mapper for recipe format %s", recipeFormat));
         }
     }
 
@@ -97,9 +95,9 @@ public class RecipeLoader {
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe =
                 parseRecipe(recipeFileContent, RecipeFormat.YAML);
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
-            throw new PackageLoadingException(
-                    String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
-                            componentRecipe.getComponentVersion()), DeploymentErrorCode.RECIPE_MISSING_MANIFEST);
+            throw new PackageLoadingException(String.format("Recipe file %s-%s.yaml is missing manifests",
+                    componentRecipe.getComponentName(), componentRecipe.getComponentVersion()),
+                    DeploymentErrorCode.RECIPE_MISSING_MANIFEST);
         }
 
         Optional<PlatformSpecificManifest> optionalPlatformSpecificManifest =
@@ -117,13 +115,18 @@ public class RecipeLoader {
             dependencyPropertiesMap.putAll(componentRecipe.getComponentDependencies());
         }
 
-        ComponentRecipe packageRecipe = ComponentRecipe.builder().componentName(componentRecipe.getComponentName())
-                .version(componentRecipe.getComponentVersion()).publisher(componentRecipe.getComponentPublisher())
+        ComponentRecipe packageRecipe = ComponentRecipe.builder()
+                .componentName(componentRecipe.getComponentName())
+                .version(componentRecipe.getComponentVersion())
+                .publisher(componentRecipe.getComponentPublisher())
                 .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
-                .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap).lifecycle(
+                .componentType(componentRecipe.getComponentType())
+                .dependencies(dependencyPropertiesMap)
+                .lifecycle(
                         convertLifecycleFromFile(componentRecipe.getLifecycle(), platformSpecificManifest, selectors))
                 .artifacts(convertArtifactsFromFile(platformSpecificManifest.getArtifacts()))
-                .componentConfiguration(componentRecipe.getComponentConfiguration()).build();
+                .componentConfiguration(componentRecipe.getComponentConfiguration())
+                .build();
 
         return Optional.of(packageRecipe);
     }
@@ -133,16 +136,21 @@ public class RecipeLoader {
         if (artifacts == null || artifacts.isEmpty()) {
             return Collections.emptyList();
         }
-        return artifacts.stream().filter(Objects::nonNull).map(RecipeLoader::convertArtifactFromFile)
+        return artifacts.stream()
+                .filter(Objects::nonNull)
+                .map(RecipeLoader::convertArtifactFromFile)
                 .collect(Collectors.toList());
     }
 
     private static ComponentArtifact convertArtifactFromFile(
             @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
-        return ComponentArtifact.builder().artifactUri(componentArtifact.getUri())
-                .algorithm(componentArtifact.getAlgorithm()).checksum(componentArtifact.getDigest())
+        return ComponentArtifact.builder()
+                .artifactUri(componentArtifact.getUri())
+                .algorithm(componentArtifact.getAlgorithm())
+                .checksum(componentArtifact.getDigest())
                 .unarchive(componentArtifact.getUnarchive())
-                .permission(convertPermissionFromFile(componentArtifact.getPermission())).build();
+                .permission(convertPermissionFromFile(componentArtifact.getPermission()))
+                .build();
     }
 
     /**
@@ -153,8 +161,10 @@ public class RecipeLoader {
      */
     private static Set<String> collectAllSelectors(@Nonnull List<PlatformSpecificManifest> manifests) {
         Set<String> allSelectors = new HashSet<>();
-        manifests.stream().map(PlatformSpecificManifest::getSelections)
-                .filter(Objects::nonNull).forEach(allSelectors::addAll);
+        manifests.stream()
+                .map(PlatformSpecificManifest::getSelections)
+                .filter(Objects::nonNull)
+                .forEach(allSelectors::addAll);
         allSelectors.add(PlatformResolver.ALL_KEYWORD); // implicit, it is ok if it was specified explicitly
         return allSelectors;
     }
@@ -163,13 +173,12 @@ public class RecipeLoader {
      * Performs filtering on a lifecycle map that is manifest specific.
      *
      * @param lifecycleMap Recipe lifecycle map
-     * @param manifest     Selected manifest
+     * @param manifest Selected manifest
      * @param allSelectors All selectors defined in this recipe
      * @return filtered lifecycle
      */
     private static Map<String, Object> convertLifecycleFromFile(@Nonnull Map<String, Object> lifecycleMap,
-                                                                @Nonnull PlatformSpecificManifest manifest,
-                                                                @Nonnull Set<String> allSelectors) {
+            @Nonnull PlatformSpecificManifest manifest, @Nonnull Set<String> allSelectors) {
         // If there is manifest level lifecycle
         Map<String, Object> manifestLifecycle = manifest.getLifecycle();
         if (manifestLifecycle != null && !manifestLifecycle.isEmpty()) {
@@ -180,12 +189,12 @@ public class RecipeLoader {
         // we allow the following syntax forms (combined)
         //
         // Lifecycle:
-        //    <selector>: (optional)
-        //       Section:
-        //          <selector>: (optional)
-        //              body
-        Object filtered = PlatformResolver.filterPlatform(lifecycleMap, allSelectors,
-                manifest.getSelections()).orElse(Collections.emptyMap());
+        // <selector>: (optional)
+        // Section:
+        // <selector>: (optional)
+        // body
+        Object filtered = PlatformResolver.filterPlatform(lifecycleMap, allSelectors, manifest.getSelections())
+                .orElse(Collections.emptyMap());
         if (filtered instanceof Map && !((Map<?, ?>) filtered).isEmpty()) {
             return (Map<String, Object>) filtered;
         } else if (!lifecycleMap.isEmpty()) {

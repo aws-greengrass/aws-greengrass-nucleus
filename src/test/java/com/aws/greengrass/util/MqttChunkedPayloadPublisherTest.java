@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.util;
 
-
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -34,7 +33,9 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class MqttChunkedPayloadPublisherTest {
     static final ObjectMapper MAPPER = new ObjectMapper();
     MqttChunkedPayloadPublisher<String> publisher;
@@ -68,7 +69,7 @@ class MqttChunkedPayloadPublisherTest {
         verify(mqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
         List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
 
-        //check results
+        // check results
         ChunkableTestMessage message1 =
                 MAPPER.readValue(publishRequests.get(0).getPayload(), ChunkableTestMessage.class);
         assertEquals("commonPayload", message1.getCommonPayload());
@@ -80,7 +81,6 @@ class MqttChunkedPayloadPublisherTest {
         assertEquals(message1.getId(), 1);
         assertEquals(message1.getTotalChunks(), 1);
     }
-
 
     @Test
     void GIVEN_two_variable_payloads_WHEN_reach_size_limit_THEN_break_into_two_chunks() throws IOException {
@@ -100,7 +100,7 @@ class MqttChunkedPayloadPublisherTest {
         verify(mqttClient, times(2)).publish(publishRequestArgumentCaptor.capture());
         List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
 
-        //check results
+        // check results
         ChunkableTestMessage message1 =
                 MAPPER.readValue(publishRequests.get(0).getPayload(), ChunkableTestMessage.class);
         assertEquals("commonPayload", message1.getCommonPayload());
@@ -108,7 +108,6 @@ class MqttChunkedPayloadPublisherTest {
         assertEquals(message1.getVariablePayload().get(0), payload1);
         assertEquals(message1.getId(), 1);
         assertEquals(message1.getTotalChunks(), 2);
-
 
         ChunkableTestMessage message2 =
                 MAPPER.readValue(publishRequests.get(1).getPayload(), ChunkableTestMessage.class);
@@ -139,7 +138,7 @@ class MqttChunkedPayloadPublisherTest {
         verify(mqttClient, times(2)).publish(publishRequestArgumentCaptor.capture());
         List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
 
-        //check results
+        // check results
         ChunkableTestMessage message1 =
                 MAPPER.readValue(publishRequests.get(0).getPayload(), ChunkableTestMessage.class);
         assertEquals("commonPayload", message1.getCommonPayload());
@@ -148,7 +147,6 @@ class MqttChunkedPayloadPublisherTest {
         assertEquals(message1.getVariablePayload().get(1), payload3);
         assertEquals(message1.getId(), 1);
         assertEquals(message1.getTotalChunks(), 2);
-
 
         ChunkableTestMessage message2 =
                 MAPPER.readValue(publishRequests.get(1).getPayload(), ChunkableTestMessage.class);
@@ -178,7 +176,7 @@ class MqttChunkedPayloadPublisherTest {
         verify(mqttClient, times(2)).publish(publishRequestArgumentCaptor.capture());
         List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
 
-        //check results
+        // check results
         ChunkableTestMessage message1 =
                 MAPPER.readValue(publishRequests.get(0).getPayload(), ChunkableTestMessage.class);
         assertEquals("commonPayload", message1.getCommonPayload());
@@ -186,7 +184,6 @@ class MqttChunkedPayloadPublisherTest {
         assertEquals(message1.getVariablePayload().get(0), payload1);
         assertEquals(message1.getId(), 1);
         assertEquals(message1.getTotalChunks(), 2);
-
 
         ChunkableTestMessage message2 =
                 MAPPER.readValue(publishRequests.get(1).getPayload(), ChunkableTestMessage.class);

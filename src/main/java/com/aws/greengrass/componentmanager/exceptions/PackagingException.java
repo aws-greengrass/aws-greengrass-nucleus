@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.componentmanager.exceptions;
 
-
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 

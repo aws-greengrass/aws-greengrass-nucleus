@@ -21,7 +21,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
-
 public class WrapperMqttClientConnection extends MqttClientConnection {
 
     private final MqttClient mqttClient;
@@ -30,8 +29,9 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
 
     /**
      * Constructor.
+     * 
      * @param mqttClient is from package of com.aws.greengrass.mqtt to replace the old MqttClient from
-     *                   software.amazon.awssdk.crt.mqtt.MqttClient
+     *        software.amazon.awssdk.crt.mqtt.MqttClient
      */
     public WrapperMqttClientConnection(MqttClient mqttClient) {
         super(getMqttConnectionConfig());
@@ -42,17 +42,16 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
     }
 
     /*
-     * This is to initialize a valid MqttConnectionConfig which could be used
-     * in the WrapperMqttClientConnection
+     * This is to initialize a valid MqttConnectionConfig which could be used in the WrapperMqttClientConnection
      *
      * @return MqttConnectionConfig
      */
     private static MqttConnectionConfig getMqttConnectionConfig() {
         try (EventLoopGroup eventLoopGroup = new EventLoopGroup(0);
-             HostResolver resolver = new HostResolver(eventLoopGroup);
-             ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-             software.amazon.awssdk.crt.mqtt.MqttClient oldMqttClient = new software.amazon.awssdk.crt.mqtt.MqttClient(
-                     clientBootstrap)) {
+                HostResolver resolver = new HostResolver(eventLoopGroup);
+                ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
+                software.amazon.awssdk.crt.mqtt.MqttClient oldMqttClient =
+                        new software.amazon.awssdk.crt.mqtt.MqttClient(clientBootstrap)) {
             String fakeClientId = "fakeClientId";
             String fakeEndpoint = "fakeEndpoint";
             int fakePortNumber = 1;
@@ -93,11 +92,11 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
 
     @Override
     public CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
-            String topic = message.getTopic();
-            byte[] payload = message.getPayload();
-            PublishRequest publishRequest =
-                    PublishRequest.builder().topic(topic).retain(retain).payload(payload).qos(qos).build();
-            return mqttClient.publish(publishRequest);
+        String topic = message.getTopic();
+        byte[] payload = message.getPayload();
+        PublishRequest publishRequest =
+                PublishRequest.builder().topic(topic).retain(retain).payload(payload).qos(qos).build();
+        return mqttClient.publish(publishRequest);
     }
 
     @Override

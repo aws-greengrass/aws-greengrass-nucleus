@@ -35,7 +35,6 @@ public class Image {
     @EqualsAndHashCode.Include
     private URI artifactUri;
 
-
     /**
      * Build an instance from a component artifact.
      *

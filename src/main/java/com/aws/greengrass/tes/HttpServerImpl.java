@@ -20,6 +20,7 @@ public class HttpServerImpl implements Server {
 
     /**
      * Constructor.
+     * 
      * @param port Http server port
      * @param credentialRequestHandler request handler for server requests
      * @throws IOException When server creation fails

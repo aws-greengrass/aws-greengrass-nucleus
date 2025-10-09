@@ -58,7 +58,7 @@ public class PubSubIPCEventStreamAgent {
 
     @Inject
     PubSubIPCEventStreamAgent(AuthorizationHandler authorizationHandler,
-                              OrderedExecutorService orderedExecutorService) {
+            OrderedExecutorService orderedExecutorService) {
         this.authorizationHandler = authorizationHandler;
         this.orderedExecutorService = orderedExecutorService;
     }
@@ -74,8 +74,8 @@ public class PubSubIPCEventStreamAgent {
     /**
      * Handle the subscription request from internal plugin services.
      *
-     * @param topic       topic name.
-     * @param cb          callback to be called for each published message
+     * @param topic topic name.
+     * @param cb callback to be called for each published message
      * @param serviceName name of the service subscribing.
      */
     public void subscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
@@ -96,8 +96,8 @@ public class PubSubIPCEventStreamAgent {
     /**
      * Unsubscribe from a topic for internal plugin services.
      *
-     * @param topic       topic name.
-     * @param cb          callback to remove from subscription
+     * @param topic topic name.
+     * @param cb callback to remove from subscription
      * @param serviceName name of the service unsubscribing.
      */
     public void unsubscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
@@ -118,9 +118,9 @@ public class PubSubIPCEventStreamAgent {
     /**
      * Publish a message to all subscribers.
      *
-     * @param topic         publish topic.
+     * @param topic publish topic.
      * @param binaryMessage Binary message to publish.
-     * @param serviceName   name of the service publishing the message.
+     * @param serviceName name of the service publishing the message.
      * @return response
      */
     public PublishToTopicResponse publish(String topic, byte[] binaryMessage, String serviceName) {
@@ -129,8 +129,7 @@ public class PubSubIPCEventStreamAgent {
 
     @SuppressWarnings("PMD.PreserveStackTrace")
     private PublishToTopicResponse handlePublishToTopicRequest(String topic, String serviceName,
-                                                               Optional<Map<String, Object>> jsonMessage,
-                                                               Optional<byte[]> binaryMessage) {
+            Optional<Map<String, Object>> jsonMessage, Optional<byte[]> binaryMessage) {
         if (topic == null) {
             throw new InvalidArgumentsError("Publish topic must not be null");
         }
@@ -147,9 +146,10 @@ public class PubSubIPCEventStreamAgent {
         Set<Object> cbs = new HashSet<>();
         contexts.forEach(context -> {
             // With RECEIVE_MESSAGES_FROM_OTHERS mode, message will not be sent back to its source component.
-            if (serviceName.equals(context.getSourceComponent()) && ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS
-                    .equals(context.getReceiveMode())) {
-                log.atTrace().kv(COMPONENT_NAME, serviceName)
+            if (serviceName.equals(context.getSourceComponent())
+                    && ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS.equals(context.getReceiveMode())) {
+                log.atTrace()
+                        .kv(COMPONENT_NAME, serviceName)
                         .log("Message will not be sent back on topic {} in {} mode", topic,
                                 context.getReceiveMode().getValue());
             } else {
@@ -197,9 +197,8 @@ public class PubSubIPCEventStreamAgent {
         // TODO: [P32540011]: All IPC service requests need input validation
         String topic = subscribeRequest.getTopic();
         validateSubTopic(topic);
-        SubscriptionCallback subscriptionCallback =
-                convertToSubscriptionCallback(topic, subscribeRequest.getServiceName(),
-                        subscribeRequest.getReceiveMode(), subscribeRequest.getCallback());
+        SubscriptionCallback subscriptionCallback = convertToSubscriptionCallback(topic,
+                subscribeRequest.getServiceName(), subscribeRequest.getReceiveMode(), subscribeRequest.getCallback());
         if (listeners.add(subscribeRequest.getTopic(), subscriptionCallback)) {
             log.atDebug().kv(COMPONENT_NAME, subscribeRequest.getServiceName()).log("Subscribed to topic {}", topic);
         }
@@ -207,11 +206,11 @@ public class PubSubIPCEventStreamAgent {
 
     private void handleUnsubscribeToTopicRequest(SubscribeRequest subscribeRequest) {
         String topic = subscribeRequest.getTopic();
-        SubscriptionCallback subscriptionCallback =
-                convertToSubscriptionCallback(topic, subscribeRequest.getServiceName(),
-                        subscribeRequest.getReceiveMode(), subscribeRequest.getCallback());
+        SubscriptionCallback subscriptionCallback = convertToSubscriptionCallback(topic,
+                subscribeRequest.getServiceName(), subscribeRequest.getReceiveMode(), subscribeRequest.getCallback());
         if (listeners.remove(topic, subscriptionCallback)) {
-            log.atDebug().kv(COMPONENT_NAME, subscribeRequest.getServiceName())
+            log.atDebug()
+                    .kv(COMPONENT_NAME, subscribeRequest.getServiceName())
                     .log("Unsubscribed from topic {}", topic);
         }
     }
@@ -252,7 +251,6 @@ public class PubSubIPCEventStreamAgent {
             });
         }
 
-
         @Override
         public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
             // NA
@@ -288,8 +286,12 @@ public class PubSubIPCEventStreamAgent {
                     throw new UnauthorizedError(e.getMessage());
                 }
                 subscribeTopic = subscribeRequest.getTopic();
-                request = SubscribeRequest.builder().topic(subscribeTopic).serviceName(serviceName)
-                        .receiveMode(subscribeRequest.getReceiveMode()).callback(this).build();
+                request = SubscribeRequest.builder()
+                        .topic(subscribeTopic)
+                        .serviceName(serviceName)
+                        .receiveMode(subscribeRequest.getReceiveMode())
+                        .callback(this)
+                        .build();
                 handleSubscribeToTopicRequest(request);
                 return new SubscribeToTopicResponse();
             });
@@ -321,7 +323,7 @@ public class PubSubIPCEventStreamAgent {
     }
 
     private SubscriptionCallback convertToSubscriptionCallback(String topic, String serviceName,
-                                                               ReceiveMode receiveMode, Object handler) {
+            ReceiveMode receiveMode, Object handler) {
         ReceiveMode validatedReceiveMode = validateReceiveMode(topic, receiveMode);
         return new SubscriptionCallback(serviceName, validatedReceiveMode, handler);
     }

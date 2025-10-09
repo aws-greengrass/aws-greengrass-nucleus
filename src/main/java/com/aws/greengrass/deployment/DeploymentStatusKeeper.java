@@ -39,8 +39,8 @@ public class DeploymentStatusKeeper {
     public static final String DEPLOYMENT_STATUS_KEY_NAME = "DeploymentStatus";
     public static final String DEPLOYMENT_STATUS_DETAILS_KEY_NAME = "DeploymentStatusDetails";
     private static final Logger logger = LogManager.getLogger(DeploymentStatusKeeper.class);
-    private final Map<DeploymentType, Map<String, Function<Map<String, Object>, Boolean>>> deploymentStatusConsumerMap
-            = new ConcurrentHashMap<>();
+    private final Map<DeploymentType, Map<String, Function<Map<String, Object>, Boolean>>> deploymentStatusConsumerMap =
+            new ConcurrentHashMap<>();
     private static final Map<DeploymentType, Lock> lockMap =
             new DefaultConcurrentHashMap<>(() -> LockFactory.newReentrantLock("deploymentStatusKeeper"));
     @Setter
@@ -50,16 +50,15 @@ public class DeploymentStatusKeeper {
     /**
      * Register call backs for receiving deployment status updates for a particular deployment type .
      *
-     * @param type        determines which deployment type the call back consumes
-     * @param consumer    deployment status details
+     * @param type determines which deployment type the call back consumes
+     * @param consumer deployment status details
      * @param serviceName subscribing service name
      * @return true if call back is registered.
      */
     public boolean registerDeploymentStatusConsumer(DeploymentType type,
-                                                    Function<Map<String, Object>, Boolean> consumer,
-                                                    String serviceName) {
-        Map<String, Function<Map<String, Object>, Boolean>> map = deploymentStatusConsumerMap
-                .getOrDefault(type, new ConcurrentHashMap<>());
+            Function<Map<String, Object>, Boolean> consumer, String serviceName) {
+        Map<String, Function<Map<String, Object>, Boolean>> map =
+                deploymentStatusConsumerMap.getOrDefault(type, new ConcurrentHashMap<>());
         map.putIfAbsent(serviceName, consumer);
         return deploymentStatusConsumerMap.put(type, map) == null;
     }
@@ -67,25 +66,28 @@ public class DeploymentStatusKeeper {
     /**
      * Persist deployment status in kernel config.
      *
-     * @param deploymentId     id for the deployment - job id for jobs and config arn for shadow
-     * @param ggDeploymentId   greengrass deployment id for the deployment from GG cloud
+     * @param deploymentId id for the deployment - job id for jobs and config arn for shadow
+     * @param ggDeploymentId greengrass deployment id for the deployment from GG cloud
      * @param configurationArn arn for deployment target configuration.
-     * @param deploymentType   type of deployment.
-     * @param status           status of deployment.
-     * @param statusDetails    other details of deployment status.
-     * @param rootPackages     root packages in the deployment.
+     * @param deploymentType type of deployment.
+     * @param status status of deployment.
+     * @param statusDetails other details of deployment status.
+     * @param rootPackages root packages in the deployment.
      * @throws IllegalArgumentException for invalid deployment type
      */
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void persistAndPublishDeploymentStatus(String deploymentId, String ggDeploymentId, String configurationArn,
-                                                  DeploymentType deploymentType, String status,
-                                                  Map<String, Object> statusDetails, List<String> rootPackages) {
+            DeploymentType deploymentType, String status, Map<String, Object> statusDetails,
+            List<String> rootPackages) {
 
-        //While this method is being run, another thread could be running the publishPersistedStatusUpdates
+        // While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
         try (LockScope ls = LockScope.lock(lockMap.get(deploymentType))) {
-            logger.atDebug().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_ID_KEY_NAME, deploymentId)
-                    .kv(DEPLOYMENT_STATUS_KEY_NAME, status).log("Storing deployment status");
+            logger.atDebug()
+                    .kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId)
+                    .kv(DEPLOYMENT_ID_KEY_NAME, deploymentId)
+                    .kv(DEPLOYMENT_STATUS_KEY_NAME, status)
+                    .log("Storing deployment status");
             Map<String, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(DEPLOYMENT_ID_KEY_NAME, deploymentId);
             deploymentDetails.put(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId);
@@ -94,20 +96,23 @@ public class DeploymentStatusKeeper {
             deploymentDetails.put(DEPLOYMENT_STATUS_KEY_NAME, status);
             deploymentDetails.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
             deploymentDetails.put(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME, rootPackages);
-            //Each status update is uniquely stored
+            // Each status update is uniquely stored
             Topics processedDeployments = getProcessedDeployments();
             Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));
             thisJob.replaceAndWait(deploymentDetails);
-            logger.atInfo().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_ID_KEY_NAME, deploymentId)
-                    .kv(DEPLOYMENT_STATUS_KEY_NAME, status).log("Stored deployment status");
+            logger.atInfo()
+                    .kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId)
+                    .kv(DEPLOYMENT_ID_KEY_NAME, deploymentId)
+                    .kv(DEPLOYMENT_STATUS_KEY_NAME, status)
+                    .log("Stored deployment status");
         }
         publishPersistedStatusUpdates(deploymentType);
     }
 
     /**
-     * Invokes the call-backs with persisted deployment status updates for deployments with specified type.
-     * This is called by IotJobsHelper/MqttJobsHelper when connection is re-established to update cloud of all
-     * all deployments the device performed when offline
+     * Invokes the call-backs with persisted deployment status updates for deployments with specified type. This is
+     * called by IotJobsHelper/MqttJobsHelper when connection is re-established to update cloud of all all deployments
+     * the device performed when offline
      *
      * @param type deployment type
      */
@@ -117,8 +122,8 @@ public class DeploymentStatusKeeper {
             ArrayList<Topics> deployments = new ArrayList<>();
             processedDeployments.forEach(node -> {
                 Topics deploymentDetails = (Topics) node;
-                DeploymentType deploymentType = Coerce.toEnum(DeploymentType.class, deploymentDetails
-                        .find(DEPLOYMENT_TYPE_KEY_NAME));
+                DeploymentType deploymentType =
+                        Coerce.toEnum(DeploymentType.class, deploymentDetails.find(DEPLOYMENT_TYPE_KEY_NAME));
                 if (Objects.equals(deploymentType, type)) {
                     deployments.add(deploymentDetails);
                 }
@@ -137,11 +142,12 @@ public class DeploymentStatusKeeper {
             }).collect(Collectors.toList());
 
             List<Function<Map<String, Object>, Boolean>> consumers = getConsumersForDeploymentType(type);
-            logger.atDebug().kv("deploymentType", type).kv("numberOfSubscribers", consumers.size())
+            logger.atDebug()
+                    .kv("deploymentType", type)
+                    .kv("numberOfSubscribers", consumers.size())
                     .log("Updating status of persisted deployments to subscribers");
             for (Topics topics : sortedByTimestamp) {
-                boolean allConsumersUpdated = consumers.stream()
-                        .allMatch(consumer -> consumer.apply(topics.toPOJO()));
+                boolean allConsumersUpdated = consumers.stream().allMatch(consumer -> consumer.apply(topics.toPOJO()));
                 if (!allConsumersUpdated) {
                     // If one deployment update fails, exit the loop to ensure the update order.
                     logger.atDebug().log("Unable to update status of persisted deployments. Retry later");

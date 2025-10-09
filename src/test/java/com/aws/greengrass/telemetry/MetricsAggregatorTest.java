@@ -42,7 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class MetricsAggregatorTest {
     private static final ObjectMapper mapper = new ObjectMapper();
     private static final String GREENGRASS_COMPONENTS_NS = "GreengrassComponents";
@@ -67,8 +69,8 @@ class MetricsAggregatorTest {
     @Test
     void GIVEN_kernel_metrics_WHEN_aggregate_THEN_aggregate_only_the_latest_values()
             throws InterruptedException, IOException {
-        //Create a sample file with system metrics so we can test the freshness of the file and logs
-        //with respect to the current timestamp
+        // Create a sample file with system metrics so we can test the freshness of the file and logs
+        // with respect to the current timestamp
         long lastAgg = Instant.now().toEpochMilli();
         Metric m1 = new Metric(GREENGRASS_COMPONENTS_NS, "A", TelemetryUnit.Percent, TelemetryAggregation.Sum);
         Metric m2 = new Metric(GREENGRASS_COMPONENTS_NS, "B", TelemetryUnit.Megabytes, TelemetryAggregation.Average);
@@ -95,18 +97,18 @@ class MetricsAggregatorTest {
                 assertEquals(3, am.getMetrics().size()); // Three system metrics
                 for (AggregatedMetric metrics : am.getMetrics()) {
                     switch (metrics.getName()) {
-                        case "A":
-                            assertEquals((double) 60, metrics.getValue().get("Sum"));
-                            break;
-                        case "B":
-                            assertEquals((double) 3000, metrics.getValue().get("Average"));
-                            break;
-                        case "C":
-                            assertEquals((double) 6000, metrics.getValue().get("Maximum"));
-                            break;
-                        default:
-                            Assertions.fail("Should not get any other metric name");
-                            break;
+                    case "A":
+                        assertEquals((double) 60, metrics.getValue().get("Sum"));
+                        break;
+                    case "B":
+                        assertEquals((double) 3000, metrics.getValue().get("Average"));
+                        break;
+                    case "C":
+                        assertEquals((double) 6000, metrics.getValue().get("Maximum"));
+                        break;
+                    default:
+                        Assertions.fail("Should not get any other metric name");
+                        break;
                     }
                 }
             }
@@ -118,7 +120,7 @@ class MetricsAggregatorTest {
         metricsAggregator.aggregateMetrics(lastAgg, currTimestamp);
         aggregatedMetricLogs = Files.readAllLines(path);
         assertEquals(1, aggregatedMetricLogs.size()); // AggregateMetrics.log is appended
-        //with the latest aggregations.
+        // with the latest aggregations.
         for (String aggregatedMetricLog : aggregatedMetricLogs) {
             GreengrassLogMessage egLog = mapper.readValue(aggregatedMetricLog, GreengrassLogMessage.class);
             AggregatedNamespaceData am = mapper.readValue(egLog.getMessage(), AggregatedNamespaceData.class);
@@ -129,9 +131,9 @@ class MetricsAggregatorTest {
     }
 
     @Test
-    void GIVEN_invalid_metrics_WHEN_aggregate_THEN_parse_them_properly(ExtensionContext exContext) throws IOException,
-            InterruptedException {
-        //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
+    void GIVEN_invalid_metrics_WHEN_aggregate_THEN_parse_them_properly(ExtensionContext exContext)
+            throws IOException, InterruptedException {
+        // Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         ignoreExceptionOfType(exContext, MismatchedInputException.class);
         long lastAgg = Instant.now().toEpochMilli();
@@ -143,7 +145,7 @@ class MetricsAggregatorTest {
         // Put invalid data for average aggregation
         greengrassComponentsMetricsFactory.putMetricData(m2, "banana");
         greengrassComponentsMetricsFactory.putMetricData(m2, 2000);
-        //put invalid metric
+        // put invalid metric
         greengrassComponentsMetricsFactory.logMetrics(new TelemetryLoggerMessage("alfredo"));
         TimeUnit.MILLISECONDS.sleep(100);
         // Aggregate values within 1 second interval at this timestamp with 1
@@ -158,7 +160,7 @@ class MetricsAggregatorTest {
                 assertEquals(2, am.getMetrics().size()); // Two system metrics, one of them is null
                 for (AggregatedMetric metrics : am.getMetrics()) {
                     if (metrics.getName().equals("A")) {
-                        assertEquals((double) 0, metrics.getValue().get("Sum")); //No valid data point to aggregate
+                        assertEquals((double) 0, metrics.getValue().get("Sum")); // No valid data point to aggregate
                     } else if (metrics.getName().equals("B")) {
                         assertEquals((double) 1000, metrics.getValue().get("Average")); // ignore the invalid value
                     }
@@ -220,9 +222,10 @@ class MetricsAggregatorTest {
     }
 
     @Test
-    void GIVEN_invalid_aggregated_metrics_WHEN_publish_THEN_parse_them_properly(ExtensionContext exContext) throws InterruptedException {
+    void GIVEN_invalid_aggregated_metrics_WHEN_publish_THEN_parse_them_properly(ExtensionContext exContext)
+            throws InterruptedException {
         ignoreExceptionOfType(exContext, MismatchedInputException.class);
-        //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
+        // Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();
         long currentTimestamp = Instant.now().toEpochMilli();
@@ -239,7 +242,8 @@ class MetricsAggregatorTest {
         map3.put("Average", 9000);
         am = new AggregatedMetric("B", map3, String.valueOf(TelemetryUnit.Megabytes));
         metricList.add(am);
-        AggregatedNamespaceData aggregatedMetric = new AggregatedNamespaceData(currentTimestamp, GREENGRASS_COMPONENTS_NS, metricList);
+        AggregatedNamespaceData aggregatedMetric =
+                new AggregatedNamespaceData(currentTimestamp, GREENGRASS_COMPONENTS_NS, metricList);
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
@@ -249,18 +253,20 @@ class MetricsAggregatorTest {
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         TimeUnit.MILLISECONDS.sleep(100);
         currentTimestamp = Instant.now().toEpochMilli();
-        Map<Long, List<AggregatedNamespaceData>> metricsMap = metricsAggregator.getMetricsToPublish(lastPublish, currentTimestamp);
+        Map<Long, List<AggregatedNamespaceData>> metricsMap =
+                metricsAggregator.getMetricsToPublish(lastPublish, currentTimestamp);
 
         // The published metrics will not contain the null aggregated metric
         assertFalse(metricsMap.get(currentTimestamp).contains(null));
 
-        // Out of 6 aggregated metrics, only 4 are published plus there is one accumulated point for each namespace + 1 aggregated kernel and OS metric
+        // Out of 6 aggregated metrics, only 4 are published plus there is one accumulated point for each namespace + 1
+        // aggregated kernel and OS metric
         assertEquals(4 + 1 + 1, metricsMap.get(currentTimestamp).size());
 
-        //The accumulated data points will always be at end the of the list and has the same ts as publish. Acc data
+        // The accumulated data points will always be at end the of the list and has the same ts as publish. Acc data
         // points begin from index 4 as first 4 are aggregated metrics
-        assertEquals(currentTimestamp, metricsMap.get(currentTimestamp)
-                .get(metricsMap.get(currentTimestamp).size()-1).getTimestamp());
+        assertEquals(currentTimestamp,
+                metricsMap.get(currentTimestamp).get(metricsMap.get(currentTimestamp).size() - 1).getTimestamp());
         for (AggregatedNamespaceData amet : metricsMap.get(currentTimestamp)) {
             if (amet.getNamespace().equals(GREENGRASS_COMPONENTS_NS)) {
                 // There are 3 metrics in GreengrassComponents namespace.
@@ -337,7 +343,6 @@ class MetricsAggregatorTest {
             }
         }
     }
-
 
     @Test
     void GIVEN_aggregated_metrics_for_stream_manager_WHEN_publish_THEN_does_not_send_accumulated_metric() throws InterruptedException {

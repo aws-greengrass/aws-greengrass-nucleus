@@ -40,7 +40,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("PMD.CloseResource")
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class AwsIotMqtt5ClientTest {
     @Mock
     AwsIotMqtt5ClientBuilder builder;
@@ -101,15 +103,16 @@ class AwsIotMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_connected_client_WHEN_reconnect_THEN_client_configured_to_resume_session()  {
+    void GIVEN_connected_client_WHEN_reconnect_THEN_client_configured_to_resume_session() {
         try (AwsIotMqtt5ClientBuilder builder = AwsIotMqtt5ClientBuilder.newMqttBuilder("localhost");
-             AwsIotMqtt5Client client = new AwsIotMqtt5Client(() -> builder, (x) -> null, "A", 0, topics,
-                     callbackEventManager, executorService, ses)) {
+                AwsIotMqtt5Client client = new AwsIotMqtt5Client(() -> builder, (x) -> null, "A", 0, topics,
+                        callbackEventManager, executorService, ses)) {
             Runnable reconnectSuccessfully = () -> {
                 executorService.submit(() -> {
                     try {
                         Thread.sleep(1000L);
-                        client.getConnectionEventCallback().onConnectionSuccess(client.getClient(), connectionSuccess());
+                        client.getConnectionEventCallback()
+                                .onConnectionSuccess(client.getClient(), connectionSuccess());
                     } catch (InterruptedException ignore) {
                     }
                 });
@@ -122,10 +125,12 @@ class AwsIotMqtt5ClientTest {
 
             // even on reconnect, if first time connection, use cleanSession=True then cleanSession=False
             reconnectSuccessfully.run();
-            assertEquals(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS, client.getClient().getClientOptions().getSessionBehavior());
+            assertEquals(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS,
+                    client.getClient().getClientOptions().getSessionBehavior());
             // subsequent connects use rejoin always
             reconnectSuccessfully.run();
-            assertEquals(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS, client.getClient().getClientOptions().getSessionBehavior());
+            assertEquals(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS,
+                    client.getClient().getClientOptions().getSessionBehavior());
         }
     }
 

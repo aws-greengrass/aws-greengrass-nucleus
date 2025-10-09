@@ -22,9 +22,8 @@ public final class CommitableWriter extends BufferedWriter implements Commitable
     }
 
     /**
-     * Strangely enough, abandonOnClose is usually the best choice: it interacts
-     * well with the implicit close() that happens in a try-with-resources where
-     * files are closed if an exception is tossed.
+     * Strangely enough, abandonOnClose is usually the best choice: it interacts well with the implicit close() that
+     * happens in a try-with-resources where files are closed if an exception is tossed.
      *
      * @param p Path to write to
      * @throws IOException if writing fails

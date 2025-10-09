@@ -42,8 +42,9 @@ public final class RootCAUtils {
     }
 
     /**
-     * Download root CA to a local file.
-     * To support HTTPS proxies and other custom truststore configurations, append to the file if it exists.
+     * Download root CA to a local file. To support HTTPS proxies and other custom truststore configurations, append to
+     * the file if it exists.
+     * 
      * @param f destination file
      * @param urls list of URLs needs to be downloaded
      * @throws IOException if download failed
@@ -66,10 +67,9 @@ public final class RootCAUtils {
     private static void removeDuplicateCertificates(File f) {
         try {
             String certificates = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
-            Set<String> uniqueCertificates =
-                    Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER))
-                            .map(s -> s.trim())
-                            .collect(Collectors.toSet());
+            Set<String> uniqueCertificates = Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER))
+                    .map(s -> s.trim())
+                    .collect(Collectors.toSet());
 
             try (BufferedWriter bw = Files.newBufferedWriter(f.toPath(), StandardCharsets.UTF_8)) {
                 for (String certificate : uniqueCertificates) {
@@ -88,20 +88,17 @@ public final class RootCAUtils {
 
     /**
      * Download content from a URL to a local file.
+     * 
      * @param url the URL from which the content needs to be downloaded
      * @param f destination local file
      * @throws IOException if download failed
      */
     @SuppressWarnings("PMD.AvoidFileStream")
     public static void downloadFileFromURL(String url, File f) throws IOException {
-        SdkHttpFullRequest request = SdkHttpFullRequest.builder()
-                .uri(URI.create(url))
-                .method(SdkHttpMethod.GET)
-                .build();
+        SdkHttpFullRequest request =
+                SdkHttpFullRequest.builder().uri(URI.create(url)).method(SdkHttpMethod.GET).build();
 
-        HttpExecuteRequest executeRequest = HttpExecuteRequest.builder()
-                .request(request)
-                .build();
+        HttpExecuteRequest executeRequest = HttpExecuteRequest.builder().request(request).build();
 
         try (SdkHttpClient client = ProxyUtils.getSdkHttpClientBuilder().build()) {
             HttpExecuteResponse executeResponse = client.prepareRequest(executeRequest).call();
@@ -112,8 +109,8 @@ public final class RootCAUtils {
             }
 
             try (InputStream inputStream = executeResponse.responseBody().get();
-                 OutputStream outputStream = Files.newOutputStream(f.toPath(), StandardOpenOption.CREATE,
-                         StandardOpenOption.APPEND, StandardOpenOption.SYNC)) {
+                    OutputStream outputStream = Files.newOutputStream(f.toPath(), StandardOpenOption.CREATE,
+                            StandardOpenOption.APPEND, StandardOpenOption.SYNC)) {
                 IoUtils.copy(inputStream, outputStream);
             }
         }
@@ -121,6 +118,7 @@ public final class RootCAUtils {
 
     /**
      * Download rootCA 3 to root path.
+     * 
      * @param rootCAPath the root path for CAs
      * @param urls the CA url array
      * @return if CA downloaded

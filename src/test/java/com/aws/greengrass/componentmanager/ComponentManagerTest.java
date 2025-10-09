@@ -98,8 +98,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class ComponentManagerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -165,9 +166,8 @@ class ComponentManagerTest {
         Topic regionTopic = Topic.of(context, DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1");
         lenient().when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
         lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
-        componentManager =
-                new ComponentManager(artifactDownloaderFactory, componentManagementServiceHelper, executor, componentStore,
-                                     kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
+        componentManager = new ComponentManager(artifactDownloaderFactory, componentManagementServiceHelper, executor,
+                componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
     }
 
     @AfterEach
@@ -208,7 +208,9 @@ class ComponentManagerTest {
 
         componentManager.prepareArtifacts(pkgId, Arrays.asList(
                 ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1")).unarchive(Unarchive.ZIP).build(),
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2")).unarchive(Unarchive.NONE)
+                ComponentArtifact.builder()
+                        .artifactUri(new URI("greengrass:binary2"))
+                        .unarchive(Unarchive.NONE)
                         .build()));
 
         ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
@@ -224,7 +226,6 @@ class ComponentManagerTest {
 
         String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
-
 
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
         Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
@@ -284,7 +285,8 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_requirement_is_from_local_group_and_has_local_version_WHEN_resolve_version_THEN_use_local_version() throws Exception {
+    void GIVEN_requirement_is_from_local_group_and_has_local_version_WHEN_resolve_version_THEN_use_local_version()
+            throws Exception {
         ComponentIdentifier componentA_1_2_0 = new ComponentIdentifier(componentA, v1_2_0);
         ComponentMetadata componentA_1_2_0_md = new ComponentMetadata(componentA_1_2_0, Collections.emptyMap());
         when(componentStore.findBestMatchAvailableComponent(eq(componentA), any()))
@@ -314,13 +316,18 @@ class ComponentManagerTest {
         when(componentStore.getPackageMetadata(componentA_1_0_0)).thenReturn(componentA_1_0_0_md);
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName(componentA).componentVersion(v1_0_0)
-                        .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentName(componentA)
+                        .componentVersion(v1_0_0)
+                        .componentType(ComponentType.GENERIC)
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
                         .build();
 
-        ResolvedComponentVersion resolvedComponentVersion =
-                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
-                        .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe))).arn(TEST_ARN).build();
+        ResolvedComponentVersion resolvedComponentVersion = ResolvedComponentVersion.builder()
+                .componentName(componentA)
+                .componentVersion(v1_0_0.getValue())
+                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe)))
+                .arn(TEST_ARN)
+                .build();
 
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenReturn(resolvedComponentVersion);
@@ -340,34 +347,38 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_requirement_is_from_local_group_and_has_no_local_version_WHEN_resolve_version_THEN_use_cloud_version() throws Exception {
+    void GIVEN_requirement_is_from_local_group_and_has_no_local_version_WHEN_resolve_version_THEN_use_cloud_version()
+            throws Exception {
         ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
 
         // no local version
-        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any()))
-                .thenReturn(Optional.empty());
+        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any())).thenReturn(Optional.empty());
 
         // has cloud version
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName(componentA).componentVersion(v1_0_0)
-                        .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentName(componentA)
+                        .componentVersion(v1_0_0)
+                        .componentType(ComponentType.GENERIC)
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
                         .build();
 
-        ResolvedComponentVersion resolvedComponentVersion =
-                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
-                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe))).arn(TEST_ARN).build();
+        ResolvedComponentVersion resolvedComponentVersion = ResolvedComponentVersion.builder()
+                .componentName(componentA)
+                .componentVersion(v1_0_0.getValue())
+                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe)))
+                .arn(TEST_ARN)
+                .build();
 
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenReturn(resolvedComponentVersion);
         // mock return metadata from the id
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
-
         // WHEN
         ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA, Collections
-                        .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
+                .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
 
         // THEN
         assertThat(componentMetadata, is(componentA_1_0_0_md));
@@ -391,8 +402,10 @@ class ComponentManagerTest {
 
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe newRecipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName("SampleComponent2").componentVersion(new Semver("2.0.0"))
-                        .componentType(ComponentType.PLUGIN).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentName("SampleComponent2")
+                        .componentVersion(new Semver("2.0.0"))
+                        .componentType(ComponentType.PLUGIN)
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
                         .build();
 
         GreengrassService mockKernelService = mock(GreengrassService.class);
@@ -405,9 +418,12 @@ class ComponentManagerTest {
         when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
 
-        ResolvedComponentVersion resolvedComponentVersion =
-                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
-                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(newRecipe))).arn(TEST_ARN).build();
+        ResolvedComponentVersion resolvedComponentVersion = ResolvedComponentVersion.builder()
+                .componentName(componentA)
+                .componentVersion(v1_0_0.getValue())
+                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(newRecipe)))
+                .arn(TEST_ARN)
+                .build();
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenReturn(resolvedComponentVersion);
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
@@ -416,12 +432,12 @@ class ComponentManagerTest {
 
         when(componentStore.saveComponentRecipe(any())).thenReturn(recipeString);
 
-        ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+        ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA,
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
-        verify(componentManagementServiceHelper).resolveComponentVersion(componentA, v1_0_0, Collections
-                .singletonMap("X", Requirement.buildNPM("^1.0")));
+        verify(componentManagementServiceHelper).resolveComponentVersion(componentA, v1_0_0,
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
         verify(componentStore).saveComponentRecipe(newRecipe);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
         verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
@@ -451,8 +467,8 @@ class ComponentManagerTest {
 
         ignoreExceptionOfType(context, NoAvailableComponentVersionException.class);
 
-        ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+        ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA,
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentStore, never()).findComponentRecipeContent(any());
@@ -465,41 +481,48 @@ class ComponentManagerTest {
             throws Exception {
         ignoreExceptionOfType(context, SdkClientException.class);
 
-        componentManager.setClientExceptionRetryConfig(
-                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1))
-                        .maxRetryInterval(Duration.ofSeconds(1)).maxAttempt(Integer.MAX_VALUE)
-                        .retryableExceptions(Arrays.asList(SdkClientException.class)).build());
+        componentManager.setClientExceptionRetryConfig(RetryUtils.RetryConfig.builder()
+                .initialRetryInterval(Duration.ofSeconds(1))
+                .maxRetryInterval(Duration.ofSeconds(1))
+                .maxAttempt(Integer.MAX_VALUE)
+                .retryableExceptions(Arrays.asList(SdkClientException.class))
+                .build());
 
         ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
 
         // no local version
-        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any()))
-                .thenReturn(Optional.empty());
+        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any())).thenReturn(Optional.empty());
 
         // has cloud version
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName(componentA).componentVersion(v1_0_0)
-                        .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentName(componentA)
+                        .componentVersion(v1_0_0)
+                        .componentType(ComponentType.GENERIC)
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
                         .build();
 
-        ResolvedComponentVersion resolvedComponentVersion =
-                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
-                        .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe))).arn(TEST_ARN).build();
+        ResolvedComponentVersion resolvedComponentVersion = ResolvedComponentVersion.builder()
+                .componentName(componentA)
+                .componentVersion(v1_0_0.getValue())
+                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe)))
+                .arn(TEST_ARN)
+                .build();
 
         // Retry succeeds
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
-                .thenThrow(SdkClientException.class).thenReturn(resolvedComponentVersion);
+                .thenThrow(SdkClientException.class)
+                .thenReturn(resolvedComponentVersion);
         // mock return metadata from the id
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
-        ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+        ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA,
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
-        verify(componentManagementServiceHelper, times(2)).resolveComponentVersion(componentA, null, Collections
-                .singletonMap("X", Requirement.buildNPM("^1.0")));
+        verify(componentManagementServiceHelper, times(2)).resolveComponentVersion(componentA, null,
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
         verify(componentStore, never()).findComponentRecipeContent(any());
         verify(componentStore).saveComponentRecipe(any());
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
@@ -510,41 +533,48 @@ class ComponentManagerTest {
             throws Exception {
         ignoreExceptionOfType(context, RetryableServerErrorException.class);
 
-        componentManager.setClientExceptionRetryConfig(
-                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1))
-                        .maxRetryInterval(Duration.ofSeconds(1)).maxAttempt(Integer.MAX_VALUE)
-                        .retryableExceptions(Arrays.asList(RetryableServerErrorException.class)).build());
+        componentManager.setClientExceptionRetryConfig(RetryUtils.RetryConfig.builder()
+                .initialRetryInterval(Duration.ofSeconds(1))
+                .maxRetryInterval(Duration.ofSeconds(1))
+                .maxAttempt(Integer.MAX_VALUE)
+                .retryableExceptions(Arrays.asList(RetryableServerErrorException.class))
+                .build());
 
         ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
 
         // no local version
-        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any()))
-                .thenReturn(Optional.empty());
+        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any())).thenReturn(Optional.empty());
 
         // has cloud version and trigger negotiatetoCould
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName(componentA).componentVersion(v1_0_0)
-                        .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentName(componentA)
+                        .componentVersion(v1_0_0)
+                        .componentType(ComponentType.GENERIC)
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
                         .build();
 
-        ResolvedComponentVersion resolvedComponentVersion =
-                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
-                        .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe))).arn(TEST_ARN).build();
+        ResolvedComponentVersion resolvedComponentVersion = ResolvedComponentVersion.builder()
+                .componentName(componentA)
+                .componentVersion(v1_0_0.getValue())
+                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe)))
+                .arn(TEST_ARN)
+                .build();
 
         // Retry succeeds
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
-                .thenThrow(RetryableServerErrorException.class).thenReturn(resolvedComponentVersion);
+                .thenThrow(RetryableServerErrorException.class)
+                .thenReturn(resolvedComponentVersion);
         // mock return metadata from the id
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
-        ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+        ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA,
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
-        verify(componentManagementServiceHelper, times(2)).resolveComponentVersion(componentA, null, Collections
-                .singletonMap("X", Requirement.buildNPM("^1.0")));
+        verify(componentManagementServiceHelper, times(2)).resolveComponentVersion(componentA, null,
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
         verify(componentStore, never()).findComponentRecipeContent(any());
         verify(componentStore).saveComponentRecipe(any());
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
@@ -633,55 +663,51 @@ class ComponentManagerTest {
         componentManager.cleanupStaleVersions();
 
         // THEN
-        verify(componentStore, times(1))
-                .deleteComponent(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0")), artifactDownloaderFactory);
-        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("1.0.0")), artifactDownloaderFactory);
-        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("2.0.0")), artifactDownloaderFactory);
+        verify(componentStore, times(1)).deleteComponent(
+                new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0")), artifactDownloaderFactory);
+        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("1.0.0")),
+                artifactDownloaderFactory);
+        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("2.0.0")),
+                artifactDownloaderFactory);
 
         // verify digest was cleaned up
         verify(digestTopic, times(3)).remove();
-        assertThat(identifierCaptor.getAllValues(),
-                   containsInAnyOrder(MONITORING_SERVICE_PKG_NAME + "-v3.0.0", anotherCompName + "-v1.0.0",
-                                      anotherCompName + "-v2.0.0"));
+        assertThat(identifierCaptor.getAllValues(), containsInAnyOrder(MONITORING_SERVICE_PKG_NAME + "-v3.0.0",
+                anotherCompName + "-v1.0.0", anotherCompName + "-v2.0.0"));
     }
 
     @Test
-    void GIVEN_deployment_WHEN_dependency_closure_has_download_prereq_component_THEN_succeed()
-            throws Exception {
+    void GIVEN_deployment_WHEN_dependency_closure_has_download_prereq_component_THEN_succeed() throws Exception {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
         Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
         // Private ECR image
-        List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("s3://some/artifact")).build());
+        List<ComponentArtifact> artifacts = Collections
+                .singletonList(ComponentArtifact.builder().artifactUri(new URI("s3://some/artifact")).build());
         when(mockRecipe.getArtifacts()).thenReturn(artifacts);
         when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
 
-        List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(
-                        testComponent);
+        List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
         componentManager.checkPreparePackagesPrerequisites(dependencyClosure);
     }
 
     @Test
-    void GIVEN_deployment_WHEN_dependency_closure_is_missing_download_prereq_component_THEN_fail()
-            throws Exception {
+    void GIVEN_deployment_WHEN_dependency_closure_is_missing_download_prereq_component_THEN_fail() throws Exception {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
         Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
         // Private ECR image
-        List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("s3://some/artifact")).build());
+        List<ComponentArtifact> artifacts = Collections
+                .singletonList(ComponentArtifact.builder().artifactUri(new URI("s3://some/artifact")).build());
         when(mockRecipe.getArtifacts()).thenReturn(artifacts);
         when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
-        doThrow(new MissingRequiredComponentsException("Missing required component for download")).when
-         (artifactDownloaderFactory).checkDownloadPrerequisites(any(), any(), any());
+        doThrow(new MissingRequiredComponentsException("Missing required component for download"))
+                .when(artifactDownloaderFactory)
+                .checkDownloadPrerequisites(any(), any(), any());
 
-        List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(
-                        testComponent);
-        assertThrows(MissingRequiredComponentsException.class, () ->
-                componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
+        List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
+        assertThrows(MissingRequiredComponentsException.class,
+                () -> componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
     }
 
     private GreengrassService getMockGreengrassService(String serviceName) {

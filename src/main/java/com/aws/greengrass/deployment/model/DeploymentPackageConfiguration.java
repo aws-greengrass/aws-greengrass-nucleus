@@ -14,7 +14,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
-
 /**
  * Class to represent a single package along with its dependencies that comes in the deployment configuration.
  */
@@ -46,8 +45,8 @@ public class DeploymentPackageConfiguration {
     /**
      * Constructor for no update configuration update. Used for testing
      *
-     * @param packageName     name of package
-     * @param rootComponent   if it is root
+     * @param packageName name of package
+     * @param rootComponent if it is root
      * @param resolvedVersion resolved version
      */
     public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion) {
@@ -59,10 +58,10 @@ public class DeploymentPackageConfiguration {
     /**
      * Constructor for no legacy configuration.
      *
-     * @param packageName     name of package
-     * @param rootComponent   if it is root
+     * @param packageName name of package
+     * @param rootComponent if it is root
      * @param resolvedVersion resolved version
-     * @param configurationUpdateOperation   configuration update
+     * @param configurationUpdateOperation configuration update
      */
     public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
             ConfigurationUpdateOperation configurationUpdateOperation) {
@@ -72,9 +71,9 @@ public class DeploymentPackageConfiguration {
         this.configurationUpdateOperation = configurationUpdateOperation;
     }
 
-
     /**
      * Constructor. Non provided fields are null.
+     * 
      * @param packageName packageName
      */
     public DeploymentPackageConfiguration(String packageName) {

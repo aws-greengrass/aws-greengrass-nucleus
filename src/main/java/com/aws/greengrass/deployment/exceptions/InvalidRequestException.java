@@ -37,15 +37,14 @@ public class InvalidRequestException extends DeploymentException {
     }
 
     public InvalidRequestException(String message, DeploymentErrorCode errorCode,
-                                   Deployment.DeploymentType deploymentType) {
+            Deployment.DeploymentType deploymentType) {
         super(message);
         super.addErrorCode(DEPLOYMENT_DOCUMENT_NOT_VALID);
         super.addErrorCode(errorCode);
         super.addErrorType(DeploymentErrorCodeUtils.getDeploymentRequestErrorType(deploymentType));
     }
 
-    public InvalidRequestException(String message, Throwable e,
-                                   Deployment.DeploymentType deploymentType) {
+    public InvalidRequestException(String message, Throwable e, Deployment.DeploymentType deploymentType) {
         super(message, e);
         super.addErrorCode(DEPLOYMENT_DOCUMENT_NOT_VALID);
         super.addErrorType(DeploymentErrorCodeUtils.getDeploymentRequestErrorType(deploymentType));

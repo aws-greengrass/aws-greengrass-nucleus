@@ -79,7 +79,7 @@ public class Deployment {
      * @param deploymentStage deployment stage, only applicable to deployments which require Kernel restart
      */
     public Deployment(DeploymentDocument deploymentDetails, DeploymentType deploymentType, String id,
-                      DeploymentStage deploymentStage) {
+            DeploymentStage deploymentStage) {
         this.deploymentDocumentObj = deploymentDetails;
         this.deploymentType = deploymentType;
         this.id = id;
@@ -89,13 +89,11 @@ public class Deployment {
     // Get the deployment id set by GG cloud from deployment doc;
     // this is different from the job id for job deployments
     public String getGreengrassDeploymentId() {
-        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getDeploymentId()
-                : null;
+        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getDeploymentId() : null;
     }
 
     public String getConfigurationArn() {
-        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getConfigurationArn()
-                : null;
+        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getConfigurationArn() : null;
     }
 
     public enum DeploymentType {

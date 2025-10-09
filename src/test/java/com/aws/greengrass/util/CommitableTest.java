@@ -27,7 +27,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class CommitableTest {
     @TempDir
     Path temp;
@@ -86,7 +88,7 @@ class CommitableTest {
         assertThat(CommitableFile.getBackupFile(testFile).toFile(), not(anExistingFile()));
     }
 
-    private String getFileContent(Path path) throws IOException{
+    private String getFileContent(Path path) throws IOException {
         return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
     }
 

@@ -74,9 +74,8 @@ public class EncryptionUtilsTest {
     @MethodSource("certTypes")
     void GIVEN_certificate_WHEN_load_x509_certificates_THEN_succeed(int keySize, boolean pem, boolean ec)
             throws Exception {
-        Path certificatePath =
-                generateCertificateFile(keySize, pem, encryptionResourcePath.resolve("certificate-" + keySize + ".pem"),
-                        ec).getLeft();
+        Path certificatePath = generateCertificateFile(keySize, pem,
+                encryptionResourcePath.resolve("certificate-" + keySize + ".pem"), ec).getLeft();
 
         List<X509Certificate> certificateList = EncryptionUtils.loadX509Certificates(certificatePath);
 
@@ -88,9 +87,8 @@ public class EncryptionUtilsTest {
     @ParameterizedTest
     @MethodSource("keyTypes")
     void GIVEN_pkcs8_WHEN_load_private_key_THEN_succeed(int keySize, boolean pem, boolean ec) throws Exception {
-        Path privateKeyPath =
-                generatePkCS8PrivateKeyFile(keySize, pem, encryptionResourcePath.resolve("pkcs8-" + keySize + ".pem"),
-                        ec);
+        Path privateKeyPath = generatePkCS8PrivateKeyFile(keySize, pem,
+                encryptionResourcePath.resolve("pkcs8-" + keySize + ".pem"), ec);
 
         PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
 
@@ -133,18 +131,17 @@ public class EncryptionUtilsTest {
         KeyPair keyPair = generateRSAKeyPair(4096);
         String pem = EncryptionUtils.encodeToPem("PUBLIC KEY", keyPair.getPublic().getEncoded());
 
-        //Generate pem using bouncycastle
+        // Generate pem using bouncycastle
         PemObject pemObject = new PemObject("PUBLIC KEY", keyPair.getPublic().getEncoded());
-        try (StringWriter str = new StringWriter();
-             JcaPEMWriter pemWriter = new JcaPEMWriter(str)) {
+        try (StringWriter str = new StringWriter(); JcaPEMWriter pemWriter = new JcaPEMWriter(str)) {
             pemWriter.writeObject(pemObject);
             pemWriter.close();
-            assertEquals(str.toString(),pem);
+            assertEquals(str.toString(), pem);
         }
     }
 
-    public static Pair<Path, KeyPair> generateCertificateFile(int keySize, boolean pem,
-    Path filepath, boolean ec) throws Exception {
+    public static Pair<Path, KeyPair> generateCertificateFile(int keySize, boolean pem, Path filepath, boolean ec)
+            throws Exception {
         KeyPair keyPair;
         if (ec) {
             keyPair = generateECKeyPair(keySize);
@@ -155,9 +152,8 @@ public class EncryptionUtilsTest {
         SubjectPublicKeyInfo subjectPublicKeyInfo = SubjectPublicKeyInfo.getInstance(keyPair.getPublic().getEncoded());
         Date start = new Date();
         Date until = Date.from(LocalDate.now().plus(365, ChronoUnit.DAYS).atStartOfDay().toInstant(ZoneOffset.UTC));
-        X509v3CertificateBuilder builder =
-                new X509v3CertificateBuilder(name, new BigInteger(10, new SecureRandom()), start, until, name,
-                        subjectPublicKeyInfo);
+        X509v3CertificateBuilder builder = new X509v3CertificateBuilder(name, new BigInteger(10, new SecureRandom()),
+                start, until, name, subjectPublicKeyInfo);
         String signingAlgo = "SHA256WithRSA";
         if (ec) {
             signingAlgo = "SHA256WITHECDSA";
@@ -234,10 +230,9 @@ public class EncryptionUtilsTest {
     public static void writePemFile(String type, byte[] content, Path filepath) throws Exception {
         PemObject pemObject = new PemObject(type, content);
         try (PrintWriter printWriter = new PrintWriter(filepath.toFile());
-             PemWriter pemWriter = new PemWriter(printWriter)) {
+                PemWriter pemWriter = new PemWriter(printWriter)) {
             pemWriter.writeObject(pemObject);
         }
     }
-
 
 }

@@ -54,7 +54,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DynamicComponentConfigurationValidatorTest {
     private static final String DEFAULT_EXISTING_SERVICE_VERSION = "1.0.0";
     private static final long DEFAULT_EXISTING_NODE_MOD_TIME = 10;
@@ -142,14 +144,20 @@ class DynamicComponentConfigurationValidatorTest {
     void GIVEN_deployment_changes_service_config_WHEN_service_version_changes_THEN_no_validation_requested()
             throws Exception {
         createMockGenericExternalService("OldService");
-        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
-            put("OldService", new HashMap<String, Object>() {{
-                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                    put("ConfigKey1", "ConfigValue2");
-                }});
-                put(VERSION_CONFIG_KEY, "2.0.0");
-            }});
-        }};
+        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {
+            {
+                put("OldService", new HashMap<String, Object>() {
+                    {
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                            {
+                                put("ConfigKey1", "ConfigValue2");
+                            }
+                        });
+                        put(VERSION_CONFIG_KEY, "2.0.0");
+                    }
+                });
+            }
+        };
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCEventStreamAgent, never()).validateConfiguration(any(), any(), any(), any());
         assertFalse(deploymentResultFuture.isDone());
@@ -159,67 +167,89 @@ class DynamicComponentConfigurationValidatorTest {
     void GIVEN_deployment_has_service_config_WHEN_service_config_is_unchanged_THEN_no_validation_requested()
             throws Exception {
         createMockGenericExternalService("OldService");
-        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
-            put("OldService", new HashMap<String, Object>() {{
-                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                    put("ConfigKey1", "ConfigValue1");
-                }});
-                put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
-            }});
-        }};
+        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {
+            {
+                put("OldService", new HashMap<String, Object>() {
+                    {
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                            {
+                                put("ConfigKey1", "ConfigValue1");
+                            }
+                        });
+                        put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
+                    }
+                });
+            }
+        };
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCEventStreamAgent, never()).validateConfiguration(any(), any(), any(), any());
         assertFalse(deploymentResultFuture.isDone());
     }
 
     @Test
-    void GIVEN_validation_requested_WHEN_validation_request_times_out_THEN_fail_deployment(
-            ExtensionContext context) throws Exception {
+    void GIVEN_validation_requested_WHEN_validation_request_times_out_THEN_fail_deployment(ExtensionContext context)
+            throws Exception {
         ignoreExceptionUltimateCauseOfType(context, TimeoutException.class);
         when(configStoreIPCEventStreamAgent.validateConfiguration(any(), any(), any(), any())).thenReturn(true);
         createMockGenericExternalService("OldService");
-        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
-            put("OldService", new HashMap<String, Object>() {{
-                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                    put("ConfigKey1", "ConfigValue2");
-                }});
-                put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
-            }});
-        }};
+        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {
+            {
+                put("OldService", new HashMap<String, Object>() {
+                    {
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                            {
+                                put("ConfigKey1", "ConfigValue2");
+                            }
+                        });
+                        put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
+                    }
+                });
+            }
+        };
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCEventStreamAgent, times(1)).validateConfiguration(any(), any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
         assertTrue(deploymentResult.getFailureCause() instanceof ComponentConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
-                .getMessage().contains("Error while waiting for validation report for one or more components"));
+                .getMessage()
+                .contains("Error while waiting for validation report for one or more components"));
     }
 
     @Test
     void GIVEN_validation_requested_WHEN_error_while_waiting_for_validation_report_THEN_fail_deployment(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseWithMessage(context, "Some unexpected error");
-        when(configStoreIPCEventStreamAgent.validateConfiguration(any(), any(), any(), any())).thenAnswer(invocationOnMock -> {
-            CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(3);
-            validityReportFuture.completeExceptionally(new InterruptedException("Some unexpected error"));
-            return true;
-        });
+        when(configStoreIPCEventStreamAgent.validateConfiguration(any(), any(), any(), any()))
+                .thenAnswer(invocationOnMock -> {
+                    CompletableFuture<ConfigurationValidityReport> validityReportFuture =
+                            invocationOnMock.getArgument(3);
+                    validityReportFuture.completeExceptionally(new InterruptedException("Some unexpected error"));
+                    return true;
+                });
         createMockGenericExternalService("OldService");
-        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
-            put("OldService", new HashMap<String, Object>() {{
-                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                    put("ConfigKey1", "ConfigValue2");
-                }});
-                put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
-            }});
-        }};
+        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {
+            {
+                put("OldService", new HashMap<String, Object>() {
+                    {
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                            {
+                                put("ConfigKey1", "ConfigValue2");
+                            }
+                        });
+                        put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
+                    }
+                });
+            }
+        };
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCEventStreamAgent, times(1)).validateConfiguration(any(), any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
         assertTrue(deploymentResult.getFailureCause() instanceof ComponentConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
-                .getMessage().contains("Error while waiting for validation report for one or more components"));
+                .getMessage()
+                .contains("Error while waiting for validation report for one or more components"));
     }
 
     @Test
@@ -279,20 +309,30 @@ class DynamicComponentConfigurationValidatorTest {
     @Test
     void GIVEN_deployment_has_a_new_service_WHEN_validating_config_THEN_no_validation_attempted_for_new_service()
             throws Exception {
-        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
-            put("NewService", new HashMap<String, Object>() {{
-                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                    put("ConfigKey1", "ConfigValue2");
-                }});
-                put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
-            }});
-            put("OldInternalService", new HashMap<String, Object>() {{
-                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                    put("ConfigKey1", "ConfigValue2");
-                }});
-                put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
-            }});
-        }};
+        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {
+            {
+                put("NewService", new HashMap<String, Object>() {
+                    {
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                            {
+                                put("ConfigKey1", "ConfigValue2");
+                            }
+                        });
+                        put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
+                    }
+                });
+                put("OldInternalService", new HashMap<String, Object>() {
+                    {
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                            {
+                                put("ConfigKey1", "ConfigValue2");
+                            }
+                        });
+                        put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
+                    }
+                });
+            }
+        };
         assertTrue(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCEventStreamAgent, never()).validateConfiguration(any(), any(), any(), any());
         assertFalse(deploymentResultFuture.isDone());
@@ -301,13 +341,16 @@ class DynamicComponentConfigurationValidatorTest {
     @Test
     void GIVEN_new_deployment_WHEN_service_config_format_invalid_THEN_fail_deployment() throws Exception {
         createMockGenericExternalService("OldService");
-        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
-            put("OldService", "Faulty Proposed Service Config");
-        }};
+        HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {
+            {
+                put("OldService", "Faulty Proposed Service Config");
+            }
+        };
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture), "validation");
         verify(configStoreIPCEventStreamAgent, never()).validateConfiguration(any(), any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
-        assertThat(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, is(deploymentResult.getDeploymentStatus()));
+        assertThat(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                is(deploymentResult.getDeploymentStatus()));
         assertThat(deploymentResult.getFailureCause(), is(instanceOf(ComponentConfigurationValidationException.class)));
         assertThat(deploymentResult.getFailureCause().getMessage(), containsString("Services config must be a map"));
     }

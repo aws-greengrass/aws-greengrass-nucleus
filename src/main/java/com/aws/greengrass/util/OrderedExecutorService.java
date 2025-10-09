@@ -40,13 +40,12 @@ public class OrderedExecutorService implements Executor {
     }
 
     /**
-     * Executes the given command at some time in the future.  The command may execute in a new thread,
-     * in a pooled thread, or in the calling thread, at the discretion of the {@code Executor} implementation.
-     * The tasks with the same key will run sequentially. If no key is provided, the task will executed without
-     * any ordering.
+     * Executes the given command at some time in the future. The command may execute in a new thread, in a pooled
+     * thread, or in the calling thread, at the discretion of the {@code Executor} implementation. The tasks with the
+     * same key will run sequentially. If no key is provided, the task will executed without any ordering.
      *
-     * @param task  the runnable task
-     * @param key   The key by which to order the tasks.
+     * @param task the runnable task
+     * @param key The key by which to order the tasks.
      */
     public void execute(Runnable task, Object key) {
         if (key == null) { // if key is null, execute without ordering

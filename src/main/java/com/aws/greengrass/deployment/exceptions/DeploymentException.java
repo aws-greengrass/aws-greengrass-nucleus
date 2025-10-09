@@ -72,7 +72,7 @@ public class DeploymentException extends Exception {
     }
 
     public DeploymentException(String message, List<DeploymentErrorCode> errorCodes,
-                               List<DeploymentErrorType> errorTypes) {
+            List<DeploymentErrorType> errorTypes) {
         super(message);
         this.errorCodes.addAll(errorCodes);
         this.errorTypes.addAll(errorTypes);

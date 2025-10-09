@@ -57,7 +57,7 @@ public class SubscriptionTrie<K> {
      * Remove entry for one callback.
      *
      * @param topic topic
-     * @param cb    callback
+     * @param cb callback
      * @return if changed after removal
      */
     public boolean remove(String topic, K cb) {
@@ -68,7 +68,7 @@ public class SubscriptionTrie<K> {
      * Remove entry for a set of callbacks.
      *
      * @param topic topic
-     * @param cbs   callbacks
+     * @param cbs callbacks
      * @return if changed after removal
      */
     public boolean remove(String topic, Set<K> cbs) {
@@ -87,17 +87,17 @@ public class SubscriptionTrie<K> {
     }
 
     /*
-    This method removes the requested callback from a topic and prunes the subscription trie recursively by
-    1. navigating to the last node of the requested topic
-    1.a. at this node, the method persists the result of the requested callback removal for the penultimate result
-    1.b. returns true if requested callback was removed and if current topic node can be pruned
-
-    2. the previous topic node receives the result from 1.b.
-    2.a. if true, remove child topic node and return if current node can be pruned
-    2.b. if false, simply do nothing and return false implying current node cannot be pruned
+     * This method removes the requested callback from a topic and prunes the subscription trie recursively by 1.
+     * navigating to the last node of the requested topic 1.a. at this node, the method persists the result of the
+     * requested callback removal for the penultimate result 1.b. returns true if requested callback was removed and if
+     * current topic node can be pruned
+     * 
+     * 2. the previous topic node receives the result from 1.b. 2.a. if true, remove child topic node and return if
+     * current node can be pruned 2.b. if false, simply do nothing and return false implying current node cannot be
+     * pruned
      */
     private boolean removeRecursively(String[] topicNodes, SubscriptionTrie<K> topicNode, Set<K> cbs, int index,
-                                      AtomicBoolean subscriptionRemoved) {
+            AtomicBoolean subscriptionRemoved) {
         if (index == topicNodes.length) {
             subscriptionRemoved.set(topicNode.subscriptionCallbacks.removeAll(cbs));
             return subscriptionRemoved.get() && canRemove(topicNode);
@@ -128,7 +128,7 @@ public class SubscriptionTrie<K> {
      * Add a topic callback.
      *
      * @param topic topic
-     * @param cb    callback
+     * @param cb callback
      * @return true
      */
     public boolean add(String topic, K cb) {
@@ -139,7 +139,7 @@ public class SubscriptionTrie<K> {
      * Add a topic and a set of callbacks.
      *
      * @param topic topic
-     * @param cbs   callbacks
+     * @param cbs callbacks
      */
     public boolean add(String topic, Set<K> cbs) {
         SubscriptionTrie<K> current = this;
@@ -195,8 +195,8 @@ public class SubscriptionTrie<K> {
     }
 
     /**
-     * Return whether a topic contains MQTT style wildcard.
-     * If true, + and # must occupy an entire level and # must be the last character.
+     * Return whether a topic contains MQTT style wildcard. If true, + and # must occupy an entire level and # must be
+     * the last character.
      *
      * @param topic topic
      * @return whether the topic is wildcard
@@ -218,4 +218,3 @@ public class SubscriptionTrie<K> {
     }
 
 }
-

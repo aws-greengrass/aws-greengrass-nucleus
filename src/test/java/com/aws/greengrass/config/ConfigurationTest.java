@@ -43,7 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
+@SuppressWarnings({
+        "PMD.DetachedTestCase", "PMD.UnusedLocalVariable"
+})
 @ExtendWith(GGExtension.class)
 class ConfigurationTest {
 
@@ -126,7 +128,7 @@ class ConfigurationTest {
         config.lookup("x", "c").withNewerValue(20, Math.PI);
         config.lookup("x", "d").withNewerValue(20, System.currentTimeMillis());
 
-        Path p = Files.createTempFile("test-config",".log");
+        Path p = Files.createTempFile("test-config", ".log");
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
         Configuration c2 = ConfigurationReader.createFromTLog(config.context, p);
@@ -194,11 +196,11 @@ class ConfigurationTest {
     @Test
     void GIVEN_config_with_subscribers_WHEN_topic_updated_THEN_subscribers_notified_with_changed_node()
             throws Exception {
-        Topic installTopic = config.lookup(SERVICES_NAMESPACE_TOPIC, "serviceA", "lifecycle", "install").dflt("default");
+        Topic installTopic =
+                config.lookup(SERVICES_NAMESPACE_TOPIC, "serviceA", "lifecycle", "install").dflt("default");
         CountDownLatch childChangedCorrectly = new CountDownLatch(1);
         config.findTopics(SERVICES_NAMESPACE_TOPIC, "serviceA").subscribe((what, child) -> {
-            if (what.equals(WhatHappened.childChanged)
-                    && child.childOf("install")
+            if (what.equals(WhatHappened.childChanged) && child.childOf("install")
                     && ((Topic) child).getOnce().equals("Install")) {
                 childChangedCorrectly.countDown();
             }
@@ -336,18 +338,10 @@ class ConfigurationTest {
     void GIVEN_topics_WHEN_call_replace_map_THEN_content_replaced_and_subscribers_invoked() throws Exception {
         // GIVEN
         // set up initial config and listeners
-        String initConfig = "---\n"
-                + "foo:\n"
-                + "  nodeToBeRemoved:\n"
-                + "    key1: val1\n"
-                + "  leafToBeUpdated: val2\n"
-                + "  nodeUnchanged: unchanged\n"
-                + "  leafToBeRemoved: dummy";
+        String initConfig = "---\n" + "foo:\n" + "  nodeToBeRemoved:\n" + "    key1: val1\n"
+                + "  leafToBeUpdated: val2\n" + "  nodeUnchanged: unchanged\n" + "  leafToBeRemoved: dummy";
 
-        String updateConfig = "---\n"
-                + "foo:\n"
-                + "  nodeAdded: val1\n"
-                + "  nodeUnchanged: unchanged\n"
+        String updateConfig = "---\n" + "foo:\n" + "  nodeAdded: val1\n" + "  nodeUnchanged: unchanged\n"
                 + "  leafToBeUpdated: updatedValue";
 
         Map<String, Object> initConfigMap;
@@ -409,23 +403,12 @@ class ConfigurationTest {
     void GIVEN_config_update_WHEN_root_replace_and_child_merge_THEN_expect_merge_correct() throws Exception {
         // GIVEN
         // set up initial config and listeners
-        String initConfig = "---\n"
-                + "foo:\n"
-                + "  nodeToBeRemoved:\n"
-                + "    key1: val1\n"
-                + "  nodeToBeMerged:\n"
-                + "    key1: val1\n"
-                + "  leafToBeUpdated: val2\n"
-                + "  nodeUnchanged: unchanged\n"
+        String initConfig = "---\n" + "foo:\n" + "  nodeToBeRemoved:\n" + "    key1: val1\n" + "  nodeToBeMerged:\n"
+                + "    key1: val1\n" + "  leafToBeUpdated: val2\n" + "  nodeUnchanged: unchanged\n"
                 + "  leafToBeRemoved: dummy";
 
-        String updateConfig = "---\n"
-                + "foo:\n"
-                + "  nodeAdded: val1\n"
-                + "  nodeToBeMerged:\n"
-                + "    key2: val2\n"
-                + "  nodeUnchanged: unchanged\n"
-                + "  leafToBeUpdated: updatedValue";
+        String updateConfig = "---\n" + "foo:\n" + "  nodeAdded: val1\n" + "  nodeToBeMerged:\n" + "    key2: val2\n"
+                + "  nodeUnchanged: unchanged\n" + "  leafToBeUpdated: updatedValue";
 
         Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
@@ -448,15 +431,17 @@ class ConfigurationTest {
         }
 
         UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
-            createNewMap("foo", new UpdateBehaviorTree(
-                    UpdateBehaviorTree.UpdateBehavior.REPLACE,
-                    createNewMap("nodeToBeMerged", new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                            System.currentTimeMillis())), System.currentTimeMillis())
-            ), System.currentTimeMillis());
+                createNewMap("foo",
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                                createNewMap("nodeToBeMerged",
+                                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                                System.currentTimeMillis())),
+                                System.currentTimeMillis())),
+                System.currentTimeMillis());
         config.updateMap(updateConfigMap, updateBehavior);
 
         Map<String, Object> expectedConfig = new HashMap<>(updateConfigMap);
-        ((Map) ((Map)expectedConfig.get("foo")).get("nodeToBeMerged")).put("key1", "val1");
+        ((Map) ((Map) expectedConfig.get("foo")).get("nodeToBeMerged")).put("key1", "val1");
 
         // THEN
         assertEquals(expectedConfig, config.toPOJO());
@@ -470,33 +455,15 @@ class ConfigurationTest {
     void GIVEN_config_update_WHEN_root_merge_and_child_replace_THEN_expect_merge_correct() throws Exception {
         // GIVEN
         // set up initial config and listeners
-        String initConfig = "---\n"
-                + "foo:\n"
-                + "  nodeToBeReplaced:\n"
-                + "    key1: val1\n"
-                + "  nodeToBeMerged:\n"
-                + "    key1: val1\n"
-                + "  nodeUnchanged:\n"
-                + "    key1: val1\n";
+        String initConfig = "---\n" + "foo:\n" + "  nodeToBeReplaced:\n" + "    key1: val1\n" + "  nodeToBeMerged:\n"
+                + "    key1: val1\n" + "  nodeUnchanged:\n" + "    key1: val1\n";
 
-        String updateConfig = "---\n"
-                + "foo:\n"
-                + "  nodeToBeReplaced:\n"
-                + "    key2: val2\n"
-                + "  nodeToBeMerged:\n"
-                + "    key2: val2\n"
-                + "  nodeUnchanged:\n"
-                + "    key1: val1\n";
+        String updateConfig = "---\n" + "foo:\n" + "  nodeToBeReplaced:\n" + "    key2: val2\n" + "  nodeToBeMerged:\n"
+                + "    key2: val2\n" + "  nodeUnchanged:\n" + "    key1: val1\n";
 
-        String expectedResult = "---\n"
-                + "foo:\n"
-                + "  nodeToBeReplaced:\n"
-                + "    key2: val2\n"
-                + "  nodeToBeMerged:\n"
-                + "    key1: val1\n"
-                + "    key2: val2\n"
-                + "  nodeUnchanged:\n"
-                + "    key1: val1\n";
+        String expectedResult =
+                "---\n" + "foo:\n" + "  nodeToBeReplaced:\n" + "    key2: val2\n" + "  nodeToBeMerged:\n"
+                        + "    key1: val1\n" + "    key2: val2\n" + "  nodeUnchanged:\n" + "    key1: val1\n";
 
         Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
@@ -511,7 +478,6 @@ class ConfigurationTest {
                 nodeMerged.incrementAndGet();
             }
         });
-
 
         AtomicInteger nodeUnchangedCount = new AtomicInteger(0);
         config.findTopics("foo", "nodeUnchanged").subscribe((what, c) -> {
@@ -527,14 +493,13 @@ class ConfigurationTest {
         }
 
         UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
-            createNewMap("*", new UpdateBehaviorTree(
-                    UpdateBehaviorTree.UpdateBehavior.MERGE,
-                    createNewMap("nodeToBeReplaced",
-                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
-                                    System.currentTimeMillis())),
-                    System.currentTimeMillis()
-            )), System.currentTimeMillis()
-        );
+                createNewMap("*",
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                createNewMap("nodeToBeReplaced",
+                                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                                                System.currentTimeMillis())),
+                                System.currentTimeMillis())),
+                System.currentTimeMillis());
 
         config.updateMap(updateConfigMap, updateBehavior);
 
@@ -555,35 +520,17 @@ class ConfigurationTest {
     void GIVEN_config_update_WHEN_merge_update_interleave_THEN_expect_merge_correct() throws Exception {
         // GIVEN
         // set up initial config and listeners
-        String initConfig = "---\n"
-                + "nodeToBeMerged:\n"
-                + "  key1: val1\n"
-                + "  key3: val2\n"
-                + "  nodeToBeReplaced:\n"
-                + "    subNodeToBeRemoved: val\n"
-                + "    subNodeToBeMerged:\n"
-                + "      subKey1: subVal1\n"
-                + "nodeToBeRemoved: val\n";
+        String initConfig = "---\n" + "nodeToBeMerged:\n" + "  key1: val1\n" + "  key3: val2\n"
+                + "  nodeToBeReplaced:\n" + "    subNodeToBeRemoved: val\n" + "    subNodeToBeMerged:\n"
+                + "      subKey1: subVal1\n" + "nodeToBeRemoved: val\n";
 
-        String updateConfig = "---\n"
-                + "nodeToBeMerged:\n"
-                + "  key2: val2\n"
-                + "  key3: val2\n"
-                + "  nodeToBeReplaced:\n"
-                + "    subNodeToBeMerged:\n"
-                + "      subKey2: subVal2\n"
-                + "nodeToBeAdded: val\n";
+        String updateConfig =
+                "---\n" + "nodeToBeMerged:\n" + "  key2: val2\n" + "  key3: val2\n" + "  nodeToBeReplaced:\n"
+                        + "    subNodeToBeMerged:\n" + "      subKey2: subVal2\n" + "nodeToBeAdded: val\n";
 
-        String expectedResult = "---\n"
-                + "nodeToBeMerged:\n"
-                + "  key1: val1\n"
-                + "  key2: val2\n"
-                + "  key3: val2\n"
-                + "  nodeToBeReplaced:\n"
-                + "    subNodeToBeMerged:\n"
-                + "      subKey1: subVal1\n"
-                + "      subKey2: subVal2\n"
-                + "nodeToBeAdded: val\n";
+        String expectedResult = "---\n" + "nodeToBeMerged:\n" + "  key1: val1\n" + "  key2: val2\n" + "  key3: val2\n"
+                + "  nodeToBeReplaced:\n" + "    subNodeToBeMerged:\n" + "      subKey1: subVal1\n"
+                + "      subKey2: subVal2\n" + "nodeToBeAdded: val\n";
 
         Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
@@ -598,7 +545,8 @@ class ConfigurationTest {
         }
 
         Path tlogPath = tempDir.resolve("t.tlog");
-        try (ConfigurationWriter configurationWriter = ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true)) {
+        try (ConfigurationWriter configurationWriter =
+                ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true)) {
             config.mergeMap(then, initConfigMap);
             config.context.waitForPublishQueueToClear();
 
@@ -610,11 +558,13 @@ class ConfigurationTest {
 
             UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
                     createNewMap("nodeToBeMerged", new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                            createNewMap("nodeToBeReplaced",
-                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, createNewMap(
-                                            "subNodeToBeMerged",
+                            createNewMap("nodeToBeReplaced", new UpdateBehaviorTree(
+                                    UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                                    createNewMap("subNodeToBeMerged",
                                             new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)),
-                                            now)), now)), now);
+                                    now)),
+                            now)),
+                    now);
 
             config.updateMap(updateConfigMap, updateBehavior);
             config.context.waitForPublishQueueToClear();
@@ -636,7 +586,8 @@ class ConfigurationTest {
         config.context.waitForPublishQueueToClear();
 
         assertEquals(expectedConfig, config.toPOJO());
-        assertEquals(now, config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);
+        assertEquals(now,
+                config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);
         assertEquals(then,
                 config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey1").modtime);
         assertEquals(now, config.findNode("nodeToBeAdded").modtime);
@@ -645,49 +596,24 @@ class ConfigurationTest {
         assertEquals(now, config.findNode("nodeToBeMerged", "key3").modtime);
     }
 
-
     @Test
     void GIVEN_config_update_WHEN_node_type_change_THEN_expect_merge_correct() throws Exception {
         // GIVEN
         // set up initial config and listeners
-        String initConfig = "---\n"
-                + "nodeToBeMerged:\n"
-                + "  key1: val1\n"
-                + "  key3: val2\n"
-                + "  nodeToBeReplaced:\n"
-                + "    subNodeToBeRemoved: val\n"
-                + "    subNodeToBeMerged:\n"
-                + "      subKey1: subVal1\n"
-                + "nodeTypeToBeChangedToContainer: val\n"
-                + "nodeTypeToBeChangedToLeaf:\n"
-                + "  key1: val1\n"
-                + "  key3: val2\n";
+        String initConfig = "---\n" + "nodeToBeMerged:\n" + "  key1: val1\n" + "  key3: val2\n"
+                + "  nodeToBeReplaced:\n" + "    subNodeToBeRemoved: val\n" + "    subNodeToBeMerged:\n"
+                + "      subKey1: subVal1\n" + "nodeTypeToBeChangedToContainer: val\n" + "nodeTypeToBeChangedToLeaf:\n"
+                + "  key1: val1\n" + "  key3: val2\n";
 
-        String updateConfig = "---\n"
-                + "nodeToBeMerged:\n"
-                + "  key2: val2\n"
-                + "  key3: val2\n"
-                + "  nodeToBeReplaced:\n"
-                + "    subNodeToBeMerged:\n"
-                + "      subKey2: subVal2\n"
-                + "nodeTypeToBeChangedToLeaf: val\n"
-                + "nodeTypeToBeChangedToContainer:\n"
-                + "  key1: val1\n"
-                + "nodeToBeAdded: val\n";
+        String updateConfig =
+                "---\n" + "nodeToBeMerged:\n" + "  key2: val2\n" + "  key3: val2\n" + "  nodeToBeReplaced:\n"
+                        + "    subNodeToBeMerged:\n" + "      subKey2: subVal2\n" + "nodeTypeToBeChangedToLeaf: val\n"
+                        + "nodeTypeToBeChangedToContainer:\n" + "  key1: val1\n" + "nodeToBeAdded: val\n";
 
-        String expectedResult = "---\n"
-                + "nodeToBeMerged:\n"
-                + "  key1: val1\n"
-                + "  key2: val2\n"
-                + "  key3: val2\n"
-                + "  nodeToBeReplaced:\n"
-                + "    subNodeToBeMerged:\n"
-                + "      subKey1: subVal1\n"
-                + "      subKey2: subVal2\n"
-                + "nodeTypeToBeChangedToLeaf: val\n"
-                + "nodeTypeToBeChangedToContainer:\n"
-                + "  key1: val1\n"
-                + "nodeToBeAdded: val\n";
+        String expectedResult = "---\n" + "nodeToBeMerged:\n" + "  key1: val1\n" + "  key2: val2\n" + "  key3: val2\n"
+                + "  nodeToBeReplaced:\n" + "    subNodeToBeMerged:\n" + "      subKey1: subVal1\n"
+                + "      subKey2: subVal2\n" + "nodeTypeToBeChangedToLeaf: val\n" + "nodeTypeToBeChangedToContainer:\n"
+                + "  key1: val1\n" + "nodeToBeAdded: val\n";
 
         Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
@@ -701,7 +627,8 @@ class ConfigurationTest {
         }
 
         Path tlogPath = tempDir.resolve("t.tlog");
-        try (ConfigurationWriter configurationWriter = ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true)) {
+        try (ConfigurationWriter configurationWriter =
+                ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true)) {
             config.mergeMap(then, initConfigMap);
             config.context.waitForPublishQueueToClear();
 
@@ -714,11 +641,13 @@ class ConfigurationTest {
             long now = System.currentTimeMillis();
             UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
                     createNewMap("nodeToBeMerged", new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                            createNewMap("nodeToBeReplaced",
-                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, createNewMap(
-                                            "subNodeToBeMerged",
+                            createNewMap("nodeToBeReplaced", new UpdateBehaviorTree(
+                                    UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                                    createNewMap("subNodeToBeMerged",
                                             new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)),
-                                            now)), now)), now);
+                                    now)),
+                            now)),
+                    now);
 
             AtomicBoolean nodeChangedToLeaf = new AtomicBoolean(false);
             config.findTopics("nodeTypeToBeChangedToLeaf").subscribe((what, c) -> {

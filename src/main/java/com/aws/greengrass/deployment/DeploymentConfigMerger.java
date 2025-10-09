@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context.Value;
 import com.aws.greengrass.dependency.State;
@@ -73,19 +72,21 @@ public class DeploymentConfigMerger {
      * Merge in new configuration values and new services.
      *
      * @param deployment deployment object
-     * @param newConfig  the map of new configuration
+     * @param newConfig the map of new configuration
      * @param configMergeTimestamp the timestamp to use when merging new configuration
      * @return future which completes only once the config is merged and all the services in the config are running
      */
-    public Future<DeploymentResult> mergeInNewConfig(Deployment deployment,
-                                                     Map<String, Object> newConfig, long configMergeTimestamp) {
+    public Future<DeploymentResult> mergeInNewConfig(Deployment deployment, Map<String, Object> newConfig,
+            long configMergeTimestamp) {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
         DeploymentActivator activator;
         try {
             activator = kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig);
         } catch (ServiceUpdateException | ComponentConfigurationValidationException e) {
             // Failed to pre-process new config, no rollback needed
-            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+            logger.atError()
+                    .setEventType(MERGE_ERROR_LOG_EVENT_KEY)
+                    .setCause(e)
                     .log("Failed to process new configuration for activation");
             totallyCompleteFuture
                     .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
@@ -100,15 +101,17 @@ public class DeploymentConfigMerger {
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         if (DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS
                 .equals(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction())) {
-            kernel.getContext().get(UpdateSystemPolicyService.class)
+            kernel.getContext()
+                    .get(UpdateSystemPolicyService.class)
                     .addUpdateAction(deploymentDocument.getDeploymentId(),
-                            new UpdateAction(deploymentDocument.getDeploymentId(),
-                                    ggcRestart, deploymentDocument.getComponentUpdatePolicy().getTimeout(),
+                            new UpdateAction(deploymentDocument.getDeploymentId(), ggcRestart,
+                                    deploymentDocument.getComponentUpdatePolicy().getTimeout(),
                                     () -> updateActionForDeployment(newConfig, deployment, activator,
                                             configMergeTimestamp, totallyCompleteFuture)));
         } else {
-            logger.atInfo().log("Deployment is configured to skip update policy check,"
-                    + " not waiting for disruptable time to update");
+            logger.atInfo()
+                    .log("Deployment is configured to skip update policy check,"
+                            + " not waiting for disruptable time to update");
             // use executor service to execute updateActionForDeployment
             // prevents default deployment cancellation from directly interrupting
             executorService.execute(() -> updateActionForDeployment(newConfig, deployment, activator,
@@ -120,13 +123,14 @@ public class DeploymentConfigMerger {
     }
 
     private void updateActionForDeployment(Map<String, Object> newConfig, Deployment deployment,
-                                           DeploymentActivator activator, long configMergeTimestamp,
-                                           CompletableFuture<DeploymentResult> totallyCompleteFuture) {
+            DeploymentActivator activator, long configMergeTimestamp,
+            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         String deploymentId = deployment.getGreengrassDeploymentId();
 
         // if the update is cancelled, don't perform merge
         if (totallyCompleteFuture.isCancelled()) {
-            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY)
+                    .kv("deployment", deploymentId)
                     .log("Future was cancelled so no need to go through with the update");
             return;
         }
@@ -135,8 +139,8 @@ public class DeploymentConfigMerger {
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
             if (serviceConfig.containsKey(deviceConfiguration.getNucleusComponentName())) {
-                Map<String, Object> nucleusNamespace = (Map<String, Object>) serviceConfig
-                        .get(deviceConfiguration.getNucleusComponentName());
+                Map<String, Object> nucleusNamespace =
+                        (Map<String, Object>) serviceConfig.get(deviceConfiguration.getNucleusComponentName());
                 nucleusConfig = (Map<String, Object>) nucleusNamespace.get(CONFIGURATION_CONFIG_KEY);
             }
         } else {
@@ -154,13 +158,12 @@ public class DeploymentConfigMerger {
             return;
         }
 
-        logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
-                .log("Applying deployment changes");
+        logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId).log("Applying deployment changes");
         activator.activate(newConfig, deployment, configMergeTimestamp, totallyCompleteFuture);
     }
 
     private boolean validateNucleusConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture,
-                                          Map<String, Object> nucleusConfig) {
+            Map<String, Object> nucleusConfig) {
         if (nucleusConfig != null) {
             String awsRegion = tryGetAwsRegionFromNewConfig(nucleusConfig);
             String iotCredEndpoint = tryGetIoTCredEndpointFromNewConfig(nucleusConfig);
@@ -178,23 +181,21 @@ public class DeploymentConfigMerger {
     }
 
     /**
-     * Completes the provided future when all the listed services are running.
-     * Exits early if the future is cancelled
+     * Completes the provided future when all the listed services are running. Exits early if the future is cancelled
      *
-     * @param servicesToTrack       services to track
-     * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
-     * @param kernel                kernel
+     * @param servicesToTrack services to track
+     * @param mergeTime time the merge was started, used to check if a service is broken due to the merge
+     * @param kernel kernel
      * @param totallyCompleteFuture used to check if a deployment is cancelled
-     * @throws InterruptedException   if the thread is interrupted while waiting here
+     * @throws InterruptedException if the thread is interrupted while waiting here
      * @throws ServiceUpdateException if a service could not be updated
      */
     public static void waitForServicesToStart(Collection<GreengrassService> servicesToTrack, long mergeTime,
-                                              Kernel kernel, CompletableFuture<DeploymentResult> totallyCompleteFuture)
+            Kernel kernel, CompletableFuture<DeploymentResult> totallyCompleteFuture)
             throws InterruptedException, ServiceUpdateException {
         while (!areAllServiceInDesiredState(servicesToTrack, mergeTime, kernel)) {
             if (totallyCompleteFuture.isCancelled()) {
-                logger.atWarn(MERGE_CONFIG_EVENT_KEY)
-                        .log("deployment cancelled while waiting for services to start");
+                logger.atWarn(MERGE_CONFIG_EVENT_KEY).log("deployment cancelled while waiting for services to start");
                 return;
             }
             Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
@@ -202,14 +203,15 @@ public class DeploymentConfigMerger {
     }
 
     private static boolean areAllServiceInDesiredState(Collection<GreengrassService> servicesToTrack, long mergeTime,
-                                                       Kernel kernel) throws ServiceUpdateException {
+            Kernel kernel) throws ServiceUpdateException {
         boolean allServicesRunning = true;
         for (GreengrassService service : servicesToTrack) {
             State state = service.getState();
             // If a service is previously BROKEN, its state might have not been updated yet when this check
             // executes. We must check the service broke after merge map occurs.
             if (service.getStateModTime() > mergeTime && State.BROKEN.equals(state)) {
-                logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(SERVICE_NAME_LOG_KEY, service.getName())
+                logger.atWarn(MERGE_CONFIG_EVENT_KEY)
+                        .kv(SERVICE_NAME_LOG_KEY, service.getName())
                         .log("merge-config-service BROKEN");
                 throw new ServiceUpdateException(
                         String.format("Service %s in broken state after deployment", service.getName()),
@@ -220,8 +222,8 @@ public class DeploymentConfigMerger {
                 allServicesRunning = false;
                 continue;
             }
-            if (State.RUNNING.equals(state) || State.FINISHED.equals(state) || !service.shouldAutoStart()
-                    && service.reachedDesiredState()) {
+            if (State.RUNNING.equals(state) || State.FINISHED.equals(state)
+                    || !service.shouldAutoStart() && service.reachedDesiredState()) {
                 continue;
             }
             allServicesRunning = false;
@@ -253,7 +255,6 @@ public class DeploymentConfigMerger {
         return iotDataEndpoint;
     }
 
-
     @Getter
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
     public static class AggregateServicesChangeManager {
@@ -267,29 +268,33 @@ public class DeploymentConfigMerger {
         /**
          * Constructs an object based on the current Kernel state and the config to be merged.
          *
-         * @param kernel           Greengrass kernel
+         * @param kernel Greengrass kernel
          * @param newServiceConfig new config to be merged for deployment
          */
         public AggregateServicesChangeManager(Kernel kernel, Map<String, Object> newServiceConfig) {
             // No builtin services should be modified in any way by deployments outside of
-            //  Nucleus component update
-            Set<String> runningDeployableServices =
-                    kernel.orderedDependencies().stream().filter(s -> !s.isBuiltin())
-                            .map(GreengrassService::getServiceName)
-                            .collect(Collectors.toSet());
+            // Nucleus component update
+            Set<String> runningDeployableServices = kernel.orderedDependencies()
+                    .stream()
+                    .filter(s -> !s.isBuiltin())
+                    .map(GreengrassService::getServiceName)
+                    .collect(Collectors.toSet());
 
             this.kernel = kernel;
 
-            this.servicesToAdd = newServiceConfig.keySet().stream()
+            this.servicesToAdd = newServiceConfig.keySet()
+                    .stream()
                     .filter(serviceName -> !runningDeployableServices.contains(serviceName))
                     .collect(Collectors.toSet());
 
-            this.servicesToUpdate = newServiceConfig.keySet().stream().filter(runningDeployableServices::contains)
+            this.servicesToUpdate = newServiceConfig.keySet()
+                    .stream()
+                    .filter(runningDeployableServices::contains)
                     .collect(Collectors.toSet());
 
-            this.servicesToRemove =
-                    runningDeployableServices.stream().filter(serviceName -> !newServiceConfig.containsKey(serviceName))
-                            .collect(Collectors.toSet());
+            this.servicesToRemove = runningDeployableServices.stream()
+                    .filter(serviceName -> !newServiceConfig.containsKey(serviceName))
+                    .collect(Collectors.toSet());
             this.alreadyBrokenServices = runningDeployableServices.stream().filter(name -> {
                 try {
                     return kernel.locate(name).currentOrReportedStateIs(State.BROKEN);
@@ -314,8 +319,8 @@ public class DeploymentConfigMerger {
         public AggregateServicesChangeManager createRollbackManager() {
             // For rollback, services the deployment originally intended to add should be removed
             // and services it intended to remove should be added back
-            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate,
-                    servicesToAdd, alreadyBrokenServices, alreadyUnloadableServices);
+            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd,
+                    alreadyBrokenServices, alreadyUnloadableServices);
         }
 
         /**
@@ -359,8 +364,7 @@ public class DeploymentConfigMerger {
                     kernel.getContext().remove(greengrassService.getClass());
                     kernel.locateIgnoreError(serviceName).requestReinstall();
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                    logger.atError().kv(SERVICE_NAME_LOG_KEY, serviceName)
-                            .log("Failed to close unloadable service", e);
+                    logger.atError().kv(SERVICE_NAME_LOG_KEY, serviceName).log("Failed to close unloadable service", e);
                 }
             }
         }
@@ -369,7 +373,7 @@ public class DeploymentConfigMerger {
          * Clean up services that the merge intends to remove.
          *
          * @throws InterruptedException when the merge is interrupted
-         * @throws ServiceUpdateException   when error is encountered while trying to close any service
+         * @throws ServiceUpdateException when error is encountered while trying to close any service
          */
         public void removeObsoleteServices() throws InterruptedException, ServiceUpdateException {
             Set<GreengrassService> ggServicesToRemove = new HashSet<>();
@@ -384,7 +388,9 @@ public class DeploymentConfigMerger {
 
                     ggServicesToRemove.add(eg);
                 } catch (ServiceLoadException e) {
-                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue(SERVICE_NAME_LOG_KEY, serviceName)
+                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY)
+                            .setCause(e)
+                            .addKeyValue(SERVICE_NAME_LOG_KEY, serviceName)
                             .log("Could not locate Greengrass service to close service");
                     // Even though we couldn't find it, we might still need to drop it from the context, so return true
                     return true;

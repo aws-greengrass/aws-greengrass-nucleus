@@ -60,7 +60,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class KernelUpdateActivatorTest {
     @Mock
     Kernel kernel;
@@ -100,13 +102,15 @@ class KernelUpdateActivatorTest {
         lenient().doReturn(config).when(kernel).getConfig();
         kernelUpdateActivator = new KernelUpdateActivator(kernel, bootstrapManager);
         lenient().doReturn(DeploymentDocument.builder().timestamp(0L).deploymentId("testId").build())
-                .when(deployment).getDeploymentDocumentObj();
+                .when(deployment)
+                .getDeploymentDocumentObj();
         lenient().doReturn(tlog).when(lifecycle).getTlog();
         lenient().doReturn(lifecycle).when(context).get(eq(KernelLifecycle.class));
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_takeConfigSnapshot_fails_THEN_deployment_fails(ExtensionContext context) throws Exception{
+    void GIVEN_deployment_activate_WHEN_takeConfigSnapshot_fails_THEN_deployment_fails(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, IOException.class);
 
         IOException mockIOE = new IOException();
@@ -121,7 +125,8 @@ class KernelUpdateActivatorTest {
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_prepareBootstrap_fails_THEN_deployment_rollback(ExtensionContext context) throws Exception {
+    void GIVEN_deployment_activate_WHEN_prepareBootstrap_fails_THEN_deployment_rollback(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, IOException.class);
 
         Path bootstrapFilePath = mock(Path.class);
@@ -145,7 +150,8 @@ class KernelUpdateActivatorTest {
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_bootstrap_task_fails_THEN_deployment_rollback(ExtensionContext context) throws Exception  {
+    void GIVEN_deployment_activate_WHEN_bootstrap_task_fails_THEN_deployment_rollback(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, IOException.class);
         ignoreExceptionOfType(context, ServiceUpdateException.class);
 
@@ -153,8 +159,8 @@ class KernelUpdateActivatorTest {
         doReturn(bootstrapFilePath).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         Path targetConfigFilePath = mock(Path.class);
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
-        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error", DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
-                DeploymentErrorType.USER_COMPONENT_ERROR);
+        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error",
+                DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR, DeploymentErrorType.USER_COMPONENT_ERROR);
         IOException mockNucleusWorkPathIOE = new IOException("Mock Nucleus work path IOE");
         doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         doThrow(mockSUE).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
@@ -165,15 +171,16 @@ class KernelUpdateActivatorTest {
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
         verify(deployment).setStageDetails("mock error");
-        verify(deployment).setErrorStack(eq(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_UPDATE_ERROR",
-                "COMPONENT_BOOTSTRAP_ERROR")));
+        verify(deployment).setErrorStack(
+                eq(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_UPDATE_ERROR", "COMPONENT_BOOTSTRAP_ERROR")));
         verify(deployment).setErrorTypes(eq(Collections.singletonList("USER_COMPONENT_ERROR")));
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_bootstrap_finishes_THEN_request_restart(ExtensionContext context) throws Exception  {
+    void GIVEN_deployment_activate_WHEN_bootstrap_finishes_THEN_request_restart(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, IOException.class);
 
         Path bootstrapFilePath = mock(Path.class);
@@ -192,7 +199,8 @@ class KernelUpdateActivatorTest {
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_bootstrap_requires_reboot_THEN_request_reboot(ExtensionContext context) throws Exception  {
+    void GIVEN_deployment_activate_WHEN_bootstrap_requires_reboot_THEN_request_reboot(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, IOException.class);
 
         Path bootstrapFilePath = mock(Path.class);

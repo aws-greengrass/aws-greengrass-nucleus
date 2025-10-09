@@ -90,10 +90,13 @@ public class S3SdkClientFactory {
      */
     public S3Client getClientForRegion(Region r) {
         handleS3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()));
-        return clientCache.computeIfAbsent(r, (region) -> S3Client.builder()
-                .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
-                .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
-                .credentialsProvider(credentialsProvider).region(r).build());
+        return clientCache.computeIfAbsent(r,
+                (region) -> S3Client.builder()
+                        .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
+                        .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
+                        .credentialsProvider(credentialsProvider)
+                        .region(r)
+                        .build());
     }
 
     /**
@@ -102,8 +105,8 @@ public class S3SdkClientFactory {
      * @param type s3EndpointType
      */
     private void handleS3EndpointType(String type) {
-        //Check if system property and device config are consistent
-        //If not consistent, set system property according to device config value
+        // Check if system property and device config are consistent
+        // If not consistent, set system property according to device config value
         String s3EndpointSystemProp = System.getProperty(S3_ENDPOINT_PROP_NAME);
         boolean isGlobal = S3EndpointType.GLOBAL.name().equals(type);
 
@@ -122,7 +125,9 @@ public class S3SdkClientFactory {
      * Remove the cached client and close it.
      *
      */
-    @SuppressWarnings({"PMD.CloseResource"})
+    @SuppressWarnings({
+            "PMD.CloseResource"
+    })
     private void refreshClientCache() {
         S3Client clientToRemove = clientCache.remove(region);
         if (clientToRemove != null) {

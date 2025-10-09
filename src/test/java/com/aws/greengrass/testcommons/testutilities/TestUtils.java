@@ -41,24 +41,26 @@ public final class TestUtils {
     }
 
     /**
-     * Get the configuration as a POJO for the nucleus component in the kernel. This will also assert that that
-     * config is present.
+     * Get the configuration as a POJO for the nucleus component in the kernel. This will also assert that that config
+     * is present.
      *
      * @param kernel a kernel
      * @return the nucleus config.
      */
     public static Map<String, Object> getNucleusConfig(Kernel kernel) {
-        Optional<GreengrassService> nucleus =
-                kernel.getMain().getDependencies().keySet().stream().filter(s ->
-                        DEFAULT_NUCLEUS_COMPONENT_NAME.equalsIgnoreCase(s.getServiceName()))
-                        .findFirst();
+        Optional<GreengrassService> nucleus = kernel.getMain()
+                .getDependencies()
+                .keySet()
+                .stream()
+                .filter(s -> DEFAULT_NUCLEUS_COMPONENT_NAME.equalsIgnoreCase(s.getServiceName()))
+                .findFirst();
         assertTrue(nucleus.isPresent(), "no nucleus config available");
         return nucleus.get().getConfig().toPOJO();
     }
 
     /**
-     * Create a runnable that when run, will wait for a latch to countdown ensuring that a state change for the
-     * service has occurred. The listener is added immediately. The latch waits when the runnable runs.
+     * Create a runnable that when run, will wait for a latch to countdown ensuring that a state change for the service
+     * has occurred. The listener is added immediately. The latch waits when the runnable runs.
      *
      * @param kernel a kernel to monitor
      * @param serviceName the service to watch
@@ -72,8 +74,8 @@ public final class TestUtils {
     }
 
     /**
-     * Create a runnable that when run, will wait for a latch to countdown ensuring that a state change for the
-     * service has occurred. The listener is added immediately. The latch waits when the runnable runs.
+     * Create a runnable that when run, will wait for a latch to countdown ensuring that a state change for the service
+     * has occurred. The listener is added immediately. The latch waits when the runnable runs.
      *
      * @param kernel a kernel to monitor
      * @param serviceName the service to watch
@@ -86,8 +88,8 @@ public final class TestUtils {
             State state, State prevState) {
         CountDownLatch latch = new CountDownLatch(1);
         GlobalStateChangeListener l = (service, oldState, newState) -> {
-            if (service.getName().equals(serviceName) && newState.equals(state) && prevState == null ||
-                    oldState.equals(prevState)) {
+            if (service.getName().equals(serviceName) && newState.equals(state) && prevState == null
+                    || oldState.equals(prevState)) {
                 latch.countDown();
             }
         };
@@ -104,6 +106,7 @@ public final class TestUtils {
             }
         };
     }
+
     /**
      * Create an AutoCloseable object so that log listeners can be added and auto removed from the
      * {@link com.aws.greengrass.logging.impl.Slf4jLogAdapter} via try-with-resources block.
@@ -132,16 +135,15 @@ public final class TestUtils {
         return asyncAssertOnBiConsumer(bi, 1);
     }
 
-
     /**
-     * Wraps a given biconsumer function so that once it is called, the completable future can
-     * complete with the exception, or with a success.
+     * Wraps a given biconsumer function so that once it is called, the completable future can complete with the
+     * exception, or with a success.
      *
      * @param bi
      * @param numCalls number of expected calls
      */
     public static <A, B> Pair<CompletableFuture<Void>, BiConsumer<A, B>> asyncAssertOnBiConsumer(BiConsumer<A, B> bi,
-                                                                                                 int numCalls) {
+            int numCalls) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         AtomicInteger calls = new AtomicInteger(0);
 
@@ -167,7 +169,7 @@ public final class TestUtils {
      * Creates a test utility wrapping a given Consumer and returning a new Consumer and Future. Use the Future to
      * validate that the Consumer is called numCalls times without any exceptions.
      *
-     * @param c        Consumer to wrap
+     * @param c Consumer to wrap
      * @param numCalls number of expected calls. -1 will ignore the number of expected calls
      */
     public static <A> Pair<CompletableFuture<Void>, Consumer<A>> asyncAssertOnConsumer(Consumer<A> c, int numCalls) {
@@ -234,7 +236,7 @@ public final class TestUtils {
     }
 
     public static void validateGenerateErrorReport(Throwable e, List<String> expectedErrorStack,
-                                                   List<String> expectedErrorTypes) {
+            List<String> expectedErrorTypes) {
         Pair<List<String>, List<String>> errorReport =
                 DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
         assertEquals(errorReport.getLeft(), expectedErrorStack);

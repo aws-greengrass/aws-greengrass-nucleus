@@ -42,39 +42,48 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.aws.greengrass.componentmanager.plugins.docker.DockerImageArtifactParser.DOCKER_TAG_LATEST;
 
-@SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
-        "PMD.AvoidInstanceofChecksInCatchClause", "PMD.AvoidRethrowingException"})
+@SuppressWarnings({
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.AvoidInstanceofChecksInCatchClause",
+        "PMD.AvoidRethrowingException"
+})
 public class DockerImageDownloader extends ArtifactDownloader {
-    static final String DOCKER_NOT_INSTALLED_ERROR_MESSAGE = "Docker engine is not installed. Install Docker and "
-            + "retry the deployment.";
+    static final String DOCKER_NOT_INSTALLED_ERROR_MESSAGE =
+            "Docker engine is not installed. Install Docker and " + "retry the deployment.";
 
     private final EcrAccessor ecrAccessor;
     private final DefaultDockerClient dockerClient;
     private final MqttClient mqttClient;
 
     @Setter(AccessLevel.PACKAGE)
-    private RetryUtils.RetryConfig infiniteAttemptsRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
-                    .maxRetryInterval(Duration.ofMinutes(64L)).maxAttempt(Integer.MAX_VALUE).retryableExceptions(
-                    Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class)).build();
+    private RetryUtils.RetryConfig infiniteAttemptsRetryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofMinutes(1L))
+            .maxRetryInterval(Duration.ofMinutes(64L))
+            .maxAttempt(Integer.MAX_VALUE)
+            .retryableExceptions(
+                    Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class))
+            .build();
     @Setter(AccessLevel.PACKAGE)
-    private RetryUtils.RetryConfig finiteAttemptsRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(10L))
-                    .maxRetryInterval(Duration.ofMinutes(32L)).maxAttempt(30).retryableExceptions(
-                    Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
-                            SdkClientException.class, ServerException.class)).build();
+    private RetryUtils.RetryConfig finiteAttemptsRetryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofSeconds(10L))
+            .maxRetryInterval(Duration.ofMinutes(32L))
+            .maxAttempt(30)
+            .retryableExceptions(Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
+                    SdkClientException.class, ServerException.class))
+            .build();
 
     /**
      * Constructor.
      *
-     * @param identifier  component identifier
-     * @param artifact    artifact to download
+     * @param identifier component identifier
+     * @param artifact artifact to download
      * @param artifactDir artifact store path
-     * @param context     context
+     * @param context context
      * @param componentStore componentStore
      */
     public DockerImageDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
-                                 Context context, ComponentStore componentStore) {
+            Context context, ComponentStore componentStore) {
         super(identifier, artifact, artifactDir, componentStore);
         ecrAccessor = context.get(EcrAccessor.class);
         dockerClient = context.get(DefaultDockerClient.class);
@@ -82,8 +91,8 @@ public class DockerImageDownloader extends ArtifactDownloader {
     }
 
     DockerImageDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
-                          DefaultDockerClient dockerClient, EcrAccessor ecrAccessor, MqttClient mqttClient,
-                          ComponentStore componentStore) {
+            DefaultDockerClient dockerClient, EcrAccessor ecrAccessor, MqttClient mqttClient,
+            ComponentStore componentStore) {
         super(identifier, artifact, artifactDir, componentStore);
         this.dockerClient = dockerClient;
         this.ecrAccessor = ecrAccessor;
@@ -121,8 +130,9 @@ public class DockerImageDownloader extends ArtifactDownloader {
         }
 
         if (DOCKER_TAG_LATEST.equals(image.getTag())) {
-            logger.atDebug().log("Image tag: [{}] found, will require download and not check for the image locally.",
-                DOCKER_TAG_LATEST);
+            logger.atDebug()
+                    .log("Image tag: [{}] found, will require download and not check for the image locally.",
+                            DOCKER_TAG_LATEST);
             return true;
         } else {
             return !dockerClient.imageExistsLocally(image);
@@ -204,13 +214,14 @@ public class DockerImageDownloader extends ArtifactDownloader {
 
                 // Login to registry
                 // TODO: [P44950158]: Avoid logging into registries which might already have been logged in previously
-                //  with the same and valid credentials by maintaining a cache across artifacts and deployments
+                // with the same and valid credentials by maintaining a cache across artifacts and deployments
                 run(() -> {
                     if (credentialsUsable(image)) {
                         dockerClient.login(image.getRegistry());
                     } else {
                         // Credentials have expired, re-fetch and login again
-                        logger.atInfo().kv("registry-endpoint", image.getRegistry().getEndpoint())
+                        logger.atInfo()
+                                .kv("registry-endpoint", image.getRegistry().getEndpoint())
                                 .log("Registry credentials have expired,"
                                         + "fetching fresh credentials and logging in again");
                         credentialRefreshNeeded.set(true);
@@ -233,7 +244,8 @@ public class DockerImageDownloader extends ArtifactDownloader {
                     }, "get-ecr-image", logger);
                 } else {
                     // Credentials have expired, re-fetch and login again
-                    logger.atInfo().kv("registry-endpoint", image.getRegistry().getEndpoint())
+                    logger.atInfo()
+                            .kv("registry-endpoint", image.getRegistry().getEndpoint())
                             .log("Registry credentials have expired, fetching fresh credentials and logging in again");
                     credentialRefreshNeeded.set(true);
                 }
@@ -245,7 +257,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
     }
 
     private String getRegionFromArtifactUri(String artifactUriStr) {
-        //get the actual region from the artifact uri
+        // get the actual region from the artifact uri
 
         String regionStr = "";
 
@@ -281,7 +293,8 @@ public class DockerImageDownloader extends ArtifactDownloader {
                     // Indefinite retry for errors that are due to connectivity issues and can be
                     // resolved when connectivity comes back
                     .runWithRetry(infiniteAttemptsRetryConfig, () -> runWithConnectionErrorCheck(task), description,
-                            logger), description, logger);
+                            logger),
+                    description, logger);
         } catch (InterruptedException e) {
             throw e;
         } catch (Exception e) {
@@ -306,6 +319,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
 
     /**
      * Cleanup component, delete docker image when component being removed.
+     * 
      * @throws IOException exception
      */
     @Override
@@ -342,13 +356,17 @@ public class DockerImageDownloader extends ArtifactDownloader {
                         continue;
                     }
                     ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
-                    if (recipe.getArtifacts().stream().anyMatch(
-                            i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
+                    if (recipe.getArtifacts()
+                            .stream()
+                            .anyMatch(i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
                         return true;
                     }
                 } catch (SemverException e) {
-                    logger.atWarn().kv("identifier", identifier.getName()).kv("compVersion", compVersion)
-                            .setCause(e).log("Error happened when semver being created");
+                    logger.atWarn()
+                            .kv("identifier", identifier.getName())
+                            .kv("compVersion", compVersion)
+                            .setCause(e)
+                            .log("Error happened when semver being created");
                 }
             }
         }

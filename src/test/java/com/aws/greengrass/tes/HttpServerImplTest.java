@@ -33,7 +33,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class HttpServerImplTest {
     private static final String mockResponse = "Hello World";
 
@@ -60,7 +62,9 @@ class HttpServerImplTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @ParameterizedTest
-    @ValueSource(ints = {0, 1025, 65355})
+    @ValueSource(ints = {
+            0, 1025, 65355
+    })
     void GIVEN_port_WHEN_server_started_THEN_requests_are_successful(int port) throws Exception {
         HttpServerImpl server = startServer(port);
         try {
@@ -69,7 +73,7 @@ class HttpServerImplTest {
                 args.sendResponseHeaders(HttpURLConnection.HTTP_OK, mockResponse.length());
                 args.getResponseBody().write(mockResponse.getBytes());
                 args.close();
-                return null; //void method
+                return null; // void method
             }).when(mockHttpHandler).handle(any());
             if (port == 0) {
                 port = server.getServerPort();
@@ -77,8 +81,9 @@ class HttpServerImplTest {
             URL url = new URL("http://localhost:" + port + HttpServerImpl.URL);
 
             try (SdkHttpClient client = ProxyUtils.getSdkHttpClientBuilder().build()) {
-                ExecutableHttpRequest req = client.prepareRequest(HttpExecuteRequest.builder().request(
-                        SdkHttpRequest.builder().uri(url.toURI()).method(SdkHttpMethod.GET).build()).build());
+                ExecutableHttpRequest req = client.prepareRequest(HttpExecuteRequest.builder()
+                        .request(SdkHttpRequest.builder().uri(url.toURI()).method(SdkHttpMethod.GET).build())
+                        .build());
                 HttpExecuteResponse res = req.call();
                 assertEquals(mockResponse, Utils.inputStreamToString(res.responseBody().get()));
             }

@@ -26,8 +26,8 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
 
 /**
  * Generator for Unix. This checks for users to exist on the system and loads the primary group if one is not provided.
- * If the user does not exist (e.g. it is an arbitrary UID that does not map to a user on the box), then both a user
- * and  group must be provided.
+ * If the user does not exist (e.g. it is an arbitrary UID that does not map to a user on the box), then both a user and
+ * group must be provided.
  */
 public class UnixRunWithGenerator implements RunWithGenerator {
     static final Logger logger = LogManager.getLogger(UnixRunWithGenerator.class);
@@ -56,7 +56,9 @@ public class UnixRunWithGenerator implements RunWithGenerator {
         return new Pair<>(user, group);
     }
 
-    @SuppressWarnings({"PMD.NullAssignment","PMD.AvoidDeeplyNestedIfStmts"})
+    @SuppressWarnings({
+            "PMD.NullAssignment", "PMD.AvoidDeeplyNestedIfStmts"
+    })
     @Override
     public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
         // check component user, then default user, then nucleus user (if non root)
@@ -66,9 +68,7 @@ public class UnixRunWithGenerator implements RunWithGenerator {
         boolean isDefault = false;
 
         if (Utils.isEmpty(user)) {
-            logger.atDebug()
-                    .setEventType(EVENT_TYPE)
-                    .log("No component user, check default");
+            logger.atDebug().setEventType(EVENT_TYPE).log("No component user, check default");
 
             user = Coerce.toString(deviceConfig.getRunWithDefaultPosixUser());
             isDefault = true;
@@ -76,15 +76,11 @@ public class UnixRunWithGenerator implements RunWithGenerator {
 
         // fallback to nucleus user if we aren't root
         if (Utils.isEmpty(user)) {
-            logger.atDebug()
-                    .setEventType(EVENT_TYPE)
-                    .log("No default user, check current user");
+            logger.atDebug().setEventType(EVENT_TYPE).log("No default user, check current user");
             try {
                 UnixUserAttributes attrs = platform.lookupCurrentUser();
                 if (attrs.isSuperUser()) {
-                    logger.atDebug()
-                            .setEventType(EVENT_TYPE)
-                            .log("Cannot fallback to super user");
+                    logger.atDebug().setEventType(EVENT_TYPE).log("Cannot fallback to super user");
                 } else {
                     user = attrs.getPrincipalName();
 
@@ -109,39 +105,33 @@ public class UnixRunWithGenerator implements RunWithGenerator {
         }
 
         if (Utils.isEmpty(user)) {
-            logger.atDebug()
-                    .setEventType(EVENT_TYPE)
-                    .log("No user found");
+            logger.atDebug().setEventType(EVENT_TYPE).log("No user found");
             return Optional.empty();
         } else if (Utils.isEmpty(group)) {
             try {
                 UnixUserAttributes attrs = platform.lookupUserByIdentifier(user);
                 if (!attrs.getPrimaryGID().isPresent()) {
-                    logger.atWarn()
-                            .setEventType(EVENT_TYPE)
-                            .kv("user", user)
-                            .log("No primary group set for user.");
+                    logger.atWarn().setEventType(EVENT_TYPE).kv("user", user).log("No primary group set for user.");
                     return Optional.empty();
                 }
                 group = Long.toString(attrs.getPrimaryGID().get());
             } catch (IOException e) {
-                logger.atError()
-                        .setEventType(EVENT_TYPE)
-                        .setCause(e)
-                        .kv("user", user)
-                        .log("Could not lookup user.");
+                logger.atError().setEventType(EVENT_TYPE).setCause(e).kv("user", user).log("Could not lookup user.");
                 return Optional.empty();
             }
         }
-        return Optional.of(RunWith.builder().user(user).group(group).isDefault(isDefault)
+        return Optional.of(RunWith.builder()
+                .user(user)
+                .group(group)
+                .isDefault(isDefault)
                 // shell cannot be changed from kernel default
-                .shell(Coerce.toString(deviceConfig.getRunWithDefaultPosixShell())).build());
+                .shell(Coerce.toString(deviceConfig.getRunWithDefaultPosixShell()))
+                .build());
     }
 
     @Override
     public void validateDefaultConfiguration(DeviceConfiguration deviceConfig) throws DeviceConfigurationException {
-        Pair<String, String> userGroup =
-                extractUserGroup(Coerce.toString(deviceConfig.getRunWithDefaultPosixUser()));
+        Pair<String, String> userGroup = extractUserGroup(Coerce.toString(deviceConfig.getRunWithDefaultPosixUser()));
         validateUserGroup(userGroup.getLeft(), userGroup.getRight());
     }
 
@@ -160,12 +150,15 @@ public class UnixRunWithGenerator implements RunWithGenerator {
 
         if (Utils.isNotEmpty(user) && Utils.isEmpty(group)) {
             try {
-                platform.lookupUserByIdentifier(user).getPrimaryGID().orElseThrow(
-                        () -> new DeviceConfigurationException(String.format("%s requires a group when no primary "
-                                + "group exists for the user: '%s'", RUN_WITH_DEFAULT_POSIX_USER, user)));
+                platform.lookupUserByIdentifier(user)
+                        .getPrimaryGID()
+                        .orElseThrow(() -> new DeviceConfigurationException(String.format(
+                                "%s requires a group when no primary " + "group exists for the user: '%s'",
+                                RUN_WITH_DEFAULT_POSIX_USER, user)));
             } catch (IOException e) {
-                throw new DeviceConfigurationException(String.format("Error while looking up primary group for %s. No"
-                        + " group specified for the user: '%s'", user, RUN_WITH_DEFAULT_POSIX_USER), e);
+                throw new DeviceConfigurationException(String.format(
+                        "Error while looking up primary group for %s. No" + " group specified for the user: '%s'", user,
+                        RUN_WITH_DEFAULT_POSIX_USER), e);
             }
         } else if (Utils.isEmpty(user) && Utils.isNotEmpty(group)) {
             throw new DeviceConfigurationException(String.format("%s requires a user if a group is specified: '%s'",

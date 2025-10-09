@@ -16,8 +16,11 @@ import java.util.function.Consumer;
 @Builder
 @Value
 public class SubscribeRequest {
-    @NonNull String topic;
+    @NonNull
+    String topic;
     @Builder.Default
-    @NonNull QualityOfService qos = QualityOfService.AT_LEAST_ONCE;
-    @NonNull Consumer<MqttMessage> callback;
+    @NonNull
+    QualityOfService qos = QualityOfService.AT_LEAST_ONCE;
+    @NonNull
+    Consumer<MqttMessage> callback;
 }

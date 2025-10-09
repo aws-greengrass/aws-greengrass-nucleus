@@ -112,16 +112,15 @@ class ConfigurationWriterTest {
     }
 
     @Test
-    void GIVEN_config_with_configuration_writer_WHEN_max_size_reached_THEN_auto_truncate()
-            throws IOException {
+    void GIVEN_config_with_configuration_writer_WHEN_max_size_reached_THEN_auto_truncate() throws IOException {
         Path tlog = tempDir.resolve("test_truncate.tlog");
         Configuration config = new Configuration(context);
         Kernel mockKernel = mock(Kernel.class);
         doNothing().when(mockKernel).writeEffectiveConfigAsTransactionLog(any());
         context.put(Kernel.class, mockKernel);
 
-        try (ConfigurationWriter writer = ConfigurationWriter.logTransactionsTo(config, tlog).flushImmediately(true)
-                .withAutoTruncate(context)) {
+        try (ConfigurationWriter writer =
+                ConfigurationWriter.logTransactionsTo(config, tlog).flushImmediately(true).withAutoTruncate(context)) {
             // make some changes to trigger truncate
             config.lookup("test0").withValue("0");
             context.runOnPublishQueueAndWait(() -> {
@@ -167,8 +166,8 @@ class ConfigurationWriterTest {
         doThrow(new IOException("test")).when(mockKernel).writeEffectiveConfigAsTransactionLog(any());
         context.put(Kernel.class, mockKernel);
 
-        try (ConfigurationWriter writer = ConfigurationWriter.logTransactionsTo(config, tlog).flushImmediately(true)
-                .withAutoTruncate(context)) {
+        try (ConfigurationWriter writer =
+                ConfigurationWriter.logTransactionsTo(config, tlog).flushImmediately(true).withAutoTruncate(context)) {
             // make some changes to trigger truncate
             config.lookup("test1").withValue("1");
             context.waitForPublishQueueToClear();

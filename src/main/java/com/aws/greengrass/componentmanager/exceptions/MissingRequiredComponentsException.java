@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 package com.aws.greengrass.componentmanager.exceptions;
 
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;

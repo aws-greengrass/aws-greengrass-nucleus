@@ -34,7 +34,9 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class IotCloudHelperTest {
     private static final byte[] CLOUD_RESPONSE = "HELLO WORLD".getBytes(StandardCharsets.UTF_8);
     private static final int STATUS_CODE = 200;
@@ -71,14 +73,18 @@ class IotCloudHelperTest {
         when(mockConnectionManager.getClient()).thenReturn(mockClient);
         when(mockConnectionManager.getURI()).thenReturn(HOST);
         ExecutableHttpRequest requestMock = mock(ExecutableHttpRequest.class);
-        when(requestMock.call()).thenReturn(
-                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(STATUS_CODE).build())
-                        .responseBody(AbortableInputStream.create(new ByteArrayInputStream(CLOUD_RESPONSE))).build());
+        when(requestMock.call()).thenReturn(HttpExecuteResponse.builder()
+                .response(SdkHttpResponse.builder().statusCode(STATUS_CODE).build())
+                .responseBody(AbortableInputStream.create(new ByteArrayInputStream(CLOUD_RESPONSE)))
+                .build());
 
         doReturn(requestMock).when(mockClient).prepareRequest(any());
         IotCloudHelper cloudHelper = new IotCloudHelper();
-        final byte[] creds = cloudHelper.sendHttpRequest(mockConnectionManager, null, IOT_CREDENTIALS_PATH,
-                CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, body).getResponseBody();
+        final byte[] creds =
+                cloudHelper
+                        .sendHttpRequest(mockConnectionManager, null, IOT_CREDENTIALS_PATH,
+                                CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, body)
+                        .getResponseBody();
         assertArrayEquals(CLOUD_RESPONSE, creds);
     }
 
