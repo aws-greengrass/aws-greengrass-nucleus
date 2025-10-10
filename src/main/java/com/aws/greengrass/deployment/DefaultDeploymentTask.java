@@ -112,6 +112,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
         Future<List<ComponentIdentifier>> resolveDependenciesFuture = null;
         Future<Void> preparePackagesFuture = null;
         Future<DeploymentResult> deploymentMergeFuture = null;
+        DeploymentResult deploymentResult = null;
+        List<ComponentIdentifier> desiredPackages = null;
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         try {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
@@ -131,7 +133,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             resolveDependenciesFuture = executorService.submit(() ->
                     dependencyResolver.resolveDependencies(deploymentDocument, nonTargetGroupsToRootPackagesMap));
 
-            List<ComponentIdentifier> desiredPackages = resolveDependenciesFuture.get();
+            desiredPackages = resolveDependenciesFuture.get();
 
             // download configuration if large
             List<String> requiredCapabilities = deploymentDocument.getRequiredCapabilities();
@@ -163,21 +165,16 @@ public class DefaultDeploymentTask implements DeploymentTask {
             //   on the device before the deployment started, and finding one of type nucleus.
             Optional<DeploymentPackageConfiguration> incomingNucleusComponentConfiguration =
                     deploymentDocument.getDeploymentPackageConfigurationList() == null ? Optional.empty() :
-                    deploymentDocument.getDeploymentPackageConfigurationList().stream()
-                        .filter(c -> c.getPackageName().equals(deviceConfiguration.getNucleusComponentName()))
-                        .findAny();
+                            deploymentDocument.getDeploymentPackageConfigurationList().stream()
+                                    .filter(c -> c.getPackageName()
+                                            .equals(deviceConfiguration.getNucleusComponentName()))
+                                    .findAny();
 
             if (incomingNucleusComponentConfiguration.isPresent()
-                    && incomingNucleusComponentConfiguration
-                        .get()
-                        .getConfigurationUpdateOperation() != null
-                    && incomingNucleusComponentConfiguration
-                        .get()
-                        .getConfigurationUpdateOperation()
+                    && incomingNucleusComponentConfiguration.get().getConfigurationUpdateOperation() != null
+                    && incomingNucleusComponentConfiguration.get().getConfigurationUpdateOperation()
                         .getValueToMerge() != null
-                    && incomingNucleusComponentConfiguration
-                        .get()
-                        .getConfigurationUpdateOperation()
+                    && incomingNucleusComponentConfiguration.get().getConfigurationUpdateOperation()
                         .getValueToMerge()
                         .containsKey(DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE)) {
                 logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
@@ -222,29 +219,46 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
-            DeploymentResult result = deploymentMergeFuture.get();
+            deploymentResult = deploymentMergeFuture.get();
 
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .log("Finished deployment task");
 
-            componentManager.cleanupStaleVersions();
-            return result;
+            return deploymentResult;
         } catch (PackageLoadingException | DeploymentTaskFailureException | IOException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
-            return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
+            deploymentResult = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
+            return deploymentResult;
         } catch (ExecutionException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
             Throwable t = e.getCause();
             if (t instanceof InterruptedException) {
                 throw (InterruptedException) t;
             } else {
-                return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, t);
+                deploymentResult = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, t);
+                return deploymentResult;
             }
         } catch (InterruptedException e) {
             // DeploymentTask got interrupted while performing a blocking step.
             cancelDeploymentTask(resolveDependenciesFuture, preparePackagesFuture, deploymentMergeFuture);
             // Populate the exception up to the stack
             throw e;
+        } finally {
+            // Clean up stale artifacts from previous deployments after downloading deployment document
+            // if we have desiredPackages then the artifact download has started
+            Map<String, String> currentDeploymentComponentVersions = null;
+            if (desiredPackages != null) {
+                currentDeploymentComponentVersions = desiredPackages.stream()
+                        .collect(Collectors.toMap(
+                                ComponentIdentifier::getName,
+                                ci -> ci.getVersion().getValue()));
+                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                        .kv("Current deployment map", currentDeploymentComponentVersions.toString())
+                        .log("Found current deployment artifacts, will preserve.");
+            }
+            boolean isDeploymentAborted = deploymentResult == null
+                    || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
+            componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
         }
     }
 
