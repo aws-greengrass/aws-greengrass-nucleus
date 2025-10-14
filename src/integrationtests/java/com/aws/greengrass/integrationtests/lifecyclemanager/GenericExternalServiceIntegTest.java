@@ -18,27 +18,31 @@ import com.aws.greengrass.lifecyclemanager.Lifecycle;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.Pair;
-import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
-import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
+import com.aws.greengrass.util.platforms.unix.linux.CgroupManager;
+import com.aws.greengrass.util.platforms.unix.linux.CgroupV1;
+import com.aws.greengrass.util.platforms.unix.linux.CgroupV2;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -64,7 +68,6 @@ import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSud
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static com.aws.greengrass.util.platforms.unix.UnixPlatform.STDOUT;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -83,7 +86,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class GenericExternalServiceIntegTest extends BaseITCase {
 
     private Kernel kernel;
@@ -581,7 +584,6 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertThrows(TimeoutException.class, serviceWithJustBootstrapAndShouldTimeout::bootstrap);
     }
 
-    @Disabled
     @EnabledOnOs({OS.LINUX, OS.MAC})
     @ParameterizedTest
     @MethodSource("posixTestUserConfig")
@@ -637,10 +639,12 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         }
     }
 
-    @Disabled
     @EnabledOnOs({OS.LINUX})
     @Test
     void GIVEN_linux_resource_limits_WHEN_it_changes_THEN_component_runs_with_new_resource_limits() throws Exception {
+        // Skip test if no proper access available (required for cgroup access)
+        assumeTrue("root".equals(SystemUtils.USER_NAME), "Test requires root access for cgroup management");
+        
         String componentName = "echo_service";
         // Run with no resource limit
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
@@ -818,20 +822,38 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     private void assertResourceLimits(String componentName, long memory, double cpus) throws Exception {
-        byte[] buf1 = Files.readAllBytes(Cgroup.Memory.getComponentMemoryLimitPath(componentName));
-        assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
+        int quota;
+        int period;
+        
+        if (isCgroupV2Supported()) {
+            byte[] buf1 = Files.readAllBytes(CgroupV2.Memory.getComponentMemoryLimitPath(componentName));
+            assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
 
-        byte[] buf2 = Files.readAllBytes(Cgroup.CPU.getComponentCpuQuotaPath(componentName));
-        byte[] buf3 = Files.readAllBytes(Cgroup.CPU.getComponentCpuPeriodPath(componentName));
+            byte[] buf2 = Files.readAllBytes(CgroupV2.CPU.getComponentCpuLimitPath(componentName));
+            String cpuMax = new String(buf2, StandardCharsets.UTF_8).trim();
+            String[] parts = cpuMax.split(" ");
+            quota = Integer.parseInt(parts[0]);
+            period = Integer.parseInt(parts[1]);
+        } else {
+            byte[] buf1 = Files.readAllBytes(CgroupV1.Memory.getComponentMemoryLimitPath(componentName));
+            assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
 
-        int quota = Integer.parseInt(new String(buf2, StandardCharsets.UTF_8).trim());
-        int period = Integer.parseInt(new String(buf3, StandardCharsets.UTF_8).trim());
+            byte[] buf2 = Files.readAllBytes(CgroupV1.CPU.getComponentCpuQuotaPath(componentName));
+            byte[] buf3 = Files.readAllBytes(CgroupV1.CPU.getComponentCpuPeriodPath(componentName));
+
+            quota = Integer.parseInt(new String(buf2, StandardCharsets.UTF_8).trim());
+            period = Integer.parseInt(new String(buf3, StandardCharsets.UTF_8).trim());
+        }
+        
         int expectedQuota = (int) (cpus * period);
         assertThat(expectedQuota, equalTo(quota));
     }
 
+    @Test
+    @EnabledOnOs({OS.LINUX})
     void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup(
             ExtensionContext context) throws Exception {
+        assumeTrue("root".equals(SystemUtils.USER_NAME), "Test requires root access for cgroup management");
         ignoreExceptionOfType(context, FileSystemException.class);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("long_running_services.yaml"));
@@ -852,21 +874,17 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         component.pause();
         assertTrue(component.isPaused());
-        assertThat(getCgroupFreezerState(component.getServiceName()),
-                anyOf(is(LinuxSystemResourceController.CgroupFreezerState.FROZEN),
-                        is(LinuxSystemResourceController.CgroupFreezerState.FREEZING)));
+        
+        // check if component is frozen
+        CgroupManager freezerManager = isCgroupV2Supported() ? CgroupV2.Freezer : CgroupV1.Freezer;
+        assertTrue(freezerManager.isComponentFrozen(component.getServiceName()));
 
         component.resume();
         assertFalse(component.isPaused());
-        assertThat(getCgroupFreezerState(component.getServiceName()),
-                is(LinuxSystemResourceController.CgroupFreezerState.THAWED));
+        assertFalse(freezerManager.isComponentFrozen(component.getServiceName()));
     }
 
-    // To be used on linux only
-    private LinuxSystemResourceController.CgroupFreezerState getCgroupFreezerState(String serviceName)
-            throws IOException {
-        return LinuxSystemResourceController.CgroupFreezerState
-                .valueOf(new String(Files.readAllBytes(Cgroup.Freezer.getCgroupFreezerStateFilePath(serviceName))
-                        , StandardCharsets.UTF_8).trim());
+    private boolean isCgroupV2Supported() {
+        return Files.exists(Paths.get("/sys/fs/cgroup/cgroup.controllers"));
     }
 }
