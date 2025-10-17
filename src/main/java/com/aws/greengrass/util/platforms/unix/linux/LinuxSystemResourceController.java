@@ -114,7 +114,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 long memoryLimitInKB = Coerce.toLong(resourceLimit.get(MEMORY_KEY));
                 if (memoryLimitInKB > 0) {
                     memoryManager.setMemoryLimit(component.getServiceName(), memoryLimitInKB);
-                } else {
+                } else if (memoryLimitInKB < 0) {
                     logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(MEMORY_KEY, memoryLimitInKB)
                             .log("The provided memory limit is invalid");
                 }
@@ -128,7 +128,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 double cpu = Coerce.toDouble(resourceLimit.get(CPUS_KEY));
                 if (cpu > 0) {
                     cpuManager.setCpuLimit(component.getServiceName(), cpu);
-                } else {
+                } else if (cpu < 0) {
                     logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPUS_KEY, cpu)
                             .log("The provided cpu limit is invalid");
                 }
