@@ -14,6 +14,7 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
 import com.aws.greengrass.dependency.Context;
@@ -61,8 +62,15 @@ public class DockerImageDownloader extends ArtifactDownloader {
     private RetryUtils.RetryConfig finiteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(10L))
                     .maxRetryInterval(Duration.ofMinutes(32L)).maxAttempt(30).retryableExceptions(
-                    Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
+                            Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
                             SdkClientException.class, ServerException.class)).build();
+
+    @Setter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig finiteDeleteAttemptsRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(10L))
+                    .maxRetryInterval(Duration.ofMinutes(2L)).maxAttempt(5).retryableExceptions(
+                            Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
+                                DockerImageDeleteException.class)).build();
 
     /**
      * Constructor.
@@ -310,15 +318,20 @@ public class DockerImageDownloader extends ArtifactDownloader {
      */
     @Override
     public void cleanup() throws IOException {
-        // this docker image not only used by itself
         try {
             if (!ifImageUsedByOther(componentStore)) {
-                Image image = DockerImageArtifactParser
-                        .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
-                dockerClient.deleteImage(image);
+            RetryUtils.runWithRetry(finiteDeleteAttemptsRetryConfig, () -> {
+
+                    Image image = DockerImageArtifactParser
+                            .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
+                    dockerClient.deleteImage(image);
+                return null;
+            }, "docker-image-cleanup", logger);
             }
-        } catch (PackageLoadingException | InvalidArtifactUriException e) {
+        } catch (PackageLoadingException | InvalidArtifactUriException | InterruptedException e) {
             throw new IOException(e);
+        } catch (Exception e) {
+            throw new IOException("Failed to cleanup docker image after retries", e);
         }
     }
 
