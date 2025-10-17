@@ -57,7 +57,8 @@ public class DockerImageDownloader extends ArtifactDownloader {
     private RetryUtils.RetryConfig infiniteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
                     .maxRetryInterval(Duration.ofMinutes(64L)).maxAttempt(Integer.MAX_VALUE).retryableExceptions(
-                    Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class)).build();
+                        Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class))
+                    .build();
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig finiteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(10L))
@@ -321,15 +322,17 @@ public class DockerImageDownloader extends ArtifactDownloader {
         try {
             if (!ifImageUsedByOther(componentStore)) {
             RetryUtils.runWithRetry(finiteDeleteAttemptsRetryConfig, () -> {
-
-                    Image image = DockerImageArtifactParser
-                            .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
-                    dockerClient.deleteImage(image);
+                Image image = DockerImageArtifactParser
+                        .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
+                dockerClient.deleteImage(image);
                 return null;
             }, "docker-image-cleanup", logger);
             }
-        } catch (PackageLoadingException | InvalidArtifactUriException | InterruptedException e) {
+        } catch (PackageLoadingException | InvalidArtifactUriException e) {
             throw new IOException(e);
+        } catch (InterruptedException e) {
+            logger.atWarn().setCause(e).log("Docker image clean up interrupted.");
+            Thread.currentThread().interrupt();
         } catch (Exception e) {
             throw new IOException("Failed to cleanup docker image after retries", e);
         }
