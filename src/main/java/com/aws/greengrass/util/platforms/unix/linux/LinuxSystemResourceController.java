@@ -111,12 +111,15 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 initializeCgroup(component, memoryManager);
             }
             if (resourceLimit.containsKey(MEMORY_KEY)) {
-                long memoryLimitInKB = Coerce.toLong(resourceLimit.get(MEMORY_KEY));
-                if (memoryLimitInKB > 0) {
-                    memoryManager.setMemoryLimit(component.getServiceName(), memoryLimitInKB);
-                } else {
-                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(MEMORY_KEY, memoryLimitInKB)
-                            .log("The provided memory limit is invalid");
+                Object memoryValue = resourceLimit.get(MEMORY_KEY);
+                if (memoryValue != null) {
+                    long memoryLimitInKB = Coerce.toLong(memoryValue);
+                    if (memoryLimitInKB > 0) {
+                        memoryManager.setMemoryLimit(component.getServiceName(), memoryLimitInKB);
+                    } else {
+                        logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(MEMORY_KEY, memoryLimitInKB)
+                                .log("The provided memory limit is invalid");
+                    }
                 }
             }
 
@@ -125,12 +128,15 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 initializeCgroup(component, cpuManager);
             }
             if (resourceLimit.containsKey(CPUS_KEY)) {
-                double cpu = Coerce.toDouble(resourceLimit.get(CPUS_KEY));
-                if (cpu > 0) {
-                    cpuManager.setCpuLimit(component.getServiceName(), cpu);
-                } else {
-                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPUS_KEY, cpu)
-                            .log("The provided cpu limit is invalid");
+                Object cpuValue = resourceLimit.get(CPUS_KEY);
+                if (cpuValue != null) {
+                    double cpu = Coerce.toDouble(cpuValue);
+                    if (cpu > 0) {
+                        cpuManager.setCpuLimit(component.getServiceName(), cpu);
+                    } else {
+                        logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPUS_KEY, cpu)
+                                .log("The provided cpu limit is invalid");
+                    }
                 }
             }
         } catch (IOException e) {
