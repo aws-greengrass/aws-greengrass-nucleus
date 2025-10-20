@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maven POM for generating Git-based version properties for Greengrass Nucleus -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.aws.greengrass</groupId>
+    <artifactId>nucleus-build-version</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    
+    <build>
+        <plugins>
+            <!-- Extract Git information and write to properties file -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <!-- Get current Git branch name -->
+                    <execution>
+                        <id>set-git-branch-info</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- Load environment variables -->
+                                <property environment="env"/>
+                                <exec executable="git" outputproperty="git.branch">
+                                    <arg value="branch"/>
+                                    <arg value="--show-current"/>
+                                </exec>
+                                <!-- Use env var iff git.branch is empty and env var is set. Otherwise, use default -->
+                                <condition property="git.branch" value="${env.GIT_BRANCH}" else="dev">
+                                    <and>
+                                        <isset property="git.branch"/>
+                                        <not><equals arg1="${git.branch}" arg2=""/></not>
+
+                                        <isset property="env.GIT_BRANCH"/>
+                                        <not><equals arg1="${env.GIT_BRANCH}" arg2=""/></not>
+                                    </and>
+                                </condition>
+                                <echo file="${project.build.directory}/git.properties" append="true">git.branch=${git.branch}${line.separator}</echo>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- Get latest Git tag for version determination -->
+                    <execution>
+                        <id>set-git-latest-tag-info</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- Get the most recent tag sorted by version -->
+                                <exec executable="git" outputproperty="git.latest.tag">
+                                    <arg value="for-each-ref"/>
+                                    <arg value="--count=1"/>
+                                    <arg value="--sort=-version:refname"/>
+                                    <arg value="--format=%(refname:short)"/>
+                                    <arg value="refs/tags"/>
+                                </exec>
+                                <!-- Write latest tag to git.properties file -->
+                                <echo file="${project.build.directory}/git.properties" append="true">git.latest.tag=${git.latest.tag}${line.separator}</echo>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            
+            <!-- Load the generated Git properties into Maven properties -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>properties-maven-plugin</artifactId>
+                <version>1.1.0</version>
+                <executions>
+                    <execution>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>read-project-properties</goal>
+                        </goals>
+                        <configuration>
+                            <files>
+                                <!-- Read the git.properties file created above -->
+                                <file>${project.build.directory}/git.properties</file>
+                            </files>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            
+            <!-- Process version strings using regex transformations -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <!-- Check if current branch is a release branch -->
+                    <execution>
+                        <id>process-release-branch-info</id>
+                        <phase>initialize</phase>
+                        <goals><goal>regex-property</goal></goals>
+                        <configuration>
+                            <name>release.branch.match</name>
+                            <value>${git.branch}</value>
+                            <!-- Match release_MAJOR.MINOR.x pattern and extract version -->
+                            <regex>^release_(\d+\.\d+)\.x$</regex>
+                            <!-- Transform release_MAJOR.MINOR.x to MAJOR.MINOR.0 -->
+                            <replacement>$1.0</replacement>
+                            <failIfNoMatch>false</failIfNoMatch>
+                        </configuration>
+                    </execution>
+                    <!-- Set final branch version (dev for non-release branches) -->
+                    <execution>
+                        <id>process-non-release-branch-info</id>
+                        <phase>initialize</phase>
+                        <goals><goal>regex-property</goal></goals>
+                        <configuration>
+                            <name>git.current.branch.snapshot</name>
+                            <value>${release.branch.match}</value>
+                            <!-- Default to 'dev' if not a release branch -->
+                            <regex>^${git.branch}$</regex>
+                            <replacement>dev</replacement>
+                            <failIfNoMatch>false</failIfNoMatch>
+                        </configuration>
+                    </execution>
+                    <!-- Convert latest tag to SNAPSHOT version format -->
+                    <execution>
+                        <id>process-latest-tag-info</id>
+                        <phase>initialize</phase>
+                        <goals><goal>regex-property</goal></goals>
+                        <configuration>
+                            <name>git.latest.tag.snapshot</name>
+                            <value>${git.latest.tag}</value>
+                            <!-- Transform vMAJOR.MINOR.PATCH to MAJOR.MINOR.0-SNAPSHOT -->
+                            <regex>^v?(\d+)\.(\d+)\.\d+.*$</regex>
+                            <replacement>$1.$2.0-SNAPSHOT</replacement>
+                            <failIfNoMatch>false</failIfNoMatch>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Write final git.current.branch.snapshot version information -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>set-build-snapshot-version</id>
+                        <phase>compile</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target>
+                                <!-- Append final branch snapshot version to properties -->
+                                <echo file="${project.build.directory}/git.properties" append="true">git.current.branch.snapshot=${git.current.branch.snapshot}${line.separator}</echo>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

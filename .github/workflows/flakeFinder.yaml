@@ -22,6 +22,7 @@ jobs:
           --out-dir "failed_tests/"
         env:
           AWS_REGION: us-west-2
+          GIT_BRANCH: main
       - name: Upload Errors
         uses: actions/upload-artifact@v4
         with:
