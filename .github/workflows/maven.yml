@@ -18,6 +18,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
       fail-fast: false
     name: Build on ${{ matrix.os }}
+    env:
+      GIT_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,9 +46,16 @@ jobs:
         env:
           AWS_REGION: us-west-2
         run: |
-          sudo -E mvn -ntp -U verify
+          sudo -E mvn -ntp -U verify 
           sudo chown -R runner target
         if: matrix.os == 'ubuntu-latest'
+      - name: Show file
+        run: |
+          sudo cat target/git.properties
+          git branch --show-current
+          git rev-parse --abbrev-ref HEAD
+          git symbolic-ref --short HEAD
+        if: matrix.os == 'ubuntu-latest' && failure()
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v4
         if: failure()
@@ -68,8 +77,7 @@ jobs:
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
         if: matrix.os == 'ubuntu-latest'
       - name: Check compatibility
-        run: >-
-          mvn -ntp japicmp:cmp -DskipTests
+        run: mvn -ntp initialize japicmp:cmp -DskipTests
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
       - name: Upload Compatibility Report
         uses: actions/upload-artifact@v4
