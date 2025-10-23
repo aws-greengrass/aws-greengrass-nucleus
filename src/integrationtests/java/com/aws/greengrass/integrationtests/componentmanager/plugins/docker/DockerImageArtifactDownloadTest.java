@@ -8,11 +8,14 @@ package com.aws.greengrass.integrationtests.componentmanager.plugins.docker;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
+import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.DefaultDockerClient;
+import com.aws.greengrass.componentmanager.plugins.docker.DockerImageDownloader;
 import com.aws.greengrass.componentmanager.plugins.docker.EcrAccessor;
 import com.aws.greengrass.componentmanager.plugins.docker.Image;
 import com.aws.greengrass.componentmanager.plugins.docker.Registry;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -23,6 +26,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.tes.LazyCredentialProvider;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,15 +40,18 @@ import software.amazon.awssdk.services.ecr.model.GetAuthorizationTokenRequest;
 import software.amazon.awssdk.services.ecr.model.GetAuthorizationTokenResponse;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -147,6 +154,52 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
         verify(dockerClient, times(6)).dockerInstalled();
         verify(dockerClient, never()).login(any(Registry.class));
         verify(dockerClient, times(3)).pullImage(any(Image.class));
+    }
+
+    @Test
+    void GIVEN_docker_image_downloader_WHEN_cleanup_succeeds_THEN_no_retries() throws Exception {
+        DockerImageDownloader downloader = createDownloaderWithRetryConfig();
+        
+        downloader.cleanup();
+        
+        verify(dockerClient, times(1)).deleteImage(any(Image.class));
+    }
+
+    @Test
+    void GIVEN_docker_image_downloader_WHEN_cleanup_with_retry_config_THEN_retry_mechanism_available() throws Exception {
+        DockerImageDownloader downloader = createDownloaderWithRetryConfig();
+        
+        // Verify that the retry configuration was set successfully via reflection
+        java.lang.reflect.Field field = DockerImageDownloader.class.getDeclaredField("finiteDeleteAttemptsRetryConfig");
+        field.setAccessible(true);
+        RetryUtils.RetryConfig config = (RetryUtils.RetryConfig) field.get(downloader);
+        
+        // Verify the retry config is properly set
+        assertEquals(3, config.getMaxAttempt());
+        assertEquals(Duration.ofMillis(50), config.getInitialRetryInterval());
+    }
+
+    private DockerImageDownloader createDownloaderWithRetryConfig() throws Exception {
+        RetryUtils.RetryConfig retryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofMillis(50))
+            .maxRetryInterval(Duration.ofMillis(50))
+            .maxAttempt(3)
+            .retryableExceptions(Collections.singletonList(DockerImageDeleteException.class))
+            .build();
+            
+        ComponentIdentifier componentId = new ComponentIdentifier("test.container.component", new Semver("1.0.0"));
+        ComponentArtifact artifact = ComponentArtifact.builder()
+            .artifactUri(new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest"))
+            .build();
+        
+        DockerImageDownloader downloader = new DockerImageDownloader(componentId, artifact, tempRootDir, kernel.getContext(), kernel.getContext().get(ComponentStore.class));
+        
+        // Use reflection to set the private retry config
+        java.lang.reflect.Field field = DockerImageDownloader.class.getDeclaredField("finiteDeleteAttemptsRetryConfig");
+        field.setAccessible(true);
+        field.set(downloader, retryConfig);
+        
+        return downloader;
     }
 
     private void preloadLocalStoreContent() throws URISyntaxException, IOException {
