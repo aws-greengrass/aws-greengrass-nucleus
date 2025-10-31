@@ -504,7 +504,23 @@ public class KernelLifecycle {
             List<String> unclosedServices =
                     IntStream.range(0, arr.length).filter((i) -> !arr[i].isDone() || arr[i].isCompletedExceptionally())
                             .mapToObj((i) -> d[i].getName()).collect(Collectors.toList());
-            logger.atError("services-shutdown-errored", e).kv("unclosedServices", unclosedServices).log();
+
+            logger.atError("services-shutdown-errored", e).kv("unclosedServices", unclosedServices)
+                    .log("Force closing services");
+
+            for (String unclosedService : unclosedServices) {
+                try {
+                    GreengrassService service = kernel.locate(unclosedService);
+                    // for generic external service, kill processes and clean up
+                    if (service instanceof GenericExternalService) {
+                        GenericExternalService genericService = (GenericExternalService) service;
+                        genericService.forceShutdown();
+                    }
+                } catch (ServiceLoadException ex) {
+                    logger.atWarn().log("Could not locate service: {} for forced process cleanup. "
+                            + "Skipping cleanup for this service.", unclosedService, ex);
+                }
+            }
         }
     }
 
