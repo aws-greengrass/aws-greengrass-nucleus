@@ -601,6 +601,23 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
+     * Shutdown a service without running the shutdown script.
+     * Including stop processes and clean up resources.
+     */
+    public void forceShutdown() {
+
+        stopAllLifecycleProcessesWithoutLock(lifecycleProcesses);
+
+        // Clean up any resource manager entities (can be OS specific) that might have been created for this
+        // component.
+        systemResourceController.removeResourceController(this);
+
+        logger.atInfo().setEventType("force-service-shutdown").log();
+
+        resetRunWith();
+    }
+
+    /**
      * Stop all the lifecycle processes.
      *
      * <p>public for integ test use only.
@@ -627,6 +644,27 @@ public class GenericExternalService extends GreengrassService {
                 } else {
                     processes.remove(e);
                 }
+            }
+        }
+    }
+
+    /**
+     * Force stop processes without acquiring the lock.
+     */
+    @SuppressWarnings("PMD.CloseResource")
+    private void stopAllLifecycleProcessesWithoutLock(List<Exec> processes) {
+        for (Exec e : processes) {
+            if (e != null && e.isRunning()) {
+                logger.atInfo().log("Force shutting down process {}", e);
+                try {
+                    e.close();
+                    logger.atInfo().log("Force shutdown completed for process {}", e);
+                    processes.remove(e);
+                } catch (IOException ex) {
+                    logger.atWarn().log("Force shutdown timed out for process {}", e);
+                }
+            } else {
+                processes.remove(e);
             }
         }
     }
