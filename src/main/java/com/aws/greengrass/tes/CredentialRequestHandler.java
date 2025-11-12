@@ -17,6 +17,7 @@ import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.LockFactory;
@@ -69,9 +70,11 @@ public class CredentialRequestHandler implements HttpHandler {
     public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
     public static final String SUPPORTED_REQUEST_VERB = "GET";
     public static final int TIME_BEFORE_CACHE_EXPIRE_IN_MIN = 5;
+    public static final String TES_TEST_TIME_BEFORE_CACHE_EXPIRE_IN_MIN = "tesTimeBeforeCacheExpireInMin";
     public static final int CLOUD_4XX_ERROR_CACHE_IN_MIN = 2;
     public static final int CLOUD_5XX_ERROR_CACHE_IN_MIN = 1;
     public static final int UNKNOWN_ERROR_CACHE_IN_MIN = 5;
+    public static final String TES_TEST_UNKNOWN_ERROR_CACHE_IN_MIN = "tesUnknownErrorCacheExpireInMin";
 
     private String iotCredentialsPath;
 
@@ -99,6 +102,37 @@ public class CredentialRequestHandler implements HttpHandler {
         private Instant expiry;
         private final AtomicReference<CompletableFuture<Void>> future = new AtomicReference<>(null);
         private final Lock lock = LockFactory.newReentrantLock(this);
+    }
+
+    private final AtomicReference<Integer> cacheExpireTimeMinutes =
+            new AtomicReference<>(TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+    private final AtomicReference<Integer> unknownErrorExpireTimeMinutes =
+            new AtomicReference<>(UNKNOWN_ERROR_CACHE_IN_MIN);
+
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
+        int newCacheExpireTime = TestFeatureParameters.retrieveWithDefault(
+                Double.class,
+                TES_TEST_TIME_BEFORE_CACHE_EXPIRE_IN_MIN,
+                TIME_BEFORE_CACHE_EXPIRE_IN_MIN
+        ).intValue();
+        cacheExpireTimeMinutes.set(newCacheExpireTime);
+        int newUnknownErrorExpireTime = TestFeatureParameters.retrieveWithDefault(
+                Double.class,
+                TES_TEST_UNKNOWN_ERROR_CACHE_IN_MIN,
+                UNKNOWN_ERROR_CACHE_IN_MIN
+        ).intValue();
+        unknownErrorExpireTimeMinutes.set(newUnknownErrorExpireTime);
+        LOGGER.atInfo().log("TES cache expire time and unknown error expire time updated to: {} minutes and {} minutes",
+                newCacheExpireTime, newUnknownErrorExpireTime);
+    }
+
+    private int getTimeBeforeCacheExpireInMin() {
+        return cacheExpireTimeMinutes.get();
+    }
+
+    private int getUnknownErrorCacheInMin() {
+        return unknownErrorExpireTimeMinutes.get();
     }
 
     /**
@@ -131,6 +165,9 @@ public class CredentialRequestHandler implements HttpHandler {
         deviceConfiguration.getCertificateFilePath().subscribe((why, newv) -> clearCache());
         deviceConfiguration.getRootCAFilePath().subscribe((why, newv) -> clearCache());
         deviceConfiguration.getPrivateKeyFilePath().subscribe((why, newv) -> clearCache());
+
+        TestFeatureParameters.registerHandlerCallback("CredentialRequestHandler",
+                this::handleTestFeatureParametersHandlerChange);
     }
 
     /**
@@ -281,14 +318,14 @@ public class CredentialRequestHandler implements HttpHandler {
                         LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                 .log("Unable to cache expired credentials which expired at {}", expiry);
                     } else {
-                        newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
+                        newExpiry = expiry.minus(Duration.ofMinutes(getTimeBeforeCacheExpireInMin()));
                         tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_OK;
 
                         if (newExpiry.isBefore(Instant.now(clock))) {
                             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Can't cache credentials as new credentials {} will "
                                                     + "expire in less than {} minutes", expiry,
-                                            TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+                                            getTimeBeforeCacheExpireInMin());
                         } else {
                             LOGGER.atInfo().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Received IAM credentials that will be cached until {}", newExpiry);
@@ -318,7 +355,7 @@ public class CredentialRequestHandler implements HttpHandler {
             String responseString = "Failed to get connection";
             response = responseString.getBytes(StandardCharsets.UTF_8);
             // Use unknown error cache policy for SSL/TLS connection errors to prevent excessive retries
-            newExpiry = Instant.now(clock).plus(Duration.ofMinutes(UNKNOWN_ERROR_CACHE_IN_MIN));
+            newExpiry = Instant.now(clock).plus(Duration.ofMinutes(getUnknownErrorCacheInMin()));
             tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
@@ -421,7 +458,7 @@ public class CredentialRequestHandler implements HttpHandler {
     }
 
     private Instant getExpiryPolicyForErr(int statusCode) {
-        int expiryTime = UNKNOWN_ERROR_CACHE_IN_MIN; // In case of unrecognized cloud errors, back off
+        int expiryTime = getUnknownErrorCacheInMin(); // In case of unrecognized cloud errors, back off
         // Add caching Time-To-Live (TTL) for TES cloud errors
         if (statusCode >= 400 && statusCode < 500) {
             // 4xx retries are only meaningful unless a user action has been adopted, TTL should be longer
