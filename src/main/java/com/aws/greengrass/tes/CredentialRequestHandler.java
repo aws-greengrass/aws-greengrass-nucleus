@@ -88,6 +88,11 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private Clock clock = Clock.systemUTC();
 
+    private final AtomicReference<Integer> cacheExpireTimeMinutes =
+            new AtomicReference<>(TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+    private final AtomicReference<Integer> unknownErrorExpireTimeMinutes =
+            new AtomicReference<>(UNKNOWN_ERROR_CACHE_IN_MIN);
+
     private final Map<String, TESCache> tesCache = new DefaultConcurrentHashMap<>(() -> {
         TESCache cache = new TESCache();
         cache.expiry = Instant.EPOCH;
@@ -103,11 +108,6 @@ public class CredentialRequestHandler implements HttpHandler {
         private final AtomicReference<CompletableFuture<Void>> future = new AtomicReference<>(null);
         private final Lock lock = LockFactory.newReentrantLock(this);
     }
-
-    private final AtomicReference<Integer> cacheExpireTimeMinutes =
-            new AtomicReference<>(TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
-    private final AtomicReference<Integer> unknownErrorExpireTimeMinutes =
-            new AtomicReference<>(UNKNOWN_ERROR_CACHE_IN_MIN);
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
