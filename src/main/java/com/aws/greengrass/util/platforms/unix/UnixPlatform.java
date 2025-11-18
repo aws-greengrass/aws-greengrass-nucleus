@@ -60,7 +60,6 @@ public class UnixPlatform extends Platform {
 
     public static final String LOADER_LOGS_FILE_NAME = "loader.log";
     public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
-    public static final String PRIVILEGED_USER = "root";
     public static final String STDOUT = "stdout";
     public static final String STDERR = "stderr";
     protected static final int SIGTERM = 15;
@@ -80,6 +79,7 @@ public class UnixPlatform extends Platform {
     private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
     public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
 
+    public static String PRIVILEGED_USER;
     private static UnixUserAttributes CURRENT_USER;
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
     private static final Lock lock = LockFactory.newReentrantLock(UnixPlatform.class.getSimpleName());
@@ -98,6 +98,12 @@ public class UnixPlatform extends Platform {
         // avoid spamming DEBUG-level oshi logs when reading process stats
         LogManager.getLogger(oshi.util.FileUtil.class.getName()).setLevel("INFO");
         runWithGenerator = new UnixRunWithGenerator(this);
+        try {
+            PRIVILEGED_USER = loadCurrentUser().getPrincipalName();
+        } catch (IOException e) {
+            // This should not happen, but set the PRIVILEGED_USER to root if it fails
+            PRIVILEGED_USER = "root";
+        }
     }
 
     /**
