@@ -301,7 +301,7 @@ public class CredentialRequestHandler implements HttpHandler {
                         if (newExpiry.isBefore(Instant.now(clock))) {
                             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Can't cache credentials as new credentials {} will "
-                                                    + "expire in less than {} minutes", expiry,
+                                                    + "expire in less than {} seconds", expiry,
                                             TIME_BEFORE_CACHE_EXPIRE_IN_SEC);
                         } else {
                             LOGGER.atInfo().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
