@@ -68,10 +68,18 @@ public class CredentialRequestHandler implements HttpHandler {
     public static final String AUTH_HEADER = "Authorization";
     public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
     public static final String SUPPORTED_REQUEST_VERB = "GET";
-    public static final int TIME_BEFORE_CACHE_EXPIRE_IN_MIN = 5;
-    public static final int CLOUD_4XX_ERROR_CACHE_IN_MIN = 2;
-    public static final int CLOUD_5XX_ERROR_CACHE_IN_MIN = 1;
-    public static final int UNKNOWN_ERROR_CACHE_IN_MIN = 5;
+    public static final int TIME_BEFORE_CACHE_EXPIRE_IN_SEC = 300;
+    public static final int CLOUD_4XX_ERROR_CACHE_IN_SEC = 120;
+    public static final int CLOUD_5XX_ERROR_CACHE_IN_SEC = 60;
+    public static final int UNKNOWN_ERROR_CACHE_IN_SEC = 300;
+
+    public static final String CLOUD_4XX_ERROR_CACHE_TOPIC = "cloud4xxErrorCacheInSec";
+    public static final String CLOUD_5XX_ERROR_CACHE_TOPIC = "cloud5xxErrorCacheInSec";
+    public static final String UNKNOWN_ERROR_CACHE_TOPIC = "unknownErrorCacheInSec";
+
+    private int cloud4xxErrorCacheInSec = CLOUD_4XX_ERROR_CACHE_IN_SEC;
+    private int cloud5xxErrorCacheInSec = CLOUD_5XX_ERROR_CACHE_IN_SEC;
+    private int unknownErrorCacheInSec = UNKNOWN_ERROR_CACHE_IN_SEC;
 
     private String iotCredentialsPath;
 
@@ -140,6 +148,12 @@ public class CredentialRequestHandler implements HttpHandler {
      */
     void setIotCredentialsPath(String iotRoleAlias) {
         this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
+    }
+
+    void configureCacheSettings(int cloud4xxErrorCache, int cloud5xxErrorCache, int unknownErrorCache) {
+        this.cloud4xxErrorCacheInSec = cloud4xxErrorCache;
+        this.cloud5xxErrorCacheInSec = cloud5xxErrorCache;
+        this.unknownErrorCacheInSec = unknownErrorCache;
     }
 
     @Override
@@ -281,14 +295,14 @@ public class CredentialRequestHandler implements HttpHandler {
                         LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                 .log("Unable to cache expired credentials which expired at {}", expiry);
                     } else {
-                        newExpiry = expiry.minus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN));
+                        newExpiry = expiry.minus(Duration.ofSeconds(TIME_BEFORE_CACHE_EXPIRE_IN_SEC));
                         tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_OK;
 
                         if (newExpiry.isBefore(Instant.now(clock))) {
                             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Can't cache credentials as new credentials {} will "
-                                                    + "expire in less than {} minutes", expiry,
-                                            TIME_BEFORE_CACHE_EXPIRE_IN_MIN);
+                                                    + "expire in less than {} seconds", expiry,
+                                            TIME_BEFORE_CACHE_EXPIRE_IN_SEC);
                         } else {
                             LOGGER.atInfo().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Received IAM credentials that will be cached until {}", newExpiry);
@@ -318,7 +332,7 @@ public class CredentialRequestHandler implements HttpHandler {
             String responseString = "Failed to get connection";
             response = responseString.getBytes(StandardCharsets.UTF_8);
             // Use unknown error cache policy for SSL/TLS connection errors to prevent excessive retries
-            newExpiry = Instant.now(clock).plus(Duration.ofMinutes(UNKNOWN_ERROR_CACHE_IN_MIN));
+            newExpiry = Instant.now(clock).plus(Duration.ofSeconds(unknownErrorCacheInSec));
             tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
@@ -421,16 +435,16 @@ public class CredentialRequestHandler implements HttpHandler {
     }
 
     private Instant getExpiryPolicyForErr(int statusCode) {
-        int expiryTime = UNKNOWN_ERROR_CACHE_IN_MIN; // In case of unrecognized cloud errors, back off
+        int expiryTime = unknownErrorCacheInSec; // In case of unrecognized cloud errors, back off
         // Add caching Time-To-Live (TTL) for TES cloud errors
         if (statusCode >= 400 && statusCode < 500) {
             // 4xx retries are only meaningful unless a user action has been adopted, TTL should be longer
-            expiryTime = CLOUD_4XX_ERROR_CACHE_IN_MIN;
+            expiryTime = cloud4xxErrorCacheInSec;
         } else if (statusCode >= 500 && statusCode < 600) {
             // 5xx could be a temporary cloud unavailability, TTL should be shorter
-            expiryTime = CLOUD_5XX_ERROR_CACHE_IN_MIN;
+            expiryTime = cloud5xxErrorCacheInSec;
         }
-        return Instant.now(clock).plus(Duration.ofMinutes(expiryTime));
+        return Instant.now(clock).plus(Duration.ofSeconds(expiryTime));
     }
 
     /**
