@@ -41,6 +41,11 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     private String iotRoleAlias;
     private HttpServerImpl server;
 
+    private int cloud4xxErrorCache;
+    private int cloud5xxErrorCache;
+    private int unknownErrorCache;
+    private static final int MINIMUM_ERROR_CACHE_IN_SEC = 10;
+
     private final AuthorizationHandler authZHandler;
     private final CredentialRequestHandler credentialRequestHandler;
 
@@ -75,6 +80,56 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;
+
+        cloud4xxErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
+                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_TOPIC).dflt(
+                        CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_SEC)),
+                CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_SEC);
+        cloud5xxErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
+                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_TOPIC).dflt(
+                        CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_SEC)),
+                CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_SEC);
+        unknownErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
+                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.UNKNOWN_ERROR_CACHE_TOPIC).dflt(
+                        CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_SEC)),
+                CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_SEC);
+
+        credentialRequestHandler.configureCacheSettings(cloud4xxErrorCache, cloud5xxErrorCache, unknownErrorCache);
+
+        // Subscribe to cache configuration changes
+        config.subscribe((why, node) -> {
+            if (node != null && (node.childOf(CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_TOPIC)
+                    || node.childOf(CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_TOPIC)
+                    || node.childOf(CredentialRequestHandler.UNKNOWN_ERROR_CACHE_TOPIC))) {
+                logger.atDebug("tes-cache-config-change").kv("node", node).kv("why", why).log();
+
+                int newCloud4xxErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
+                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_TOPIC).dflt(
+                        CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_SEC)), cloud4xxErrorCache);
+                int newCloud5xxErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
+                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_TOPIC).dflt(
+                        CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_SEC)), cloud5xxErrorCache);
+                int newUnknownErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
+                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.UNKNOWN_ERROR_CACHE_TOPIC).dflt(
+                        CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_SEC)), unknownErrorCache);
+
+                if (cloud4xxErrorCache != newCloud4xxErrorCache
+                        || cloud5xxErrorCache != newCloud5xxErrorCache
+                        || unknownErrorCache != newUnknownErrorCache) {
+                    cloud4xxErrorCache = newCloud4xxErrorCache;
+                    cloud5xxErrorCache = newCloud5xxErrorCache;
+                    unknownErrorCache = newUnknownErrorCache;
+                    credentialRequestHandler.configureCacheSettings(
+                            newCloud4xxErrorCache, newCloud5xxErrorCache, newUnknownErrorCache);
+
+                    logger.atInfo("tes-cache-config-change").kv("unknownErrorCache", newUnknownErrorCache)
+                            .kv("cloud4xxErrorCache", newCloud4xxErrorCache)
+                            .kv("cloud5xxErrorCache", newCloud5xxErrorCache)
+                            .log("Restarting TES server due to cache config change");
+                    requestRestart();
+                }
+            }
+        });
     }
 
     @Override
@@ -128,6 +183,14 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
         if (Utils.isEmpty(iotRoleAlias)) {
             throw new IllegalArgumentException(String.format(TES_CONFIG_ERROR_STR, IOT_ROLE_ALIAS_TOPIC));
         }
+    }
+
+    private int validateCacheConfig(int newCacheValue, int oldCacheValue) {
+        if (newCacheValue < MINIMUM_ERROR_CACHE_IN_SEC) {
+            logger.atError().log("Error cache value must be at least {}", MINIMUM_ERROR_CACHE_IN_SEC);
+            return oldCacheValue;
+        }
+        return newCacheValue;
     }
 
     @Override
