@@ -383,8 +383,8 @@ public class GenericExternalService extends GreengrassService {
                     logger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
                     separateLogger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
                     State state = getState();
-                    if (startingStateGeneration == getStateGeneration() && State.STARTING.equals(state)
-                            || State.RUNNING.equals(state)) {
+                    if (startingStateGeneration == getStateGeneration()
+                            && (State.STARTING.equals(state) || State.RUNNING.equals(state))) {
                         if (exit == 0 && State.STARTING.equals(state)) {
                             reportState(State.RUNNING);
                         } else if (exit != 0) {
