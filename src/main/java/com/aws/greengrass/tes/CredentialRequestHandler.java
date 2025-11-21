@@ -73,10 +73,6 @@ public class CredentialRequestHandler implements HttpHandler {
     public static final int CLOUD_5XX_ERROR_CACHE_IN_SEC = 60;
     public static final int UNKNOWN_ERROR_CACHE_IN_SEC = 300;
 
-    public static final String CLOUD_4XX_ERROR_CACHE_TOPIC = "cloud4xxErrorCacheInSec";
-    public static final String CLOUD_5XX_ERROR_CACHE_TOPIC = "cloud5xxErrorCacheInSec";
-    public static final String UNKNOWN_ERROR_CACHE_TOPIC = "unknownErrorCacheInSec";
-
     private int cloud4xxErrorCacheInSec = CLOUD_4XX_ERROR_CACHE_IN_SEC;
     private int cloud5xxErrorCacheInSec = CLOUD_5XX_ERROR_CACHE_IN_SEC;
     private int unknownErrorCacheInSec = UNKNOWN_ERROR_CACHE_IN_SEC;

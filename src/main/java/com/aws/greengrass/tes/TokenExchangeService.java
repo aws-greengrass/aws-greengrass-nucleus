@@ -41,10 +41,13 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     private String iotRoleAlias;
     private HttpServerImpl server;
 
+    public static final String CLOUD_4XX_ERROR_CACHE_TOPIC = "error4xxCredentialRetryInSec";
+    public static final String CLOUD_5XX_ERROR_CACHE_TOPIC = "error5xxCredentialRetryInSec";
+    public static final String UNKNOWN_ERROR_CACHE_TOPIC = "errorUnknownCredentialRetryInSec";
+    private static final int MINIMUM_ERROR_CACHE_IN_SEC = 10;
     private int cloud4xxErrorCache;
     private int cloud5xxErrorCache;
     private int unknownErrorCache;
-    private static final int MINIMUM_ERROR_CACHE_IN_SEC = 10;
 
     private final AuthorizationHandler authZHandler;
     private final CredentialRequestHandler credentialRequestHandler;
@@ -82,15 +85,15 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
         this.credentialRequestHandler = credentialRequestHandler;
 
         cloud4xxErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
-                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_TOPIC).dflt(
+                        CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC).dflt(
                         CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_SEC)),
                 CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_SEC);
         cloud5xxErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
-                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_TOPIC).dflt(
+                        CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC).dflt(
                         CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_SEC)),
                 CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_SEC);
         unknownErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
-                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.UNKNOWN_ERROR_CACHE_TOPIC).dflt(
+                        CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC).dflt(
                         CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_SEC)),
                 CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_SEC);
 
@@ -98,19 +101,19 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
         // Subscribe to cache configuration changes
         config.subscribe((why, node) -> {
-            if (node != null && (node.childOf(CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_TOPIC)
-                    || node.childOf(CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_TOPIC)
-                    || node.childOf(CredentialRequestHandler.UNKNOWN_ERROR_CACHE_TOPIC))) {
+            if (node != null && (node.childOf(CLOUD_4XX_ERROR_CACHE_TOPIC)
+                    || node.childOf(CLOUD_5XX_ERROR_CACHE_TOPIC)
+                    || node.childOf(UNKNOWN_ERROR_CACHE_TOPIC))) {
                 logger.atDebug("tes-cache-config-change").kv("node", node).kv("why", why).log();
 
                 int newCloud4xxErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
-                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_TOPIC).dflt(
+                        CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC).dflt(
                         CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_SEC)), cloud4xxErrorCache);
                 int newCloud5xxErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
-                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_TOPIC).dflt(
+                        CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC).dflt(
                         CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_SEC)), cloud5xxErrorCache);
                 int newUnknownErrorCache = validateCacheConfig(Coerce.toInt(config.lookup(
-                        CONFIGURATION_CONFIG_KEY, CredentialRequestHandler.UNKNOWN_ERROR_CACHE_TOPIC).dflt(
+                        CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC).dflt(
                         CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_SEC)), unknownErrorCache);
 
                 if (cloud4xxErrorCache != newCloud4xxErrorCache
