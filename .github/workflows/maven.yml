@@ -84,8 +84,8 @@ jobs:
           mkdir -p ./pr/japicmp
           mkdir -p target/japicmp
           mkdir -p target/jacoco-report
-          echo "$PR_NUMBER" > ./pr/NR
-          echo "$PR_SHA" > ./pr/SHA
+          echo "$PR_NUMBER" | tr -cd '0-9' > ./pr/NR
+          echo "$PR_SHA" | tr -cd 'a-fA-F0-9' > ./pr/SHA
 
           cp -R target/japicmp/default-cli.xml ./pr/japicmp/default-cli.xml
           cp target/jacoco-report/cobertura.xml ./pr/jacoco-report/cobertura.xml
