@@ -162,24 +162,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
 
-        Topic cloud4xxCacheTopic = mock(Topic.class);
-        when(cloud4xxCacheTopic.dflt(CLOUD_4XX_ERROR_CACHE_IN_SEC))
-                .thenReturn(cloud4xxCacheTopic);
+        when(config.findOrDefault(CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
+                .thenReturn(CLOUD_4XX_ERROR_CACHE_IN_SEC);
 
-        Topic cloud5xxCacheTopic = mock(Topic.class);
-        when(cloud5xxCacheTopic.dflt(CLOUD_5XX_ERROR_CACHE_IN_SEC))
-                .thenReturn(cloud5xxCacheTopic);
+        when(config.findOrDefault(CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
+                .thenReturn(CLOUD_5XX_ERROR_CACHE_IN_SEC);
 
-        Topic unknownCacheTopic = mock(Topic.class);
-        when(unknownCacheTopic.dflt(UNKNOWN_ERROR_CACHE_IN_SEC))
-                .thenReturn(unknownCacheTopic);
-
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
-                .thenReturn(cloud4xxCacheTopic);
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
-                .thenReturn(cloud5xxCacheTopic);
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
-                .thenReturn(unknownCacheTopic);
+        when(config.findOrDefault(UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
+                .thenReturn(UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
@@ -230,24 +220,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
-        Topic cloud4xxCacheTopic = mock(Topic.class);
-        when(cloud4xxCacheTopic.dflt(CLOUD_4XX_ERROR_CACHE_IN_SEC))
-                .thenReturn(cloud4xxCacheTopic);
+        when(config.findOrDefault(CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
+                .thenReturn(CLOUD_4XX_ERROR_CACHE_IN_SEC);
 
-        Topic cloud5xxCacheTopic = mock(Topic.class);
-        when(cloud5xxCacheTopic.dflt(CLOUD_5XX_ERROR_CACHE_IN_SEC))
-                .thenReturn(cloud5xxCacheTopic);
+        when(config.findOrDefault(CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
+                .thenReturn(CLOUD_5XX_ERROR_CACHE_IN_SEC);
 
-        Topic unknownCacheTopic = mock(Topic.class);
-        when(unknownCacheTopic.dflt(UNKNOWN_ERROR_CACHE_IN_SEC))
-                .thenReturn(unknownCacheTopic);
-
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
-                .thenReturn(cloud4xxCacheTopic);
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
-                .thenReturn(cloud5xxCacheTopic);
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
-                .thenReturn(unknownCacheTopic);
+        when(config.findOrDefault(UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
+                .thenReturn(UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
@@ -280,24 +260,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
-        Topic cloud4xxCacheTopic = mock(Topic.class);
-        when(cloud4xxCacheTopic.dflt(CLOUD_4XX_ERROR_CACHE_IN_SEC))
-                .thenReturn(cloud4xxCacheTopic);
+        when(config.findOrDefault(CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
+                .thenReturn(CLOUD_4XX_ERROR_CACHE_IN_SEC);
 
-        Topic cloud5xxCacheTopic = mock(Topic.class);
-        when(cloud5xxCacheTopic.dflt(CLOUD_5XX_ERROR_CACHE_IN_SEC))
-                .thenReturn(cloud5xxCacheTopic);
+        when(config.findOrDefault(CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
+                .thenReturn(CLOUD_5XX_ERROR_CACHE_IN_SEC);
 
-        Topic unknownCacheTopic = mock(Topic.class);
-        when(unknownCacheTopic.dflt(UNKNOWN_ERROR_CACHE_IN_SEC))
-                .thenReturn(unknownCacheTopic);
-
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
-                .thenReturn(cloud4xxCacheTopic);
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
-                .thenReturn(cloud5xxCacheTopic);
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
-                .thenReturn(unknownCacheTopic);
+        when(config.findOrDefault(UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
+                .thenReturn(UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
