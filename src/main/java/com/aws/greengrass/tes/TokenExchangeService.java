@@ -9,6 +9,7 @@ import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -87,6 +88,9 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
         // Subscribe to cache configuration changes
         config.subscribe((why, node) -> {
+            if (why.equals(WhatHappened.timestampUpdated)) {
+                return;
+            }
             if (node != null && (node.childOf(PORT_TOPIC)
                     || node.childOf(CLOUD_4XX_ERROR_CACHE_TOPIC)
                     || node.childOf(CLOUD_5XX_ERROR_CACHE_TOPIC)
@@ -145,6 +149,7 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                 .log("Attempting to start server at configured port {}", port);
         try {
             validateConfig();
+            validateAllCacheConfigs();
             server = new HttpServerImpl(port, credentialRequestHandler);
             server.start();
             logger.atInfo().log("Started server at port {}", server.getServerPort());
@@ -180,11 +185,22 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
         }
     }
 
+    private void validateAllCacheConfigs() {
+        validateCacheConfig(Coerce.toInt(config.findOrDefault(
+                CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                CLOUD_4XX_ERROR_CACHE_TOPIC)), CLOUD_4XX_ERROR_CACHE_TOPIC);
+        validateCacheConfig(Coerce.toInt(config.findOrDefault(
+                CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                CLOUD_5XX_ERROR_CACHE_TOPIC)), CLOUD_5XX_ERROR_CACHE_TOPIC);
+        validateCacheConfig(Coerce.toInt(config.findOrDefault(
+                CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                UNKNOWN_ERROR_CACHE_TOPIC)), UNKNOWN_ERROR_CACHE_TOPIC);
+    }
+
     private int validateCacheConfig(int newCacheValue, String topic) {
         if (newCacheValue < MINIMUM_ERROR_CACHE_IN_SEC) {
-            logger.atError().log("Error cache value must be at least {} seconds, setting {} to minimum value {}",
-                    MINIMUM_ERROR_CACHE_IN_SEC, topic, MINIMUM_ERROR_CACHE_IN_SEC);
-            return MINIMUM_ERROR_CACHE_IN_SEC;
+            throw new IllegalArgumentException(
+                    "Error cache value for " + topic + " must be at least " + MINIMUM_ERROR_CACHE_IN_SEC + " seconds");
         }
         return newCacheValue;
     }
