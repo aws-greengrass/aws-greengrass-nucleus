@@ -146,10 +146,26 @@ public class CredentialRequestHandler implements HttpHandler {
         this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
     }
 
-    void configureCacheSettings(int cloud4xxErrorCache, int cloud5xxErrorCache, int unknownErrorCache) {
+    /**
+     * Configure error cache settings for error responses.
+     *
+     * @param cloud4xxErrorCache error cache duration in seconds for 4xx errors.
+     * @param cloud5xxErrorCache error cache duration in seconds for 5xx errors.
+     * @param unknownErrorCache error cache duration in seconds for unknown errors.
+     */
+    public void configureCacheSettings(int cloud4xxErrorCache, int cloud5xxErrorCache, int unknownErrorCache) {
         this.cloud4xxErrorCacheInSec = cloud4xxErrorCache;
         this.cloud5xxErrorCacheInSec = cloud5xxErrorCache;
         this.unknownErrorCacheInSec = unknownErrorCache;
+    }
+
+    /**
+     * Get current error cache configuration settings.
+     *
+     * @return Array containing error cache durations: [4xx, 5xx, unknown] in seconds.
+     */
+    public int[] getErrorCacheConfigSettings() {
+        return new int[]{this.cloud4xxErrorCacheInSec, this.cloud5xxErrorCacheInSec, this.unknownErrorCacheInSec};
     }
 
     @Override
