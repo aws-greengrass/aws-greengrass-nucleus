@@ -728,6 +728,29 @@ public class Lifecycle {
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     private void serviceTerminatedMoveToDesiredState(@Nonnull State desiredState) {
         if (isClosed.get()) {
+            // Execute uninstall lifecycle for permanent component removal
+            Future<?> uninstallFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
+                try {
+                    greengrassService.uninstall();
+                } catch (Throwable t) { // NOPMD - intentionally catch all errors to prevent system crash
+                    logger.atError("service-uninstall-error").setCause(t).log();
+                }
+            });
+
+            try {
+                Integer timeout = getTimeoutConfigValue(
+                        LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC);
+                uninstallFuture.get(timeout, TimeUnit.SECONDS);
+            } catch (ExecutionException e) {
+                logger.atError("service-uninstall-error").setCause(e).log();
+            } catch (TimeoutException te) {
+                logger.atWarn("service-uninstall-timeout").log();
+                uninstallFuture.cancel(true);
+            } catch (InterruptedException ie) {
+                logger.atWarn("service-uninstall-interrupted").log();
+                Thread.currentThread().interrupt();
+            }
+
             internalReportState(State.FINISHED);
             return;
         }

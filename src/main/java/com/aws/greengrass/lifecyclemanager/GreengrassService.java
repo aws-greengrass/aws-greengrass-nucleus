@@ -431,6 +431,14 @@ public class GreengrassService implements InjectionActions {
     }
 
     /**
+     * Called when the component is being permanently removed from the system.
+     * This method is invoked during component removal when there is no future version.
+     * Default implementation does nothing; subclasses can override to perform cleanup.
+     */
+    protected void uninstall() {
+    }
+
+    /**
      * Moves the service to finished state and shuts down lifecycle thread.
      *
      * @return future completes when the lifecycle thread shuts down.

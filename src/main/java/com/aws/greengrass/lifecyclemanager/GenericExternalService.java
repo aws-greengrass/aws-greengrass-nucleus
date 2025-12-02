@@ -605,6 +605,7 @@ public class GenericExternalService extends GreengrassService {
      * This method runs the uninstall script defined in the component recipe.
      * Uninstall execution blocks the calling thread but does not fail the deployment on error.
      */
+    @Override
     protected void uninstall() {
         try (LockScope ls = LockScope.lock(lock)) {
             logger.atInfo().log("Uninstall initiated");
