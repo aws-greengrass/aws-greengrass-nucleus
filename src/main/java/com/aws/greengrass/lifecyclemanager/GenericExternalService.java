@@ -601,6 +601,26 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
+     * Execute the uninstall lifecycle script for permanent component removal.
+     * This method runs the uninstall script defined in the component recipe.
+     * Uninstall execution blocks the calling thread but does not fail the deployment on error.
+     */
+    protected void uninstall() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atInfo().log("Uninstall initiated");
+
+            try {
+                run(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses);
+            } catch (InterruptedException ex) {
+                logger.atWarn("generic-service-uninstall").log("Thread interrupted while uninstalling service");
+                Thread.currentThread().interrupt();
+            } finally {
+                logger.atInfo().setEventType("generic-service-uninstall").log();
+            }
+        }
+    }
+
+    /**
      * Shutdown a service without running the shutdown script.
      * Including stop processes and clean up resources.
      */
