@@ -195,6 +195,27 @@ class RecipeLoaderTest {
     }
 
     @Test
+    void GIVEN_a_recipe_with_uninstall_lifecycle_WHEN_converts_THEN_uninstall_is_parsed() throws Exception {
+        String filename = "sample_recipe_with_uninstall.yaml";
+        String recipeFileContent = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
+
+        Optional<ComponentRecipe> optionalRecipe = recipeLoader.loadFromFile(recipeFileContent);
+
+        assertThat(optionalRecipe.isPresent(), is(true));
+        ComponentRecipe recipe = optionalRecipe.get();
+        
+        assertThat(recipe.getLifecycle(), aMapWithSize(4));
+        assertThat(recipe.getLifecycle().containsKey(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), is(true));
+        
+        Object uninstallSection = recipe.getLifecycle().get(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC);
+        assertThat(uninstallSection instanceof Map, is(true));
+        Map<String, Object> uninstallMap = (Map<String, Object>) uninstallSection;
+        assertThat(uninstallMap, hasEntry("script", "echo uninstall"));
+        assertThat(uninstallMap, hasEntry("requiresPrivilege", true));
+        assertThat(uninstallMap, hasEntry("timeout", 90));
+    }
+
+    @Test
     void GIVEN_a_recipe_file_and_no_matching_platform_WHEN_converts_THEN_returns_empty() throws Exception {
         // GIVEN
         // read file

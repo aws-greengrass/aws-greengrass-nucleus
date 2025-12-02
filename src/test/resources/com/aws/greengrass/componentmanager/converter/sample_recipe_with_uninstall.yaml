@@ -1,0 +1,17 @@
+---
+RecipeFormatVersion: 2020-01-25
+ComponentName: TestServiceWithUninstall
+ComponentDescription: Test recipe with uninstall lifecycle
+ComponentPublisher: Amazon
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      install: echo install
+      run: echo run
+      shutdown: echo shutdown
+      uninstall:
+        script: echo uninstall
+        requiresPrivilege: true
+        timeout: 90
