@@ -884,6 +884,31 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertFalse(freezerManager.isComponentFrozen(component.getServiceName()));
     }
 
+    @Test
+    void GIVEN_service_with_uninstall_WHEN_service_closed_THEN_uninstall_executes() throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_with_uninstall.yaml"));
+        
+        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainUninstalling = new CountDownLatch(1);
+        
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if ("main".equals(service.getName())) {
+                if (State.RUNNING.equals(newState)) {
+                    mainRunning.countDown();
+                } else if (State.UNINSTALLING.equals(newState)) {
+                    mainUninstalling.countDown();
+                }
+            }
+        });
+        
+        kernel.launch();
+        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        
+        kernel.locate("main").close().get(10, TimeUnit.SECONDS);
+        assertTrue(mainUninstalling.await(5, TimeUnit.SECONDS));
+    }
+
     private boolean isCgroupV2Supported() {
         return Files.exists(Paths.get("/sys/fs/cgroup/cgroup.controllers"));
     }

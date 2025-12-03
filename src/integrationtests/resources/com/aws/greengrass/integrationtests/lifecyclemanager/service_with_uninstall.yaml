@@ -1,0 +1,7 @@
+---
+services:
+  main:
+    lifecycle:
+      run: echo main_running
+      uninstall:
+        script: echo uninstall_executed > /tmp/greengrass_uninstall_test.txt
