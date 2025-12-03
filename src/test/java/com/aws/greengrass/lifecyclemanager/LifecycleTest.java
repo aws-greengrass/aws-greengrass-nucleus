@@ -692,12 +692,36 @@ class LifecycleTest {
         assertTrue(configUpdateFinished.await(2 , TimeUnit.SECONDS), "updated config:" + config.toPOJO().toString());
     }
 
+    @Test
+    void GIVEN_service_closed_WHEN_terminated_THEN_uninstall_called() throws Exception {
+        Topics serviceRoot = new Configuration(context).getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
+        Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        CountDownLatch uninstallLatch = new CountDownLatch(1);
+        testService.setUninstallRunnable(() -> uninstallLatch.countDown());
+        testService.setStartupRunnable(() -> testService.reportState(State.RUNNING));
+
+        testService.postInject();
+        testService.requestStart();
+        assertThat(testService::getState, eventuallyEval(is(State.RUNNING), Duration.ofSeconds(5)));
+
+        testService.close().get(10, TimeUnit.SECONDS);
+        
+        assertTrue(uninstallLatch.await(10, TimeUnit.SECONDS), "uninstall should be called");
+        assertEquals(State.UNINSTALLING, testService.getState());
+    }
+
     private class TestService extends GreengrassService {
         @Setter
         private Runnable startupRunnable = () -> {};
 
         @Setter
         private Runnable shutdownRunnable = () -> {};
+
+        @Setter
+        private Runnable uninstallRunnable = () -> {};
 
         TestService(Topics topics) {
             super(topics);
@@ -711,6 +735,11 @@ class LifecycleTest {
         @Override
         public void shutdown() {
             shutdownRunnable.run();
+        }
+
+        @Override
+        public void uninstall() {
+            uninstallRunnable.run();
         }
     }
 }

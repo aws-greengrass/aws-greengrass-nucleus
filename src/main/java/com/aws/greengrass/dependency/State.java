@@ -54,7 +54,12 @@ public enum State {
      * The service has done it's job and has no more to do. May be restarted
      * (for example, a monitoring task that will be restarted by a timer)
      */
-    FINISHED(true, false, true, "Finished");
+    FINISHED(true, false, true, "Finished"),
+
+    /**
+     * Service is running uninstall script before permanent removal.
+     */
+    UNINSTALLING(true, false, false, "Uninstalling");
 
     private final boolean happy;
     private final boolean running;

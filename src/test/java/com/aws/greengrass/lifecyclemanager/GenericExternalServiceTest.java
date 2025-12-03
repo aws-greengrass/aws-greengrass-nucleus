@@ -323,4 +323,10 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         // Tracking flag should still be reset
         assertFalse(ges.isPaused());
     }
+
+    @Test
+    void GIVEN_service_WHEN_uninstall_called_THEN_completes_without_error() {
+        // Verify uninstall can be called without throwing exceptions
+        ges.uninstall();
+    }
 }

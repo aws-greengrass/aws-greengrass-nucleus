@@ -138,6 +138,8 @@ public class Lifecycle {
                 .put(State.RUNNING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
         ALLOWED_STATE_TRANSITION_FOR_REPORTING
                 .put(State.STOPPING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING
+                .put(State.FINISHED, Collections.singletonList(State.UNINSTALLING));
     }
 
     private final Lock lock = LockFactory.newReentrantLock(this);
@@ -387,6 +389,9 @@ public class Lifecycle {
                 case FINISHED:
                     handleCurrentStateFinished(desiredState);
                     break;
+                case UNINSTALLING:
+                    // Uninstall complete, lifecycle thread should exit
+                    return;
                 case ERRORED:
                     handleCurrentStateErrored(desiredState, prevState);
                     break;
@@ -728,6 +733,9 @@ public class Lifecycle {
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     private void serviceTerminatedMoveToDesiredState(@Nonnull State desiredState) {
         if (isClosed.get()) {
+            // Transition to UNINSTALLING state before executing uninstall script
+            internalReportState(State.UNINSTALLING);
+            
             // Execute uninstall lifecycle for permanent component removal
             Future<?> uninstallFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
                 try {
@@ -751,7 +759,7 @@ public class Lifecycle {
                 Thread.currentThread().interrupt();
             }
 
-            internalReportState(State.FINISHED);
+            // Component will be removed from system, no final state transition needed
             return;
         }
         switch (desiredState) {
