@@ -47,10 +47,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static com.aws.greengrass.tes.CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_SEC;
-import static com.aws.greengrass.tes.CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_SEC;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC;
 import static com.aws.greengrass.tes.CredentialRequestHandler.TIME_BEFORE_CACHE_EXPIRE_IN_SEC;
-import static com.aws.greengrass.tes.CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_SEC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -401,7 +401,7 @@ class CredentialRequestHandlerTest {
                 String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 2 minutes
         handler.getAwsCredentials();
-        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(CLOUD_4XX_ERROR_CACHE_IN_SEC));
+        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
         handler.getAwsCredentials();
@@ -425,7 +425,7 @@ class CredentialRequestHandlerTest {
                 String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 1 minute
         handler.getAwsCredentials();
-        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(CLOUD_5XX_ERROR_CACHE_IN_SEC));
+        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
         handler.getAwsCredentials();
@@ -449,7 +449,7 @@ class CredentialRequestHandlerTest {
                 String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 5 minutes
         handler.getAwsCredentials();
-        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(UNKNOWN_ERROR_CACHE_IN_SEC));
+        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
         handler.getAwsCredentials();

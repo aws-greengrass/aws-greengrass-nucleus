@@ -69,13 +69,13 @@ public class CredentialRequestHandler implements HttpHandler {
     public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
     public static final String SUPPORTED_REQUEST_VERB = "GET";
     public static final int TIME_BEFORE_CACHE_EXPIRE_IN_SEC = 300;
-    public static final int CLOUD_4XX_ERROR_CACHE_IN_SEC = 120;
-    public static final int CLOUD_5XX_ERROR_CACHE_IN_SEC = 60;
-    public static final int UNKNOWN_ERROR_CACHE_IN_SEC = 300;
+    public static final int DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC = 120;
+    public static final int DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC = 60;
+    public static final int DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC = 300;
 
-    private int cloud4xxErrorCacheInSec = CLOUD_4XX_ERROR_CACHE_IN_SEC;
-    private int cloud5xxErrorCacheInSec = CLOUD_5XX_ERROR_CACHE_IN_SEC;
-    private int unknownErrorCacheInSec = UNKNOWN_ERROR_CACHE_IN_SEC;
+    private int cloud4xxErrorCacheInSec = DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC;
+    private int cloud5xxErrorCacheInSec = DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC;
+    private int unknownErrorCacheInSec = DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC;
 
     private String iotCredentialsPath;
 
