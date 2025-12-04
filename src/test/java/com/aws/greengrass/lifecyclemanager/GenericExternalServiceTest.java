@@ -26,6 +26,8 @@ import java.util.HashMap;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.REQUIRES_PRIVILEGE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class GenericExternalServiceTest extends GGServiceTestUtil {
     private GenericExternalService ges;
@@ -328,5 +331,24 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     void GIVEN_service_WHEN_uninstall_called_THEN_completes_without_error() {
         // Verify uninstall can be called without throwing exceptions
         ges.uninstall();
+    }
+
+    @Test
+    void GIVEN_uninstall_with_requiresPrivilege_WHEN_executed_THEN_uses_privileged_user() throws Exception {
+        // Setup service with uninstall script requiring privilege
+        ges.getConfig().lookup(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, 
+                REQUIRES_PRIVILEGE_NAMESPACE_TOPIC).withValue(true);
+        ges.getConfig().lookup(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, 
+                "script").withValue("echo 'uninstall'");
+        
+        // Mock platform to verify privileged user is used
+        when(platform.getPrivilegedUser()).thenReturn("root");
+        when(platform.getPrivilegedGroup()).thenReturn("root");
+        
+        // Execute uninstall
+        ges.uninstall();
+        
+        // Verify privileged user was requested
+        verify(platform, times(1)).getPrivilegedUser();
     }
 }

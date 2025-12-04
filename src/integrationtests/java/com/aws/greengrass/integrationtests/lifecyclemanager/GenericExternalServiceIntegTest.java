@@ -907,6 +907,22 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         
         kernel.locate("main").close().get(10, TimeUnit.SECONDS);
         assertTrue(mainUninstalling.await(5, TimeUnit.SECONDS));
+        
+        // Verify uninstall script actually executed
+        Path uninstallMarker = Paths.get("/tmp/greengrass_uninstall_test.txt");
+        assertTrue(Files.exists(uninstallMarker), "Uninstall script should have created marker file");
+        
+        // Verify environment variables were set correctly
+        List<String> lines = Files.readAllLines(uninstallMarker);
+        assertTrue(lines.stream().anyMatch(l -> l.contains("event=uninstall")), 
+                "GREENGRASS_LIFECYCLE_EVENT should be set to 'uninstall'");
+        assertTrue(lines.stream().anyMatch(l -> l.contains("name=main")), 
+                "GREENGRASS_COMPONENT_NAME should be set to 'main'");
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith("version=")), 
+                "GREENGRASS_COMPONENT_VERSION should be set");
+        
+        // Cleanup
+        Files.deleteIfExists(uninstallMarker);
     }
 
     private boolean isCgroupV2Supported() {

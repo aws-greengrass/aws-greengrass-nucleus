@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
@@ -611,7 +612,18 @@ public class GenericExternalService extends GreengrassService {
             logger.atInfo().log("Uninstall initiated");
 
             try {
-                run(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses);
+                RunResult result = run(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses, false);
+                if (result.getExec() != null) {
+                    result.getExec().setenv("GREENGRASS_LIFECYCLE_EVENT", "uninstall");
+                    result.getExec().setenv("GREENGRASS_COMPONENT_NAME", getServiceName());
+                    Topic versionTopic = getConfig().find(VERSION_CONFIG_KEY);
+                    if (versionTopic != null) {
+                        result.getExec().setenv("GREENGRASS_COMPONENT_VERSION", Coerce.toString(versionTopic));
+                    }
+                    if (result.getDoExec() != null) {
+                        result.getDoExec().apply();
+                    }
+                }
             } catch (InterruptedException ex) {
                 logger.atWarn("generic-service-uninstall").log("Thread interrupted while uninstalling service");
                 Thread.currentThread().interrupt();

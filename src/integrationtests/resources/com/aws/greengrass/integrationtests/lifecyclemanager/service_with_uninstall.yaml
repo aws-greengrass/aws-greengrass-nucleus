@@ -4,4 +4,10 @@ services:
     lifecycle:
       run: echo main_running
       uninstall:
-        script: echo uninstall_executed > /tmp/greengrass_uninstall_test.txt
+        script: |
+          echo "uninstall_executed" > /tmp/greengrass_uninstall_test.txt
+          echo "event=$GREENGRASS_LIFECYCLE_EVENT" >> /tmp/greengrass_uninstall_test.txt
+          echo "name=$GREENGRASS_COMPONENT_NAME" >> /tmp/greengrass_uninstall_test.txt
+          echo "version=$GREENGRASS_COMPONENT_VERSION" >> /tmp/greengrass_uninstall_test.txt
+        timeout: 30
+        requiresPrivilege: false

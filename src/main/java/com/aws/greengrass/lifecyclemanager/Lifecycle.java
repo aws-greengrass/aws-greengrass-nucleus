@@ -140,6 +140,10 @@ public class Lifecycle {
                 .put(State.STOPPING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
         ALLOWED_STATE_TRANSITION_FOR_REPORTING
                 .put(State.FINISHED, Collections.singletonList(State.UNINSTALLING));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING
+                .put(State.ERRORED, Collections.singletonList(State.UNINSTALLING));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING
+                .put(State.BROKEN, Collections.singletonList(State.UNINSTALLING));
     }
 
     private final Lock lock = LockFactory.newReentrantLock(this);
