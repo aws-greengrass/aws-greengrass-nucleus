@@ -713,6 +713,55 @@ class LifecycleTest {
         assertEquals(State.UNINSTALLING, testService.getState());
     }
 
+    @Test
+    void GIVEN_uninstall_timeout_WHEN_service_closed_THEN_component_still_removed() throws Exception {
+        Topics serviceRoot = new Configuration(context).getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
+        Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        CountDownLatch uninstallStarted = new CountDownLatch(1);
+        testService.setUninstallRunnable(() -> {
+            uninstallStarted.countDown();
+            try {
+                Thread.sleep(120000); // Sleep longer than timeout
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        testService.setStartupRunnable(() -> testService.reportState(State.RUNNING));
+
+        testService.postInject();
+        testService.requestStart();
+        assertThat(testService::getState, eventuallyEval(is(State.RUNNING), Duration.ofSeconds(5)));
+
+        testService.close().get(10, TimeUnit.SECONDS);
+        
+        assertTrue(uninstallStarted.await(5, TimeUnit.SECONDS), "uninstall should start");
+        assertEquals(State.UNINSTALLING, testService.getState());
+    }
+
+    @Test
+    void GIVEN_uninstall_throws_exception_WHEN_service_closed_THEN_error_logged_and_component_removed() throws Exception {
+        Topics serviceRoot = new Configuration(context).getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
+        Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        testService.setUninstallRunnable(() -> {
+            throw new RuntimeException("Uninstall failed");
+        });
+        testService.setStartupRunnable(() -> testService.reportState(State.RUNNING));
+
+        testService.postInject();
+        testService.requestStart();
+        assertThat(testService::getState, eventuallyEval(is(State.RUNNING), Duration.ofSeconds(5)));
+
+        testService.close().get(10, TimeUnit.SECONDS);
+        
+        assertEquals(State.UNINSTALLING, testService.getState());
+    }
+
     private class TestService extends GreengrassService {
         @Setter
         private Runnable startupRunnable = () -> {};

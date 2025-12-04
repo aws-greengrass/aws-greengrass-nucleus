@@ -606,10 +606,32 @@ public class GenericExternalService extends GreengrassService {
      * This method runs the uninstall script defined in the component recipe.
      * Uninstall execution blocks the calling thread but does not fail the deployment on error.
      */
+    /**
+     * Executes the uninstall lifecycle script for this component.
+     * This method is called when the component is being permanently removed
+     * from the device (not during upgrades).
+     *
+     * <p>The uninstall script runs with environment variables providing context:
+     * <ul>
+     *   <li>GREENGRASS_LIFECYCLE_EVENT - Set to "uninstall"</li>
+     *   <li>GREENGRASS_COMPONENT_NAME - The component name</li>
+     *   <li>GREENGRASS_COMPONENT_VERSION - The component version</li>
+     * </ul>
+     *
+     * <p>If the script fails or times out, the error is logged but the component
+     * removal proceeds. This ensures cleanup operations don't block component removal.
+     *
+     * <p>This method is called from {@link Lifecycle#serviceTerminatedMoveToDesiredState()}
+     * after the component has completed its shutdown lifecycle and reached FINISHED state.
+     */
     @Override
     protected void uninstall() {
         try (LockScope ls = LockScope.lock(lock)) {
-            logger.atInfo().log("Uninstall initiated");
+            long startTime = System.currentTimeMillis();
+            logger.atInfo()
+                    .kv("componentName", getServiceName())
+                    .kv("componentVersion", Coerce.toString(getConfig().find(VERSION_CONFIG_KEY)))
+                    .log("Uninstall initiated");
 
             try {
                 RunResult result = run(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses, false);
@@ -624,11 +646,20 @@ public class GenericExternalService extends GreengrassService {
                         result.getDoExec().apply();
                     }
                 }
+                long duration = System.currentTimeMillis() - startTime;
+                logger.atInfo()
+                        .setEventType("generic-service-uninstall")
+                        .kv("componentName", getServiceName())
+                        .kv("uninstallSuccess", true)
+                        .kv("uninstallDurationMs", duration)
+                        .log();
             } catch (InterruptedException ex) {
-                logger.atWarn("generic-service-uninstall").log("Thread interrupted while uninstalling service");
+                long duration = System.currentTimeMillis() - startTime;
+                logger.atWarn("generic-service-uninstall-interrupted")
+                        .kv("componentName", getServiceName())
+                        .kv("uninstallDurationMs", duration)
+                        .log("Thread interrupted while uninstalling service");
                 Thread.currentThread().interrupt();
-            } finally {
-                logger.atInfo().setEventType("generic-service-uninstall").log();
             }
         }
     }
