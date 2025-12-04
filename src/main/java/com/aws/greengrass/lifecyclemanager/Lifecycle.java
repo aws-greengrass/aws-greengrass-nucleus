@@ -74,7 +74,7 @@ public class Lifecycle {
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC = 15;
-    private static final Integer DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC = 90;
+    private static final Integer DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     public static final Integer DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC = 60;
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
@@ -138,10 +138,6 @@ public class Lifecycle {
                 .put(State.RUNNING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
         ALLOWED_STATE_TRANSITION_FOR_REPORTING
                 .put(State.STOPPING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
-        ALLOWED_STATE_TRANSITION_FOR_REPORTING
-                .put(State.FINISHED, Collections.singletonList(State.UNINSTALLING));
-        ALLOWED_STATE_TRANSITION_FOR_REPORTING
-                .put(State.ERRORED, Collections.singletonList(State.UNINSTALLING));
         ALLOWED_STATE_TRANSITION_FOR_REPORTING
                 .put(State.BROKEN, Collections.singletonList(State.UNINSTALLING));
     }
@@ -736,36 +732,6 @@ public class Lifecycle {
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     private void serviceTerminatedMoveToDesiredState(@Nonnull State desiredState) {
-        if (isClosed.get()) {
-            // Transition to UNINSTALLING state before executing uninstall script
-            internalReportState(State.UNINSTALLING);
-            
-            // Execute uninstall lifecycle for permanent component removal
-            Future<?> uninstallFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
-                try {
-                    greengrassService.uninstall();
-                } catch (Throwable t) { // NOPMD - intentionally catch all errors to prevent system crash
-                    logger.atError("service-uninstall-error").setCause(t).log();
-                }
-            });
-
-            try {
-                Integer timeout = getTimeoutConfigValue(
-                        LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC);
-                uninstallFuture.get(timeout, TimeUnit.SECONDS);
-            } catch (ExecutionException e) {
-                logger.atError("service-uninstall-error").setCause(e).log();
-            } catch (TimeoutException te) {
-                logger.atWarn("service-uninstall-timeout").log();
-                uninstallFuture.cancel(true);
-            } catch (InterruptedException ie) {
-                logger.atWarn("service-uninstall-interrupted").log();
-                Thread.currentThread().interrupt();
-            }
-
-            // Component will be removed from system, no final state transition needed
-            return;
-        }
         switch (desiredState) {
             case NEW:
                 internalReportState(State.NEW);
@@ -776,6 +742,41 @@ public class Lifecycle {
                 break;
             case FINISHED:
                 internalReportState(State.FINISHED);
+                
+                // After reaching FINISHED, check if component is being removed
+                if (isClosed.get()) {
+                    // Transition to UNINSTALLING state before executing uninstall script
+                    internalReportState(State.UNINSTALLING);
+                    
+                    // Execute uninstall lifecycle for permanent component removal
+                    Future<?> uninstallFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
+                        try {
+                            greengrassService.uninstall();
+                        } catch (Throwable t) { // NOPMD - intentionally catch all errors to prevent system crash
+                            logger.atError("service-uninstall-error").setCause(t).log();
+                        }
+                    });
+
+                    try {
+                        Integer timeout = getTimeoutConfigValue(
+                                LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC);
+                        uninstallFuture.get(timeout, TimeUnit.SECONDS);
+                    } catch (ExecutionException e) {
+                        logger.atError("service-uninstall-error").setCause(e).log();
+                    } catch (TimeoutException te) {
+                        logger.atWarn("service-uninstall-timeout").log();
+                        uninstallFuture.cancel(true);
+                    } catch (InterruptedException ie) {
+                        logger.atWarn("service-uninstall-interrupted").log();
+                        Thread.currentThread().interrupt();
+                    }
+
+                    // Component will be removed from system, no final state transition needed
+                    return;
+                }
+                break;
+            case UNINSTALLING:
+                internalReportState(State.UNINSTALLING);
                 break;
             default:
                 // not allowed to set desired state to STOPPING, ERRORED, BROKEN
