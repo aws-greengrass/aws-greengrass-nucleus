@@ -68,7 +68,7 @@ public class CredentialRequestHandler implements HttpHandler {
     public static final String AUTH_HEADER = "Authorization";
     public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
     public static final String SUPPORTED_REQUEST_VERB = "GET";
-    public static final int TIME_BEFORE_CACHE_EXPIRE_IN_SEC = 300;
+    public static final int DEFAULT_TIME_BEFORE_CACHE_EXPIRE_IN_SEC = 300;
     public static final int DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC = 120;
     public static final int DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC = 60;
     public static final int DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC = 300;
@@ -299,14 +299,14 @@ public class CredentialRequestHandler implements HttpHandler {
                         LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                 .log("Unable to cache expired credentials which expired at {}", expiry);
                     } else {
-                        newExpiry = expiry.minus(Duration.ofSeconds(TIME_BEFORE_CACHE_EXPIRE_IN_SEC));
+                        newExpiry = expiry.minus(Duration.ofSeconds(DEFAULT_TIME_BEFORE_CACHE_EXPIRE_IN_SEC));
                         tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_OK;
 
                         if (newExpiry.isBefore(Instant.now(clock))) {
                             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Can't cache credentials as new credentials {} will "
                                                     + "expire in less than {} seconds", expiry,
-                                            TIME_BEFORE_CACHE_EXPIRE_IN_SEC);
+                                            DEFAULT_TIME_BEFORE_CACHE_EXPIRE_IN_SEC);
                         } else {
                             LOGGER.atInfo().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                                     .log("Received IAM credentials that will be cached until {}", newExpiry);
