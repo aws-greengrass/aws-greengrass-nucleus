@@ -62,6 +62,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -210,9 +211,22 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(roleTopic.getOnce()).thenReturn(roleAlias);
         lenient().when(roleTopic.withValue(anyString())).thenReturn(roleTopic);
         when(roleTopic.dflt(anyString())).thenReturn(roleTopic);
+        // set mock for port topic
+        Topic portTopic = mock(Topic.class);
+        when(portTopic.dflt(anyInt())).thenReturn(portTopic);
 
+        when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
@@ -237,9 +251,21 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(roleTopic.getOnce()).thenReturn("TEST");
         when(roleTopic.withValue(anyString())).thenReturn(roleTopic);
         when(roleTopic.dflt(anyString())).thenReturn(roleTopic);
-
+        // set mock for port topic
+        Topic portTopic = mock(Topic.class);
+        when(portTopic.dflt(anyInt())).thenReturn(portTopic);
+        when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,

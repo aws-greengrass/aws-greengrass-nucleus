@@ -159,14 +159,6 @@ public class CredentialRequestHandler implements HttpHandler {
         this.unknownErrorCacheInSec = unknownErrorCache;
     }
 
-    /**
-     * Get current error cache configuration settings.
-     *
-     * @return Array containing error cache durations: [4xx, 5xx, unknown] in seconds.
-     */
-    public int[] getErrorCacheConfigSettings() {
-        return new int[]{this.cloud4xxErrorCacheInSec, this.cloud5xxErrorCacheInSec, this.unknownErrorCacheInSec};
-    }
 
     @Override
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
