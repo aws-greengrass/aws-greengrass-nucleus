@@ -73,9 +73,9 @@ public class CredentialRequestHandler implements HttpHandler {
     public static final int DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC = 60;
     public static final int DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC = 300;
 
-    private int cloud4xxErrorCacheInSec = DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC;
-    private int cloud5xxErrorCacheInSec = DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC;
-    private int unknownErrorCacheInSec = DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC;
+    private volatile int cloud4xxErrorCacheInSec = DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC;
+    private volatile int cloud5xxErrorCacheInSec = DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC;
+    private volatile int unknownErrorCacheInSec = DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC;
 
     private String iotCredentialsPath;
 
