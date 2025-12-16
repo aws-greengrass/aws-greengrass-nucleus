@@ -48,10 +48,16 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC;
 import static com.aws.greengrass.tes.TokenExchangeService.ACTIVE_PORT_TOPIC;
+import static com.aws.greengrass.tes.TokenExchangeService.CLOUD_4XX_ERROR_CACHE_TOPIC;
+import static com.aws.greengrass.tes.TokenExchangeService.CLOUD_5XX_ERROR_CACHE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.PORT_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
+import static com.aws.greengrass.tes.TokenExchangeService.UNKNOWN_ERROR_CACHE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -156,6 +162,15 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
 
+        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
+
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
                 mockAuthZHandler, deviceConfigurationWithRoleAlias(MOCK_ROLE_ALIAS));
@@ -196,14 +211,22 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(roleTopic.getOnce()).thenReturn(roleAlias);
         lenient().when(roleTopic.withValue(anyString())).thenReturn(roleTopic);
         when(roleTopic.dflt(anyString())).thenReturn(roleTopic);
-
         // set mock for port topic
         Topic portTopic = mock(Topic.class);
         when(portTopic.dflt(anyInt())).thenReturn(portTopic);
-        
+
         when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
@@ -228,13 +251,21 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(roleTopic.getOnce()).thenReturn("TEST");
         when(roleTopic.withValue(anyString())).thenReturn(roleTopic);
         when(roleTopic.dflt(anyString())).thenReturn(roleTopic);
-
         // set mock for port topic
         Topic portTopic = mock(Topic.class);
         when(portTopic.dflt(anyInt())).thenReturn(portTopic);
         when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+
+        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
+                .thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
