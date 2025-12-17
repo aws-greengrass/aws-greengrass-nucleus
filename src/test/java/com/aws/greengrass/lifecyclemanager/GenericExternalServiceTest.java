@@ -7,6 +7,8 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.ComponentStatusCode;
+import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
@@ -21,8 +23,12 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -35,6 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -322,5 +330,40 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         verify(resourceController).removeResourceController(ges);
         // Tracking flag should still be reset
         assertFalse(ges.isPaused());
+    }
+
+    @Test
+    void GIVEN_startup_callback_WHEN_generation_changed_and_state_is_running_THEN_non_zero_exit_ignored() throws Exception {
+        AtomicReference<IntConsumer> capturedCallback = new AtomicReference<>();
+        AtomicLong stateGeneration = new AtomicLong(1);
+
+        lenient().doReturn(stateGeneration.get()).when(ges).getStateGeneration();
+        lenient().doReturn(State.STARTING).when(ges).getState();
+        doNothing().when(ges).cacheShutdownExec();
+        doNothing().when(ges).stopAllLifecycleProcesses();
+
+        // Create RunResult using reflection since it's a private class
+        Class<?> runResultClass = Class.forName(
+                "com.aws.greengrass.lifecyclemanager.GenericExternalService$RunResult");
+        Constructor<?> constructor = runResultClass.getDeclaredConstructor(
+                GreengrassService.RunStatus.class, Exec.class, ComponentStatusCode.class);
+        constructor.setAccessible(true);
+        Object runResult = constructor.newInstance(GreengrassService.RunStatus.NothingDone, null, null);
+
+        doAnswer(invocation -> {
+            capturedCallback.set(invocation.getArgument(1));
+            // Simulate generation change and state transition to RUNNING before callback executes
+            stateGeneration.incrementAndGet();
+            doReturn(stateGeneration.get()).when(ges).getStateGeneration();
+            doReturn(State.RUNNING).when(ges).getState();
+            return runResult;
+        }).when(ges).run(eq(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC), any(IntConsumer.class), any());
+
+        ges.startup();
+
+        // Execute callback with non-zero exit code - should NOT call serviceErrored since generation differs
+        capturedCallback.get().accept(1);
+
+        verify(ges, never()).serviceErrored(any(ComponentStatusCode.class), any(Integer.class), any(String.class));
     }
 }
