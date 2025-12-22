@@ -139,6 +139,8 @@ public class Lifecycle {
         ALLOWED_STATE_TRANSITION_FOR_REPORTING
                 .put(State.STOPPING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
         ALLOWED_STATE_TRANSITION_FOR_REPORTING
+                .put(State.ERRORED, Collections.singletonList(State.UNINSTALLING));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING
                 .put(State.BROKEN, Collections.singletonList(State.UNINSTALLING));
     }
 
@@ -458,6 +460,12 @@ public class Lifecycle {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     private void handleCurrentStateBroken(Optional<State> desiredState, State previousState)
             throws InterruptedException {
+        // Check if component is being removed before attempting shutdown
+        if (isClosed.get()) {
+            executeUninstallAndRemove();
+            return;
+        }
+        
         switch (previousState) {
             case STARTING:
             case RUNNING:
@@ -683,6 +691,12 @@ public class Lifecycle {
     }
 
     private void handleCurrentStateErrored(Optional<State> desiredState, State prevState) throws InterruptedException {
+        // Check if component is being removed before running error handler
+        if (isClosed.get()) {
+            executeUninstallAndRemove();
+            return;
+        }
+        
         try {
             greengrassService.handleError();
         } catch (InterruptedException e) {
@@ -725,6 +739,36 @@ public class Lifecycle {
     }
 
     /**
+     * Execute uninstall lifecycle and remove component.
+     * Transitions to UNINSTALLING state, executes uninstall script with timeout, and removes component.
+     */
+    private void executeUninstallAndRemove() {
+        internalReportState(State.UNINSTALLING);
+        
+        Future<?> uninstallFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
+            try {
+                greengrassService.uninstall();
+            } catch (Throwable t) { // NOPMD - intentionally catch all errors to prevent system crash
+                logger.atError("service-uninstall-error").setCause(t).log();
+            }
+        });
+
+        try {
+            Integer timeout = getTimeoutConfigValue(
+                    LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC);
+            uninstallFuture.get(timeout, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            logger.atError("service-uninstall-error").setCause(e).log();
+        } catch (TimeoutException te) {
+            logger.atWarn("service-uninstall-timeout").log();
+            uninstallFuture.cancel(true);
+        } catch (InterruptedException ie) {
+            logger.atWarn("service-uninstall-interrupted").log();
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
      * Given the service is terminated, move to desired state.
      * Only use in service lifecycle thread.
      *
@@ -745,33 +789,7 @@ public class Lifecycle {
                 
                 // After reaching FINISHED, check if component is being removed
                 if (isClosed.get()) {
-                    // Transition to UNINSTALLING state before executing uninstall script
-                    internalReportState(State.UNINSTALLING);
-                    
-                    // Execute uninstall lifecycle for permanent component removal
-                    Future<?> uninstallFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
-                        try {
-                            greengrassService.uninstall();
-                        } catch (Throwable t) { // NOPMD - intentionally catch all errors to prevent system crash
-                            logger.atError("service-uninstall-error").setCause(t).log();
-                        }
-                    });
-
-                    try {
-                        Integer timeout = getTimeoutConfigValue(
-                                LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC);
-                        uninstallFuture.get(timeout, TimeUnit.SECONDS);
-                    } catch (ExecutionException e) {
-                        logger.atError("service-uninstall-error").setCause(e).log();
-                    } catch (TimeoutException te) {
-                        logger.atWarn("service-uninstall-timeout").log();
-                        uninstallFuture.cancel(true);
-                    } catch (InterruptedException ie) {
-                        logger.atWarn("service-uninstall-interrupted").log();
-                        Thread.currentThread().interrupt();
-                    }
-
-                    // Component will be removed from system, no final state transition needed
+                    executeUninstallAndRemove();
                     return;
                 }
                 break;
