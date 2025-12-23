@@ -54,6 +54,7 @@ import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_UNKNOWN_ER
 import static com.aws.greengrass.tes.TokenExchangeService.ACTIVE_PORT_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.CLOUD_4XX_ERROR_CACHE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.CLOUD_5XX_ERROR_CACHE_TOPIC;
+import static com.aws.greengrass.tes.TokenExchangeService.CREDENTIAL_RETRY_CONFIG_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.PORT_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -162,14 +163,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
 
-        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                CLOUD_4XX_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
 
-        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                CLOUD_5XX_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
 
-        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                UNKNOWN_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
@@ -219,14 +220,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
-        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                CLOUD_4XX_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
 
-        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                CLOUD_5XX_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
 
-        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                UNKNOWN_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
@@ -258,14 +259,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
-        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_4XX_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                CLOUD_4XX_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
 
-        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CLOUD_5XX_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                CLOUD_5XX_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
 
-        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, UNKNOWN_ERROR_CACHE_TOPIC))
-                .thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
+        when(config.findOrDefault(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                UNKNOWN_ERROR_CACHE_TOPIC)).thenReturn(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,

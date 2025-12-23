@@ -42,9 +42,10 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     private String iotRoleAlias;
     private HttpServerImpl server;
 
-    public static final String CLOUD_4XX_ERROR_CACHE_TOPIC = "error4xxCredentialRetryInSec";
-    public static final String CLOUD_5XX_ERROR_CACHE_TOPIC = "error5xxCredentialRetryInSec";
-    public static final String UNKNOWN_ERROR_CACHE_TOPIC = "errorUnknownCredentialRetryInSec";
+    public static final String CREDENTIAL_RETRY_CONFIG_TOPIC = "credentialRetryInSec";
+    public static final String CLOUD_4XX_ERROR_CACHE_TOPIC = "clientError";
+    public static final String CLOUD_5XX_ERROR_CACHE_TOPIC = "serverError";
+    public static final String UNKNOWN_ERROR_CACHE_TOPIC = "unknownError";
     private static final int MINIMUM_ERROR_CACHE_IN_SEC = 10;
     private static final int MAXIMUM_ERROR_CACHE_IN_SEC = 42_900;
     private int cloud4xxErrorCache;
@@ -76,15 +77,15 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
         cloud4xxErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
                 CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
-                CLOUD_4XX_ERROR_CACHE_TOPIC)), CLOUD_4XX_ERROR_CACHE_TOPIC,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, CLOUD_4XX_ERROR_CACHE_TOPIC)), CLOUD_4XX_ERROR_CACHE_TOPIC,
                 CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
         cloud5xxErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
                 CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
-                CLOUD_5XX_ERROR_CACHE_TOPIC)), CLOUD_5XX_ERROR_CACHE_TOPIC,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, CLOUD_5XX_ERROR_CACHE_TOPIC)), CLOUD_5XX_ERROR_CACHE_TOPIC,
                 CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
         unknownErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
                 CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
-                UNKNOWN_ERROR_CACHE_TOPIC)), UNKNOWN_ERROR_CACHE_TOPIC,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, UNKNOWN_ERROR_CACHE_TOPIC)), UNKNOWN_ERROR_CACHE_TOPIC,
                 CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
         credentialRequestHandler.configureCacheSettings(cloud4xxErrorCache, cloud5xxErrorCache, unknownErrorCache);
@@ -94,21 +95,19 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
             if (why.equals(WhatHappened.timestampUpdated)) {
                 return;
             }
-            if (node != null && (node.childOf(CLOUD_4XX_ERROR_CACHE_TOPIC)
-                    || node.childOf(CLOUD_5XX_ERROR_CACHE_TOPIC)
-                    || node.childOf(UNKNOWN_ERROR_CACHE_TOPIC))) {
+            if (node != null && node.childOf(CREDENTIAL_RETRY_CONFIG_TOPIC)) {
 
                 int newCloud4xxErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
                         CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
-                        CLOUD_4XX_ERROR_CACHE_TOPIC)), CLOUD_4XX_ERROR_CACHE_TOPIC,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, CLOUD_4XX_ERROR_CACHE_TOPIC)), CLOUD_4XX_ERROR_CACHE_TOPIC,
                         CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
                 int newCloud5xxErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
                         CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
-                        CLOUD_5XX_ERROR_CACHE_TOPIC)), CLOUD_5XX_ERROR_CACHE_TOPIC,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, CLOUD_5XX_ERROR_CACHE_TOPIC)), CLOUD_5XX_ERROR_CACHE_TOPIC,
                         CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
                 int newUnknownErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
                         CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
-                        UNKNOWN_ERROR_CACHE_TOPIC)), UNKNOWN_ERROR_CACHE_TOPIC,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, UNKNOWN_ERROR_CACHE_TOPIC)), UNKNOWN_ERROR_CACHE_TOPIC,
                         CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
 
                 if (cloud4xxErrorCache != newCloud4xxErrorCache
@@ -122,9 +121,9 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                     credentialRequestHandler.configureCacheSettings(
                             newCloud4xxErrorCache, newCloud5xxErrorCache, newUnknownErrorCache);
 
-                    logger.atInfo("tes-error-cache-config-change")
+                    logger.atInfo("tes-credential-retry-config-change")
                             .kv("node", node).kv("why", why)
-                            .log("TES error cache configuration updated");
+                            .log("TES credential retry configuration updated");
                 }
             }
             if (node != null && node.childOf(PORT_TOPIC)) {
@@ -196,8 +195,9 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     private int validateErrorCacheConfig(int newCacheValue, String topic, int defaultCacheValue) {
         if (newCacheValue < MINIMUM_ERROR_CACHE_IN_SEC || newCacheValue > MAXIMUM_ERROR_CACHE_IN_SEC) {
             logger.atError()
-                    .log("Error cache value must be between {} and {} seconds, setting {} to default value {}",
-                    MINIMUM_ERROR_CACHE_IN_SEC, MAXIMUM_ERROR_CACHE_IN_SEC, topic, defaultCacheValue);
+                    .log("Credential retry value must be between {} and {} seconds, setting {}.{} to default value {}",
+                    MINIMUM_ERROR_CACHE_IN_SEC, MAXIMUM_ERROR_CACHE_IN_SEC, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                    topic, defaultCacheValue);
             return defaultCacheValue;
         }
         return newCacheValue;
