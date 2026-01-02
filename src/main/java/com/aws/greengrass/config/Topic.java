@@ -128,6 +128,10 @@ public class Topic extends Node {
         return withNewerValue(this.modtime, nv);
     }
 
+    private Topic overrideValue(Object nv, long proposedModTime) {
+        return withNewerValue(proposedModTime, nv);
+    }
+
     /**
      * Update the value in place without changing the timestamp.
      * @param nv new value
@@ -139,6 +143,14 @@ public class Topic extends Node {
 
     public Topic overrideValue(Number nv) {
         return overrideValue((Object) nv);
+    }
+
+    public Topic overrideValueWithCurrentTimestamp(String nv) {
+        return overrideValue(nv, System.currentTimeMillis());
+    }
+
+    public Topic overrideValueWithCurrentTimestamp(Number nv) {
+        return overrideValue(nv, System.currentTimeMillis());
     }
 
     private Topic withValue(Object nv) {
