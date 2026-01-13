@@ -272,6 +272,13 @@ public class GreengrassService implements InjectionActions {
     }
 
     /**
+     * Request uninstall for permanent component removal.
+     */
+    public final void requestUninstall() {
+        lifecycle.requestUninstall();
+    }
+
+    /**
      * Custom handler to handle error.
      *
      * @throws InterruptedException if the thread is interrupted while handling the error
@@ -428,6 +435,14 @@ public class GreengrassService implements InjectionActions {
         if (t != null) {
             t.shutdown();
         }
+    }
+
+    /**
+     * Called when the component is being permanently removed from the system.
+     * This method is invoked during component removal when there is no future version.
+     * Default implementation does nothing; subclasses can override to perform cleanup.
+     */
+    protected void uninstall() {
     }
 
     /**

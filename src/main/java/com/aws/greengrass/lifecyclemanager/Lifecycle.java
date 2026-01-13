@@ -59,6 +59,7 @@ public class Lifecycle {
     public static final String LIFECYCLE_INSTALL_NAMESPACE_TOPIC = "install";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC = "shutdown";
+    public static final String LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC = "uninstall";
     public static final String LIFECYCLE_RECOVER_NAMESPACE_TOPIC = "recover";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final String ERROR_RESET_TIME_TOPIC = "errorResetTime";
@@ -73,6 +74,7 @@ public class Lifecycle {
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC = 15;
+    private static final Integer DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     public static final Integer DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC = 60;
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
@@ -117,6 +119,7 @@ public class Lifecycle {
     // ReInstall a service will set DesiredStateList to <FINISHED->NEW->RUNNING>
     private final List<State> desiredStateList = new CopyOnWriteArrayList<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final AtomicBoolean requestedUninstall = new AtomicBoolean(false);
 
     private static final Map<State, Collection<State>> ALLOWED_STATE_TRANSITION_FOR_REPORTING =
             new EnumMap<>(State.class);
@@ -346,7 +349,10 @@ public class Lifecycle {
     private void startStateTransition() throws InterruptedException {
         AtomicReference<Predicate<Object>> asyncFinishAction = new AtomicReference<>((stateEvent) -> true);
         State prevState = getState();
-        while (!(isClosed.get() && getState().isClosable())) {
+        // if uninstall is requested, the wait for uninstalled state, else see if is closable
+        while (requestedUninstall.get()
+                ? getState() != State.UNINSTALLED
+                : !(isClosed.get() && getState().isClosable())) {
             Optional<State> desiredState;
             State current = getState();
             logger.atDebug("service-state-transition-start").log();
@@ -384,6 +390,12 @@ public class Lifecycle {
                     break;
                 case FINISHED:
                     handleCurrentStateFinished(desiredState);
+                    break;
+                case UNINSTALLING:
+                    handleCurrentStateUninstalling();
+                    return;
+                case UNINSTALLED:
+                    handleCurrentStateUninstalled(desiredState);
                     break;
                 case ERRORED:
                     handleCurrentStateErrored(desiredState, prevState);
@@ -490,6 +502,8 @@ public class Lifecycle {
         if (State.NEW.equals(desiredState.get())) {
             internalReportState(State.NEW);
             stateToErroredCount.clear();
+        } else if (State.UNINSTALLING.equals(desiredState.get())) {
+            internalReportState(State.UNINSTALLING);
         } else {
             logger.atError("service-broken").log("service is broken. Deployment is needed");
         }
@@ -675,7 +689,50 @@ public class Lifecycle {
         serviceTerminatedMoveToDesiredState(desiredState.get());
     }
 
+    /**
+     * Handle UNINSTALLING state - execute uninstall script and exit lifecycle thread.
+     */
+    private void handleCurrentStateUninstalling() {
+        logger.info("Going into uninstall step");
+        Future<?> uninstallFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
+            try {
+                greengrassService.uninstall();
+            } catch (Throwable t) { // NOPMD - intentionally catch all errors to prevent system crash
+                logger.atError("service-uninstall-error").setCause(t).log();
+            }
+        });
+
+        try {
+            Integer timeout = getTimeoutConfigValue(
+                    LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, DEFAULT_UNINSTALL_STAGE_TIMEOUT_IN_SEC);
+            uninstallFuture.get(timeout, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            logger.atError("service-uninstall-error").setCause(e).log();
+        } catch (TimeoutException te) {
+            logger.atWarn("service-uninstall-timeout").log();
+            uninstallFuture.cancel(true);
+        } catch (InterruptedException ie) {
+            logger.atWarn("service-uninstall-interrupted").log();
+            Thread.currentThread().interrupt();
+        } finally {
+            internalReportState(State.UNINSTALLED);
+        }
+
+    }
+
+    /**
+     * Handle UNINSTALLING state - execute uninstall script and exit lifecycle thread.
+     */
+    private void handleCurrentStateUninstalled(Optional<State> desiredState) {
+        //do nothing, unless its reinstall
+        if (State.NEW.equals(desiredState.get())) {
+            internalReportState(State.NEW);
+        }
+    }
+
     private void handleCurrentStateErrored(Optional<State> desiredState, State prevState) throws InterruptedException {
+        // Check if component is being removed before running error handler
+        
         try {
             greengrassService.handleError();
         } catch (InterruptedException e) {
@@ -709,6 +766,10 @@ public class Lifecycle {
                 desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
                 serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
                 break;
+            case UNINSTALLED:
+            case UNINSTALLING:
+                internalReportState(State.UNINSTALLED);
+                break;
             default:
                 logger.atError(INVALID_STATE_ERROR_EVENT).kv("previousState", prevState)
                         .log("Unexpected previous state");
@@ -725,6 +786,10 @@ public class Lifecycle {
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     private void serviceTerminatedMoveToDesiredState(@Nonnull State desiredState) {
+        if (requestedUninstall.get()) {
+            internalReportState(State.UNINSTALLING);
+            return;
+        }
         if (isClosed.get()) {
             internalReportState(State.FINISHED);
             return;
@@ -739,6 +804,10 @@ public class Lifecycle {
                 break;
             case FINISHED:
                 internalReportState(State.FINISHED);
+                break;
+            case UNINSTALLED:
+            case UNINSTALLING:
+                internalReportState(State.UNINSTALLING);
                 break;
             default:
                 // not allowed to set desired state to STOPPING, ERRORED, BROKEN
@@ -823,6 +892,10 @@ public class Lifecycle {
         isClosed.set(b);
     }
 
+    void setUninstall(boolean b) {
+        requestedUninstall.set(b);
+    }
+
     /**
      * Start Service.
      */
@@ -856,6 +929,10 @@ public class Lifecycle {
         if (isClosed.compareAndSet(true, false)) {
             logger.atWarn("service-shutdown-in-progress")
                     .log("Requesting service to reinstall while it is closing");
+        }
+        if (requestedUninstall.compareAndSet(true, false)) {
+            logger.atWarn("service-uninstall-in-progress")
+                    .log("Requesting service to reinstall while it is uninstalling");
         }
         try (LockScope ls = LockScope.lock(desiredStateLock)) {
             setDesiredState(State.NEW, State.RUNNING);
@@ -902,10 +979,33 @@ public class Lifecycle {
             int index = desiredStateList.indexOf(State.NEW);
             if (index == -1) {
                 setDesiredState(State.FINISHED);
-                return;
+            } else {
+                desiredStateList.subList(index + 1, desiredStateList.size()).clear();
+                desiredStateList.add(State.FINISHED);
             }
-            desiredStateList.subList(index + 1, desiredStateList.size()).clear();
-            desiredStateList.add(State.FINISHED);
+            if (requestedUninstall.get()) {
+                desiredStateList.add(State.UNINSTALLED);
+            }
+        }
+    }
+
+    /**
+     * Request uninstall for permanent component removal.
+     * This sets the desired state to UNINSTALLING, triggering the uninstall lifecycle script.
+     */
+    final void requestUninstall() {
+        logger.atWarn().log("Requesting uninstall...");
+        setUninstall(true);
+        try (LockScope ls = LockScope.lock(desiredStateLock)) {
+
+            State currentState = getState();
+            // request finish first, then uninstall, if broken go directly into uninstall
+            if (currentState == State.BROKEN) {
+                setDesiredState(State.UNINSTALLED);
+            } else {
+                setDesiredState(State.FINISHED, State.UNINSTALLED);
+            }
+
         }
     }
 

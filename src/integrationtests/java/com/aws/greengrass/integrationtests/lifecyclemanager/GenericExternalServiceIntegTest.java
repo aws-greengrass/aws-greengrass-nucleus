@@ -884,6 +884,117 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertFalse(freezerManager.isComponentFrozen(component.getServiceName()));
     }
 
+    // AC1 & AC3: End-to-end uninstall with environment variables
+    @Test
+    void GIVEN_component_with_uninstall_script_WHEN_uninstall_THEN_script_executes_successfully() throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, 
+            getClass().getResource("uninstall_success_config.yaml"));
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("UninstallTestComponent") && newState.equals(State.RUNNING)) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        kernel.launch();
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "component running");
+
+        GenericExternalService component = (GenericExternalService) kernel.locate("UninstallTestComponent");
+        assertThat(component.getState(), is(State.RUNNING));
+
+        component.requestUninstall();
+        Thread.sleep(2000);
+        
+        assertThat(component.getState(), is(State.UNINSTALLED));
+    }
+
+    // AC2: Uninstall script failure doesn't fail deployment
+    @Test
+    void GIVEN_component_with_failing_uninstall_script_WHEN_uninstall_THEN_component_still_uninstalled() throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, 
+            getClass().getResource("uninstall_failure_config.yaml"));
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("FailingUninstallComponent") && newState.equals(State.RUNNING)) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        kernel.launch();
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "component running");
+
+        GenericExternalService component = (GenericExternalService) kernel.locate("FailingUninstallComponent");
+        component.requestUninstall();
+        Thread.sleep(3000);
+        
+        assertThat(component.getState(), is(State.UNINSTALLED));
+    }
+
+    // AC7: State transitions
+    @Test
+    void GIVEN_component_WHEN_uninstall_requested_THEN_goes_through_UNINSTALLING_to_UNINSTALLED_states() throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, 
+            getClass().getResource("uninstall_state_transition_config.yaml"));
+
+        List<State> stateTransitions = new CopyOnWriteArrayList<>();
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        CountDownLatch uninstalledLatch = new CountDownLatch(1);
+        
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("StateTransitionComponent")) {
+                stateTransitions.add(newState);
+                if (newState.equals(State.RUNNING)) {
+                    mainRunningLatch.countDown();
+                } else if (newState.equals(State.UNINSTALLED)) {
+                    uninstalledLatch.countDown();
+                }
+            }
+        });
+
+        kernel.launch();
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "component running");
+
+        GenericExternalService component = (GenericExternalService) kernel.locate("StateTransitionComponent");
+        component.requestUninstall();
+        
+        assertTrue(uninstalledLatch.await(10, TimeUnit.SECONDS), "component uninstalled");
+        
+        assertTrue(stateTransitions.contains(State.UNINSTALLING), "Should transition through UNINSTALLING");
+        assertTrue(stateTransitions.contains(State.UNINSTALLED), "Should reach UNINSTALLED");
+    }
+
+    // AC4 & AC5: Timeout configuration and handling
+    @Test
+    void GIVEN_component_with_timeout_uninstall_script_WHEN_timeout_occurs_THEN_component_uninstalled() throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, 
+            getClass().getResource("uninstall_timeout_config.yaml"));
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("TimeoutUninstallComponent") && newState.equals(State.RUNNING)) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        kernel.launch();
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "component running");
+
+        GenericExternalService component = (GenericExternalService) kernel.locate("TimeoutUninstallComponent");
+        
+        long startTime = System.currentTimeMillis();
+        component.requestUninstall();
+        
+        Thread.sleep(8000);
+        
+        long duration = System.currentTimeMillis() - startTime;
+        assertTrue(duration >= 5000, "Should have waited for timeout");
+        assertTrue(duration < 10000, "Should not wait too long after timeout");
+        
+        assertThat(component.getState(), is(State.UNINSTALLED));
+    }
+
     private boolean isCgroupV2Supported() {
         return Files.exists(Paths.get("/sys/fs/cgroup/cgroup.controllers"));
     }

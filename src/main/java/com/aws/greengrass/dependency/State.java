@@ -54,7 +54,14 @@ public enum State {
      * The service has done it's job and has no more to do. May be restarted
      * (for example, a monitoring task that will be restarted by a timer)
      */
-    FINISHED(true, false, true, "Finished");
+    FINISHED(true, false, true, "Finished"),
+
+    /**
+     * Service is running uninstall script before permanent removal.
+     */
+    UNINSTALLING(true, false, true, "Uninstalling"),
+
+    UNINSTALLED(true, false, true, "Uninstalled");
 
     private final boolean happy;
     private final boolean running;
@@ -115,6 +122,7 @@ public enum State {
     }
 
     public boolean isClosable() {
-        return this.equals(ERRORED) || this.equals(BROKEN) || this.equals(FINISHED) || this.equals(NEW);
+        return this.equals(ERRORED) || this.equals(BROKEN) || this.equals(FINISHED) 
+                || this.equals(NEW) || this.equals(UNINSTALLED);
     }
 }

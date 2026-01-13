@@ -601,6 +601,68 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
+     * Execute the uninstall lifecycle script for permanent component removal.
+     * This method runs the uninstall script defined in the component recipe.
+     * Uninstall execution blocks the calling thread but does not fail the deployment on error.
+     *
+     * <p>Executes the uninstall lifecycle script for this component.
+     * This method is called when the component is being permanently removed
+     * from the device (not during upgrades).
+     *
+     * <p>The uninstall script runs with environment variables providing context:
+     * <ul>
+     *   <li>GREENGRASS_LIFECYCLE_EVENT - Set to "uninstall"</li>
+     *   <li>GREENGRASS_COMPONENT_NAME - The component name</li>
+     *   <li>GREENGRASS_COMPONENT_VERSION - The component version</li>
+     * </ul>
+     *
+     * <p>If the script fails or times out, the error is logged but the component
+     * removal proceeds. This ensures cleanup operations don't block component removal.
+     *
+     * <p>This method is called from {@link Lifecycle#serviceTerminatedMoveToDesiredState()}
+     * after the component has completed its shutdown lifecycle and reached FINISHED state.
+     */
+    @Override
+    protected void uninstall() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            long startTime = System.currentTimeMillis();
+            logger.atInfo()
+                    .kv("componentName", getServiceName())
+                    .kv("componentVersion", Coerce.toString(getConfig().find(VERSION_CONFIG_KEY)))
+                    .log("Uninstall initiated");
+
+            try {
+                RunResult result = run(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses, false);
+                if (result.getExec() != null) {
+                    result.getExec().setenv("GREENGRASS_LIFECYCLE_EVENT", "uninstall");
+                    result.getExec().setenv("GREENGRASS_COMPONENT_NAME", getServiceName());
+                    Topic versionTopic = getConfig().find(VERSION_CONFIG_KEY);
+                    if (versionTopic != null) {
+                        result.getExec().setenv("GREENGRASS_COMPONENT_VERSION", Coerce.toString(versionTopic));
+                    }
+                    if (result.getDoExec() != null) {
+                        result.getDoExec().apply();
+                    }
+                }
+                long duration = System.currentTimeMillis() - startTime;
+                logger.atInfo()
+                        .setEventType("generic-service-uninstall")
+                        .kv("componentName", getServiceName())
+                        .kv("uninstallSuccess", true)
+                        .kv("uninstallDurationMs", duration)
+                        .log();
+            } catch (InterruptedException ex) {
+                long duration = System.currentTimeMillis() - startTime;
+                logger.atWarn("generic-service-uninstall-interrupted")
+                        .kv("componentName", getServiceName())
+                        .kv("uninstallDurationMs", duration)
+                        .log("Thread interrupted while uninstalling service");
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /**
      * Shutdown a service without running the shutdown script.
      * Including stop processes and clean up resources.
      */

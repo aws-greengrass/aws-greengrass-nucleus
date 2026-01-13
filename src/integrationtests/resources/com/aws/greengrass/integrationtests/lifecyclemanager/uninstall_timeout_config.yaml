@@ -1,0 +1,26 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+
+  TimeoutUninstallComponent:
+    lifecycle:
+      posix:
+        run: echo "Component running" && sleep 30
+        uninstall: 
+          script: |
+            echo "Uninstall script starting - will timeout"
+            sleep 10
+            echo "This should not be reached due to timeout"
+          timeout: 5
+      windows:
+        run: echo Component running && timeout /t 30
+        uninstall:
+          script: |
+            echo Uninstall script starting - will timeout
+            timeout /t 10
+            echo This should not be reached due to timeout
+          timeout: 5

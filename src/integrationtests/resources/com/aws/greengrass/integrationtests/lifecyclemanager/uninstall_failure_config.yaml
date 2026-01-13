@@ -1,0 +1,22 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+
+  FailingUninstallComponent:
+    lifecycle:
+      posix:
+        run: echo "Component running" && sleep 30
+        uninstall: |
+          echo "Uninstall script starting"
+          echo "Simulating uninstall failure"
+          exit 1
+      windows:
+        run: echo Component running && timeout /t 30
+        uninstall: |
+          echo Uninstall script starting
+          echo Simulating uninstall failure
+          exit /b 1

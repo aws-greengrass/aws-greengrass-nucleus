@@ -392,6 +392,11 @@ public class DeploymentConfigMerger {
                 return true;
             }).collect(Collectors.toSet());
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("service-to-remove", servicesToRemove).log("Removing services");
+
+            // Request uninstall for each service before closing
+            for (GreengrassService service : ggServicesToRemove) {
+                service.requestUninstall();
+            }
             // waiting for removed service to close before removing reference and config entry
             for (GreengrassService service : ggServicesToRemove) {
                 try {
@@ -402,6 +407,7 @@ public class DeploymentConfigMerger {
                             DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
                 }
             }
+
             servicesToRemove.forEach(serviceName -> {
                 Value removed = kernel.getContext().remove(serviceName);
                 if (removed != null && !removed.isEmpty()) {
