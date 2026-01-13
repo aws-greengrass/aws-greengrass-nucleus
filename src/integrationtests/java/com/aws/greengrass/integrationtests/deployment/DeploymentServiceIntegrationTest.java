@@ -717,4 +717,212 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             assertEquals(first.get(i), second.get(i));
         }
     }
+
+    // AC1: Uninstall script runs when component is deleted
+    @Test
+    void GIVEN_component_with_uninstall_script_WHEN_component_removed_via_deployment_THEN_uninstall_script_executes()
+            throws Exception {
+        CountDownLatch componentRunning = new CountDownLatch(1);
+        CountDownLatch componentUninstalling = new CountDownLatch(1);
+        CountDownLatch componentUninstalled = new CountDownLatch(1);
+        CountDownLatch uninstallScriptExecuted = new CountDownLatch(1);
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null && m.getMessage().contains("Uninstall script executing")) {
+                uninstallScriptExecuted.countDown();
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("UninstallTestComponent")) {
+                    if (newState.equals(State.FINISHED)) {
+                        componentRunning.countDown();
+                    } else if (newState.equals(State.UNINSTALLING)) {
+                        componentUninstalling.countDown();
+                    } else if (newState.equals(State.UNINSTALLED)) {
+                        componentUninstalled.countDown();
+                    }
+                }
+            });
+
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithUninstallTestComponent.json")
+                            .toURI(), "DeployUninstallTestComponent", DeploymentType.SHADOW);
+            assertTrue(componentRunning.await(30, TimeUnit.SECONDS), "Component should reach FINISHED state");
+
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigEmpty.json").toURI(),
+                    "RemoveAllComponents", DeploymentType.SHADOW);
+
+            assertTrue(componentUninstalling.await(30, TimeUnit.SECONDS),
+                    "Component should reach UNINSTALLING state");
+            assertTrue(uninstallScriptExecuted.await(30, TimeUnit.SECONDS), "Uninstall script should execute");
+            assertTrue(componentUninstalled.await(30, TimeUnit.SECONDS),
+                    "Component should reach UNINSTALLED state");
+        }
+    }
+
+    // AC2: Uninstall script failure doesn't fail deployment
+    @Test
+    void GIVEN_component_with_failing_uninstall_script_WHEN_component_removed_THEN_deployment_succeeds()
+            throws Exception {
+        CountDownLatch componentRunning = new CountDownLatch(1);
+        CountDownLatch componentUninstalled = new CountDownLatch(1);
+        CountDownLatch deploymentSucceeded = new CountDownLatch(1);
+
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.SHADOW, (status) -> {
+            if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("RemoveAllComponents")
+                    && status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")) {
+                deploymentSucceeded.countDown();
+            }
+            return true;
+        }, "UninstallFailureTest");
+
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("FailingUninstallComponent")) {
+                if (newState.equals(State.FINISHED)) {
+                    componentRunning.countDown();
+                } else if (newState.equals(State.UNINSTALLED)) {
+                    componentUninstalled.countDown();
+                }
+            }
+        });
+
+        submitSampleCloudDeploymentDocument(
+                DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithFailingUninstallComponent.json")
+                        .toURI(), "DeployFailingUninstallComponent", DeploymentType.SHADOW);
+        assertTrue(componentRunning.await(30, TimeUnit.SECONDS), "Component should reach FINISHED state");
+
+        submitSampleCloudDeploymentDocument(
+                DeploymentServiceIntegrationTest.class.getResource("FleetConfigEmpty.json").toURI(),
+                "RemoveAllComponents", DeploymentType.SHADOW);
+
+        assertTrue(componentUninstalled.await(30, TimeUnit.SECONDS),
+                "Component should reach UNINSTALLED state despite script failure");
+        assertTrue(deploymentSucceeded.await(30, TimeUnit.SECONDS),
+                "Deployment should succeed despite uninstall script failure");
+    }
+
+    // AC3: Uninstall script accesses environment variables
+    @Test
+    void GIVEN_component_with_uninstall_script_WHEN_component_removed_THEN_environment_variables_accessible()
+            throws Exception {
+        CountDownLatch componentRunning = new CountDownLatch(1);
+        CountDownLatch componentUninstalled = new CountDownLatch(1);
+        CountDownLatch envVarsLogged = new CountDownLatch(1);
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null && m.getMessage().contains("AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH")) {
+                envVarsLogged.countDown();
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("UninstallWithEnvComponent")) {
+                    if (newState.equals(State.FINISHED)) {
+                        componentRunning.countDown();
+                    } else if (newState.equals(State.UNINSTALLED)) {
+                        componentUninstalled.countDown();
+                    }
+                }
+            });
+
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithUninstallWithEnvComponent.json")
+                            .toURI(), "DeployUninstallWithEnvComponent", DeploymentType.SHADOW);
+            assertTrue(componentRunning.await(30, TimeUnit.SECONDS), "Component should reach FINISHED state");
+
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigEmpty.json").toURI(),
+                    "RemoveAllComponents", DeploymentType.SHADOW);
+
+            assertTrue(envVarsLogged.await(30, TimeUnit.SECONDS),
+                    "Environment variables should be accessible in uninstall script");
+            assertTrue(componentUninstalled.await(30, TimeUnit.SECONDS),
+                    "Component should reach UNINSTALLED state");
+        }
+    }
+
+    // AC4: Component lifecycle goes through UNINSTALLING and UNINSTALLED states
+    @Test
+    void GIVEN_component_WHEN_component_removed_THEN_transitions_through_UNINSTALLING_to_UNINSTALLED()
+            throws Exception {
+        CountDownLatch componentRunning = new CountDownLatch(1);
+        CountDownLatch componentUninstalling = new CountDownLatch(1);
+        CountDownLatch componentUninstalled = new CountDownLatch(1);
+
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("UninstallTestComponent")) {
+                if (newState.equals(State.FINISHED)) {
+                    componentRunning.countDown();
+                } else if (newState.equals(State.UNINSTALLING)) {
+                    assertEquals(State.FINISHED, oldState, "Should transition from FINISHED to UNINSTALLING");
+                    componentUninstalling.countDown();
+                } else if (newState.equals(State.UNINSTALLED)) {
+                    assertEquals(State.UNINSTALLING, oldState, "Should transition from UNINSTALLING to UNINSTALLED");
+                    componentUninstalled.countDown();
+                }
+            }
+        });
+
+        submitSampleCloudDeploymentDocument(
+                DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithUninstallTestComponent.json")
+                        .toURI(), "DeployUninstallTestComponent", DeploymentType.SHADOW);
+        assertTrue(componentRunning.await(30, TimeUnit.SECONDS), "Component should reach FINISHED state");
+
+        submitSampleCloudDeploymentDocument(
+                DeploymentServiceIntegrationTest.class.getResource("FleetConfigEmpty.json").toURI(),
+                "RemoveAllComponents", DeploymentType.SHADOW);
+
+        assertTrue(componentUninstalling.await(30, TimeUnit.SECONDS),
+                "Component should transition to UNINSTALLING state");
+        assertTrue(componentUninstalled.await(30, TimeUnit.SECONDS),
+                "Component should transition to UNINSTALLED state");
+    }
+
+
+    // AC6: Uninstall timeout is configurable
+    @Test
+    void GIVEN_component_with_custom_timeout_WHEN_component_removed_THEN_custom_timeout_respected()
+            throws Exception {
+        CountDownLatch componentRunning = new CountDownLatch(1);
+        CountDownLatch componentUninstalled = new CountDownLatch(1);
+        CountDownLatch timeoutLogged = new CountDownLatch(1);
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null && m.getMessage()
+                    .contains("Service timed out while UNINSTALLING")) {
+                timeoutLogged.countDown();
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("CustomTimeoutUninstallComponent")) {
+                    if (newState.equals(State.FINISHED)) {
+                        componentRunning.countDown();
+                    } else if (newState.equals(State.UNINSTALLED)) {
+                        componentUninstalled.countDown();
+                    }
+                }
+            });
+
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class
+                            .getResource("FleetConfigWithCustomTimeoutUninstallComponent.json").toURI(),
+                    "DeployCustomTimeoutUninstallComponent", DeploymentType.SHADOW);
+            assertTrue(componentRunning.await(30, TimeUnit.SECONDS), "Component should reach FINISHED state");
+
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigEmpty.json").toURI(),
+                    "RemoveAllComponents", DeploymentType.SHADOW);
+
+            assertTrue(timeoutLogged.await(15, TimeUnit.SECONDS),
+                    "Uninstall script should timeout with custom timeout (10s)");
+            assertTrue(componentUninstalled.await(30, TimeUnit.SECONDS),
+                    "Component should reach UNINSTALLED state after timeout");
+        }
+    }
 }

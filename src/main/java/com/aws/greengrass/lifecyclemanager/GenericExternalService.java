@@ -63,6 +63,7 @@ public class GenericExternalService extends GreengrassService {
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
     private static final String CONFIG_NODE = "configNode";
+    public static final String COMPONENT_VERSION_ENV_NAME = "GREENGRASS_COMPONENT_VERSION";
     // Logger which write to a file for just this service
     protected final Logger separateLogger;
     protected final Platform platform;
@@ -597,6 +598,34 @@ public class GenericExternalService extends GreengrassService {
                 logger.atInfo().setEventType("generic-service-shutdown").log();
             }
             resetRunWith(); // reset runWith - a deployment can change user info
+        }
+    }
+
+    /**
+     * Execute the uninstall lifecycle script for permanent component removal.
+     */
+    @Override
+    protected void uninstall() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atInfo().log("Shutdown initiated");
+
+            try {
+                RunResult result = run(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses, false);
+                if (result.getExec() != null) {
+                    Topic versionTopic = getConfig().find(VERSION_CONFIG_KEY);
+                    if (versionTopic != null) {
+                        result.getExec().setenv(COMPONENT_VERSION_ENV_NAME, Coerce.toString(versionTopic));
+                    }
+                    if (result.getDoExec() != null) {
+                        result.getDoExec().apply();
+                    }
+                }
+            } catch (InterruptedException ex) {
+                logger.atWarn("generic-service-uninstall-interrupted")
+                        .kv("componentName:", getServiceName())
+                        .log("Thread interrupted while uninstalling service");
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

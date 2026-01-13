@@ -1,0 +1,22 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+
+  StateTransitionComponent:
+    version: 1.0.0
+    lifecycle:
+      run: echo "Component running"
+      uninstall: |
+        echo "Uninstall script executing"
+        sleep 1
+        echo "Uninstall completed"
+
+  main:
+    lifecycle:
+      run: echo "Running main"
+    dependencies:
+      - StateTransitionComponent

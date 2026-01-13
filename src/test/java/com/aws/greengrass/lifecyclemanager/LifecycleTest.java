@@ -692,12 +692,92 @@ class LifecycleTest {
         assertTrue(configUpdateFinished.await(2 , TimeUnit.SECONDS), "updated config:" + config.toPOJO().toString());
     }
 
+    // Uninstall Lifecycle Tests - AC7: State transitions from FINISHED → UNINSTALLING → UNINSTALLED
+    @Test
+    void GIVEN_service_in_FINISHED_state_WHEN_requestUninstall_THEN_transitions_to_UNINSTALLED() throws Exception {
+        Configuration config = new Configuration(context);
+        Topics testServiceTopics = config.getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC)
+                .createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        CountDownLatch uninstallCalled = new CountDownLatch(1);
+        testService.setStartupRunnable(() -> testService.reportState(State.RUNNING));
+        testService.setUninstallRunnable(() -> uninstallCalled.countDown());
+
+        testService.postInject();
+        testService.requestStart();
+        assertThat(testService::getState, eventuallyEval(is(State.RUNNING)));
+
+        testService.requestStop();
+        assertThat(testService::getState, eventuallyEval(is(State.FINISHED)));
+
+        testService.requestUninstall();
+        
+        assertTrue(uninstallCalled.await(2, TimeUnit.SECONDS), "Uninstall should be called");
+        assertThat(testService::getState, eventuallyEval(is(State.UNINSTALLED)));
+    }
+
+    // Uninstall Lifecycle Tests - AC7: State transitions from ERRORED → UNINSTALLING → UNINSTALLED
+    @Test
+    void GIVEN_service_in_ERRORED_state_WHEN_requestUninstall_THEN_transitions_to_UNINSTALLED() throws Exception {
+        Configuration config = new Configuration(context);
+        Topics testServiceTopics = config.getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC)
+                .createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        CountDownLatch uninstallCalled = new CountDownLatch(1);
+        testService.setStartupRunnable(() -> testService.reportState(State.ERRORED));
+        testService.setUninstallRunnable(() -> uninstallCalled.countDown());
+
+        testService.postInject();
+        testService.requestStart();
+        assertThat(testService::getState, eventuallyEval(is(State.ERRORED)));
+
+        testService.requestUninstall();
+        
+        assertTrue(uninstallCalled.await(2, TimeUnit.SECONDS), "Uninstall should be called");
+        assertThat(testService::getState, eventuallyEval(is(State.UNINSTALLED)));
+    }
+
+    // Uninstall Lifecycle Tests - AC7: State transitions from BROKEN → UNINSTALLING → UNINSTALLED (direct)
+    @Test
+    void GIVEN_service_in_BROKEN_state_WHEN_requestUninstall_THEN_transitions_directly_to_UNINSTALLED() throws Exception {
+        Configuration config = new Configuration(context);
+        Topics testServiceTopics = config.getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC)
+                .createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        CountDownLatch uninstallCalled = new CountDownLatch(1);
+        AtomicInteger startupAttempts = new AtomicInteger(0);
+        testService.setStartupRunnable(() -> {
+            if (startupAttempts.incrementAndGet() <= 3) {
+                testService.reportState(State.ERRORED);
+            }
+        });
+        testService.setUninstallRunnable(() -> uninstallCalled.countDown());
+
+        testService.postInject();
+        testService.requestStart();
+        assertThat(testService::getState, eventuallyEval(is(State.BROKEN)));
+
+        testService.requestUninstall();
+        
+        assertTrue(uninstallCalled.await(2, TimeUnit.SECONDS), "Uninstall should be called");
+        assertThat(testService::getState, eventuallyEval(is(State.UNINSTALLED)));
+    }
+
     private class TestService extends GreengrassService {
         @Setter
         private Runnable startupRunnable = () -> {};
 
         @Setter
         private Runnable shutdownRunnable = () -> {};
+
+        @Setter
+        private Runnable uninstallRunnable = () -> {};
 
         TestService(Topics topics) {
             super(topics);
@@ -711,6 +791,11 @@ class LifecycleTest {
         @Override
         public void shutdown() {
             shutdownRunnable.run();
+        }
+
+        @Override
+        protected void uninstall() {
+            uninstallRunnable.run();
         }
     }
 }
