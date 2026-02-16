@@ -1,0 +1,20 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: FailingUninstallComponent
+ComponentVersion: '1.0.0'
+ComponentDescription: Component with failing uninstall script
+ComponentPublisher: Amazon
+Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      Run: powershell -command "echo 'Component running'"
+      Uninstall: |-
+        powershell -command "& { echo 'Uninstall script starting'; exit 1 }"
+  - Platform:
+      os: all
+    Lifecycle:
+      Run: echo "Component running"
+      Uninstall: |-
+        echo "Uninstall script starting"
+        exit 1

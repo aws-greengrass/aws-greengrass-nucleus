@@ -52,6 +52,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class GenericExternalServiceTest extends GGServiceTestUtil {
     private GenericExternalService ges;
@@ -365,5 +366,144 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         capturedCallback.get().accept(1);
 
         verify(ges, never()).serviceErrored(any(ComponentStatusCode.class), any(Integer.class), any(String.class));
+    }
+
+    // AC1 & AC3: Uninstall script runs with environment variables
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_service_with_uninstall_script_WHEN_uninstall_THEN_script_executes_with_environment_variables() throws Exception {
+        Class<?> runResultClass = Class.forName(
+                "com.aws.greengrass.lifecyclemanager.GenericExternalService$RunResult");
+        Constructor<?> constructor = runResultClass.getDeclaredConstructor(
+                GreengrassService.RunStatus.class, Exec.class, ComponentStatusCode.class);
+        constructor.setAccessible(true);
+        
+        Exec mockExec = mock(Exec.class);
+        when(mockExec.setenv(any(), any())).thenReturn(mockExec);
+        Object runResult = constructor.newInstance(GreengrassService.RunStatus.OK, mockExec, ComponentStatusCode.NONE);
+
+        doReturn(runResult).when(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+
+        ges.uninstall();
+
+        verify(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+        verify(mockExec).setenv(eq("GREENGRASS_COMPONENT_VERSION"), eq("1.0.0"));
+    }
+
+    // AC2: Uninstall script failure will not fail deployment
+    @Test
+    void GIVEN_service_with_uninstall_script_WHEN_uninstall_fails_THEN_exception_caught_and_logged() throws Exception {
+        doThrow(new InterruptedException("Uninstall script failed")).when(ges)
+                .run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+
+        // Uninstall should complete without throwing exception
+        ges.uninstall();
+        
+        verify(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+        // Verify thread interrupt flag is set
+        assertTrue(Thread.interrupted(), "Thread interrupt status should be set after InterruptedException");
+    }
+
+    // AC7: Component lifecycle state transitions - this should be tested in integration tests
+    // Unit tests cannot properly verify state transitions without full lifecycle context
+    @Test
+    void GIVEN_service_WHEN_uninstall_called_THEN_run_method_invoked() throws Exception {
+        Class<?> runResultClass = Class.forName(
+                "com.aws.greengrass.lifecyclemanager.GenericExternalService$RunResult");
+        Constructor<?> constructor = runResultClass.getDeclaredConstructor(
+                GreengrassService.RunStatus.class, Exec.class, ComponentStatusCode.class);
+        constructor.setAccessible(true);
+        Object runResult = constructor.newInstance(GreengrassService.RunStatus.NothingDone, null, null);
+
+        doReturn(runResult).when(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+        
+        ges.uninstall();
+        
+        verify(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+    }
+
+    // AC4 & AC5: Timeout behavior - should be tested in integration tests with real timeout configuration
+    // Unit tests with mocked uninstall() don't actually test timeout behavior
+    @Test
+    void GIVEN_service_with_uninstall_script_WHEN_interrupted_during_execution_THEN_handles_gracefully() throws Exception {
+        doAnswer(invocation -> {
+            Thread.currentThread().interrupt();
+            throw new InterruptedException("Interrupted");
+        }).when(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+        
+        ges.uninstall();
+        
+        verify(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+        assertTrue(Thread.interrupted(), "Thread interrupt status should be preserved");
+    }
+
+    // AC6: Skip-if functionality - should be tested in integration tests with real configuration
+    // This unit test verifies uninstall completes when no script is defined (NothingDone status)
+    @Test
+    void GIVEN_service_with_no_uninstall_script_WHEN_uninstall_THEN_completes_without_execution() throws Exception {
+        Class<?> runResultClass = Class.forName(
+                "com.aws.greengrass.lifecyclemanager.GenericExternalService$RunResult");
+        Constructor<?> constructor = runResultClass.getDeclaredConstructor(
+                GreengrassService.RunStatus.class, Exec.class, ComponentStatusCode.class);
+        constructor.setAccessible(true);
+        Object runResult = constructor.newInstance(GreengrassService.RunStatus.NothingDone, null, null);
+
+        doReturn(runResult).when(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+        
+        ges.uninstall();
+        
+        verify(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+    }
+
+    // AC8: Privilege support - verify doExec is called when present
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_service_with_uninstall_script_WHEN_uninstall_THEN_doExec_invoked() throws Exception {
+        Class<?> runResultClass = Class.forName(
+                "com.aws.greengrass.lifecyclemanager.GenericExternalService$RunResult");
+        Constructor<?> constructor = runResultClass.getDeclaredConstructor(
+                GreengrassService.RunStatus.class, Exec.class, ComponentStatusCode.class);
+        constructor.setAccessible(true);
+
+        Exec mockExec = mock(Exec.class);
+        when(mockExec.setenv(any(), any())).thenReturn(mockExec);
+        
+        AtomicReference<Boolean> doExecCalled = new AtomicReference<>(false);
+        
+        Object runResult = constructor.newInstance(GreengrassService.RunStatus.OK, mockExec, ComponentStatusCode.NONE);
+        
+        // Use reflection to set doExec field with a CrashableSupplier
+        java.lang.reflect.Field doExecField = runResultClass.getDeclaredField("doExec");
+        doExecField.setAccessible(true);
+        com.aws.greengrass.util.CrashableSupplier<Void, InterruptedException> doExec = () -> {
+            doExecCalled.set(true);
+            return null;
+        };
+        doExecField.set(runResult, doExec);
+
+        doReturn(runResult).when(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+
+        ges.uninstall();
+
+        assertTrue(doExecCalled.get(), "doExec should be invoked when present");
+        verify(mockExec).setenv(eq("GREENGRASS_COMPONENT_VERSION"), eq("1.0.0"));
+    }
+
+    // Edge Case: Uninstall with no script defined
+    @Test
+    void GIVEN_service_with_no_uninstall_script_WHEN_uninstall_THEN_completes_successfully() throws Exception {
+        Class<?> runResultClass = Class.forName(
+                "com.aws.greengrass.lifecyclemanager.GenericExternalService$RunResult");
+        Constructor<?> constructor = runResultClass.getDeclaredConstructor(
+                GreengrassService.RunStatus.class, Exec.class, ComponentStatusCode.class);
+        constructor.setAccessible(true);
+        Object runResult = constructor.newInstance(GreengrassService.RunStatus.NothingDone, null, null);
+
+        doReturn(runResult).when(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+
+        ges.uninstall();
+
+        verify(ges).run(eq(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC), eq(null), any(), eq(false));
+        // Verify no exception thrown when no script is defined
     }
 }

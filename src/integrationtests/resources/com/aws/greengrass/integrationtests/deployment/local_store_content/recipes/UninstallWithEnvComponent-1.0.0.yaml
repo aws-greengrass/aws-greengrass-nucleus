@@ -1,0 +1,21 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: UninstallWithEnvComponent
+ComponentVersion: '1.0.0'
+ComponentDescription: Component that uses environment variables in uninstall
+ComponentPublisher: Amazon
+Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      Run: powershell -command "echo 'Component running'"
+      Uninstall: |-
+        powershell -command "& { echo 'Uninstall with env vars'; echo \"AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH: $env:AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH\"; echo \"SVCUID: $env:SVCUID\" }"
+  - Platform:
+      os: all
+    Lifecycle:
+      Run: echo "Component running"
+      Uninstall: |-
+        echo "Uninstall with env vars"
+        echo "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH: $AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH"
+        echo "SVCUID: $SVCUID"

@@ -1,0 +1,20 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: UninstallTestComponent
+ComponentVersion: '1.0.0'
+ComponentDescription: Component with basic uninstall script
+ComponentPublisher: Amazon
+Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      Run: powershell -command "echo 'Component running'"
+      Uninstall: |-
+        powershell -command "& { echo 'Uninstall script executing'; echo 'Component uninstalled successfully' }"
+  - Platform:
+      os: all
+    Lifecycle:
+      Run: echo "Component running"
+      Uninstall: |-
+        echo "Uninstall script executing"
+        echo "Component uninstalled successfully"
