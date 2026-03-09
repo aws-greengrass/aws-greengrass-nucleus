@@ -483,6 +483,10 @@ public class Kernel {
             {"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"})
     private GreengrassService createGreengrassServiceInstance(Context.Value v, String name, CrashableFunction<String,
             GreengrassService, ServiceLoadException> locateFunction) throws ServiceLoadException {
+        if (kernelLifecycle.getIsShutdownInitiated().get()) {
+            throw new ServiceLoadException(
+                    "Cannot load service " + name + " because Nucleus shutdown has been initiated");
+        }
         Topics serviceRootTopics = findServiceTopic(name);
 
         Class<?> clazz = null;
