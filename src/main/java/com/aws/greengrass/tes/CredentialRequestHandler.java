@@ -21,9 +21,9 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.LockFactory;
 import com.aws.greengrass.util.LockScope;
+import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
@@ -63,8 +63,7 @@ public class CredentialRequestHandler implements HttpHandler {
     private static final String SESSION_TOKEN_DOWNSTREAM_STR = "Token";
     private static final String EXPIRATION_UPSTREAM_STR = "expiration";
     private static final String EXPIRATION_DOWNSTREAM_STR = "Expiration";
-    private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+    private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getStrictJsonObjectMapper();
     public static final String AUTH_HEADER = "Authorization";
     public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
     public static final String SUPPORTED_REQUEST_VERB = "GET";
