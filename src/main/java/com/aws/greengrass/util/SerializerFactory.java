@@ -26,9 +26,11 @@ public final class SerializerFactory {
     private static final ObjectMapper CASE_INSENSITIVE_JSON_OBJECT_MAPPER =
             JsonMapper.builder().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true).build();
 
-    private static final ObjectMapper SORTED_JSON_OBJECT_MAPPER = new ObjectMapper()
-            .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
-            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    private static final ObjectMapper SORTED_JSON_OBJECT_MAPPER =
+            JsonMapper.builder()
+                    .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
+                    .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+                    .build();
 
     public static ObjectMapper getFailSafeJsonObjectMapper() {
         return FAIL_SAFE_JSON_OBJECT_MAPPER;
