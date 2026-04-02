@@ -33,10 +33,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -154,6 +156,19 @@ public class DeploymentConfigMerger {
             return;
         }
 
+        // Persist source endpoints before activation for endpoint-switch deployments
+        if (isEndpointSwitchDeployment(nucleusConfig, deviceConfiguration)) {
+            String currentDataEndpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+            String newDataEndpoint = Coerce.toString(nucleusConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
+            logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY)
+                    .kv("currentIotDataEndpoint", currentDataEndpoint)
+                    .kv("newIotDataEndpoint", newDataEndpoint)
+                    .log("Endpoint switch deployment detected");
+            deviceConfiguration.setSourceIotDataEndpoint(currentDataEndpoint);
+            logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY)
+                    .log("Source endpoint metadata persisted for rollback");
+        }
+
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes");
         activator.activate(newConfig, deployment, configMergeTimestamp, totallyCompleteFuture);
@@ -253,6 +268,22 @@ public class DeploymentConfigMerger {
         return iotDataEndpoint;
     }
 
+    /**
+     * Detect whether a deployment changes the IoT data endpoint.
+     *
+     * @param nucleusConfig       the incoming nucleus configuration map, may be null
+     * @param deviceConfiguration the current device configuration
+     * @return true if the deployment changes iotDataEndpoint
+     */
+    static boolean isEndpointSwitchDeployment(Map<String, Object> nucleusConfig,
+                                              DeviceConfiguration deviceConfiguration) {
+        if (nucleusConfig == null || !nucleusConfig.containsKey(DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
+            return false;
+        }
+        String current = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+        String incoming = Coerce.toString(nucleusConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
+        return !Objects.equals(current, incoming);
+    }
 
     @Getter
     @AllArgsConstructor(access = AccessLevel.PRIVATE)

@@ -49,7 +49,18 @@ public class DefaultActivator extends DeploymentActivator {
         }
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
-        if (isAutoRollbackRequested(deploymentDocument) && !takeConfigSnapshot(totallyCompleteFuture)) {
+        boolean autoRollback = isAutoRollbackRequested(deploymentDocument);
+
+        // Endpoint switch deployments force config snapshot and rollback regardless of FailureHandlingPolicy,
+        // so that we can restore the original endpoint if the new one is unreachable after applying the change.
+        // Only check when auto-rollback is not already requested to avoid redundant metadata reads.
+        boolean endpointSwitch = !autoRollback && isEndpointSwitch();
+        if (endpointSwitch) {
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY)
+                    .log("Endpoint switch deployment: forcing config snapshot and rollback support");
+        }
+        if ((autoRollback || endpointSwitch)
+                && !takeConfigSnapshot(totallyCompleteFuture)) {
             return;
         }
 
@@ -114,7 +125,9 @@ public class DefaultActivator extends DeploymentActivator {
                                Throwable failureCause) {
         logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                 .setCause(failureCause).log("Deployment failed");
-        if (isAutoRollbackRequested(deploymentDocument)) {
+        if (isAutoRollbackRequested(deploymentDocument) || isEndpointSwitch()) {
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                    .log("Initiating rollback for failed deployment");
             rollback(deploymentDocument, totallyCompleteFuture, failureCause,
                     servicesChangeManager.createRollbackManager());
         } else {
@@ -178,6 +191,13 @@ public class DefaultActivator extends DeploymentActivator {
         } catch (InterruptedException | ServiceUpdateException | ServiceLoadException e) {
             handleFailureRollback(totallyCompleteFuture, failureCause, e);
         }
+    }
+
+    /**
+     * Check if the current deployment is an endpoint switch by looking for persisted source endpoint in config store.
+     */
+    private boolean isEndpointSwitch() {
+        return deploymentDirectoryManager.hasEndpointSwitchMetadata();
     }
 
     private void handleFailureRollback(CompletableFuture totallyCompleteFuture, Throwable deploymentFailureCause,

@@ -176,6 +176,18 @@ public class DeploymentDirectoryManager {
     }
 
     /**
+     * Check if the current deployment is an endpoint-switch deployment by checking the config store
+     * for a persisted source IoT data endpoint.
+     *
+     * @return true if a source IoT data endpoint is persisted in the config store
+     */
+    public boolean hasEndpointSwitchMetadata() {
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        String source = deviceConfiguration.getSourceIotDataEndpoint();
+        return source != null && !source.isEmpty();
+    }
+
+    /**
      * Take a snapshot in a transaction log file before rollback if rollback is applicable for deployment.
      *
      * @param filepath File path to the config snapshot

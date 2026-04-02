@@ -80,6 +80,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_GG_DATA_ENDPOINT = "greengrassDataPlaneEndpoint";
     public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
     public static final String DEVICE_PARAM_IOT_CRED_ENDPOINT = "iotCredEndpoint";
+    public static final String DEVICE_PARAM_SOURCE_IOT_DATA_ENDPOINT = "sourceIotDataEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
@@ -470,6 +471,32 @@ public class DeviceConfiguration {
 
     public Topic getIotCredentialEndpoint() {
         return getTopic(DEVICE_PARAM_IOT_CRED_ENDPOINT).dflt("");
+    }
+
+    /**
+     * Get the source IoT data endpoint persisted during an endpoint-switch deployment.
+     * Returns null if no endpoint switch is in progress.
+     */
+    public String getSourceIotDataEndpoint() {
+        Topic t = config.find(DEVICE_PARAM_SOURCE_IOT_DATA_ENDPOINT);
+        return t == null ? null : Coerce.toString(t);
+    }
+
+    /**
+     * Persist the source IoT data endpoint for an endpoint-switch deployment.
+     */
+    public void setSourceIotDataEndpoint(String endpoint) {
+        config.lookup(DEVICE_PARAM_SOURCE_IOT_DATA_ENDPOINT).withValue(endpoint);
+    }
+
+    /**
+     * Remove the persisted source IoT data endpoint after deployment completes.
+     */
+    public void clearSourceIotDataEndpoint() {
+        Topic t = config.find(DEVICE_PARAM_SOURCE_IOT_DATA_ENDPOINT);
+        if (t != null) {
+            t.remove();
+        }
     }
 
     public Topic getAWSRegion() {

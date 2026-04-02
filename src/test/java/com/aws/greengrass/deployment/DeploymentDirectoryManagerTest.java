@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.CommitableWriter;
@@ -37,10 +38,13 @@ import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -171,6 +175,31 @@ class DeploymentDirectoryManagerTest {
         assertEquals(actual.resolve(ROLLBACK_SNAPSHOT_FILE), deploymentDirectoryManager.getSnapshotFilePath());
         assertEquals(actual.resolve(TARGET_CONFIG_FILE), deploymentDirectoryManager.getTargetConfigFilePath());
         assertEquals(actual.resolve(BOOTSTRAP_TASK_FILE), deploymentDirectoryManager.getBootstrapTaskFilePath());
+    }
+
+    @Test
+    void GIVEN_source_endpoint_in_config_WHEN_hasEndpointSwitchMetadata_THEN_returns_true() throws Exception {
+        createNewDeploymentDir(mockArn);
+        DeviceConfiguration deviceConfiguration = mock(DeviceConfiguration.class);
+        Context context = mock(Context.class);
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(deviceConfiguration.getSourceIotDataEndpoint())
+                .thenReturn("old-data-endpoint.iot.us-east-1.amazonaws.com");
+
+        assertTrue(deploymentDirectoryManager.hasEndpointSwitchMetadata());
+    }
+
+    @Test
+    void GIVEN_no_source_endpoint_in_config_WHEN_hasEndpointSwitchMetadata_THEN_returns_false() throws Exception {
+        createNewDeploymentDir(mockArn);
+        DeviceConfiguration deviceConfiguration = mock(DeviceConfiguration.class);
+        Context context = mock(Context.class);
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(deviceConfiguration.getSourceIotDataEndpoint()).thenReturn(null);
+
+        assertFalse(deploymentDirectoryManager.hasEndpointSwitchMetadata());
     }
 
     private Path createNewDeploymentDir(String arn) throws IOException {
