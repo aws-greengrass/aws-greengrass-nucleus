@@ -37,6 +37,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -60,6 +61,7 @@ public class DeploymentConfigMerger {
     public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     public static final String SERVICE_NAME_LOG_KEY = "serviceName";
+    public static final String SOURCE_IOT_DATA_ENDPOINT_KEY = "sourceIotDataEndpoint";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
@@ -152,6 +154,22 @@ public class DeploymentConfigMerger {
         // Validate the AWS region, IoT credentials endpoint as well as the IoT data endpoint.
         if (!validateNucleusConfig(totallyCompleteFuture, nucleusConfig)) {
             return;
+        }
+
+        // Persist source endpoint before activation for endpoint-switch deployments.
+        // Stored under services.DeploymentService.runtime (internal deployment state, not customer config).
+        // Persisted to config.tlog so it survives device crashes mid-endpoint-switch.
+        // Step 5 uses this value to report deployment status back to the source account.
+        // Cleared after status reporting; stale keys are harmless and overwritten by the next switch.
+        if (isEndpointSwitchDeployment(nucleusConfig, deviceConfiguration)) {
+            String currentDataEndpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+            String newDataEndpoint = Coerce.toString(nucleusConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
+            logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY)
+                    .kv("currentIotDataEndpoint", currentDataEndpoint)
+                    .kv("newIotDataEndpoint", newDataEndpoint)
+                    .log("Endpoint switch deployment detected, persisting source endpoint for rollback");
+            kernel.getContext().get(DeploymentService.class).getRuntimeConfig()
+                    .lookup(SOURCE_IOT_DATA_ENDPOINT_KEY).withValue(currentDataEndpoint);
         }
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
@@ -253,6 +271,22 @@ public class DeploymentConfigMerger {
         return iotDataEndpoint;
     }
 
+    /**
+     * Detect whether a deployment changes the IoT data endpoint.
+     *
+     * @param nucleusConfig       the incoming nucleus configuration map, may be null
+     * @param deviceConfiguration the current device configuration
+     * @return true if the deployment changes iotDataEndpoint
+     */
+    static boolean isEndpointSwitchDeployment(Map<String, Object> nucleusConfig,
+                                              DeviceConfiguration deviceConfiguration) {
+        if (nucleusConfig == null || !nucleusConfig.containsKey(DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
+            return false;
+        }
+        String current = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+        String incoming = Coerce.toString(nucleusConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
+        return !Objects.equals(current, incoming);
+    }
 
     @Getter
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
