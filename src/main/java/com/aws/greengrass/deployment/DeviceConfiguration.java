@@ -385,6 +385,10 @@ public class DeviceConfiguration {
         };
     }
 
+    public void setRootCA3Downloaded(boolean downloaded) {
+        rootCA3Downloaded.set(downloaded);
+    }
+
     public Topics getRunWithTopic() {
         return getTopics(RUN_WITH_TOPIC);
     }

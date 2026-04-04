@@ -35,6 +35,7 @@ public final class RootCAUtils {
     public static final String AMAZON_ROOT_CA_2_URL = "https://www.amazontrust.com/repository/AmazonRootCA2.pem";
     public static final String AMAZON_ROOT_CA_3_URL = "https://www.amazontrust.com/repository/AmazonRootCA3.pem";
     public static final String AMAZON_ROOT_CA_4_URL = "https://www.amazontrust.com/repository/AmazonRootCA4.pem";
+    public static final String SFS_ROOT_CA_G2_URL = "https://www.amazontrust.com/repository/SFSRootCAG2.pem";
     private static final Logger logger = LogManager.getLogger(ProxyUtils.class);
 
     private RootCAUtils() {

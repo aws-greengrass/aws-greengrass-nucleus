@@ -285,9 +285,16 @@ public class DeviceProvisioningHelper {
 
         Path caFilePath = certPath.resolve("rootCA.pem");
 
+        boolean allCAsDownloaded = false;
         try {
-            outStream.printf("Downloading CA from \"%s\"%n", RootCAUtils.AMAZON_ROOT_CA_1_URL);
-            RootCAUtils.downloadRootCAToFile(caFilePath.toFile(), RootCAUtils.AMAZON_ROOT_CA_1_URL);
+            outStream.println("Downloading Amazon Root CAs");
+            RootCAUtils.downloadRootCAToFile(caFilePath.toFile(),
+                    RootCAUtils.AMAZON_ROOT_CA_1_URL,
+                    RootCAUtils.AMAZON_ROOT_CA_2_URL,
+                    RootCAUtils.AMAZON_ROOT_CA_3_URL,
+                    RootCAUtils.AMAZON_ROOT_CA_4_URL,
+                    RootCAUtils.SFS_ROOT_CA_G2_URL);
+            allCAsDownloaded = true;
         } catch (IOException e) {
             // Do not block as the root CA file may have been manually provisioned
             outStream.printf("Failed to download CA from path - %s%n", e);
@@ -301,9 +308,12 @@ public class DeviceProvisioningHelper {
         Path certFilePath = certPath.resolve("thingCert.crt");
         Files.write(certFilePath, thing.certificatePem.getBytes(StandardCharsets.UTF_8));
 
-        new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(),
+        DeviceConfiguration deviceConfig = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(),
                 thing.thingName, thing.dataEndpoint, thing.credEndpoint, privKeyFilePath.toString(),
                 certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);
+        if (allCAsDownloaded) {
+            deviceConfig.setRootCA3Downloaded(true);
+        }
         // Make sure tlog persists the device configuration
         kernel.getContext().waitForPublishQueueToClear();
         outStream.println("Created device configuration");
