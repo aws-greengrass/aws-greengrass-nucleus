@@ -311,9 +311,7 @@ public class DeviceProvisioningHelper {
         DeviceConfiguration deviceConfig = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(),
                 thing.thingName, thing.dataEndpoint, thing.credEndpoint, privKeyFilePath.toString(),
                 certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);
-        if (allCAsDownloaded) {
-            deviceConfig.setRootCA3Downloaded(true);
-        }
+        deviceConfig.setRootCA3Downloaded(allCAsDownloaded);
         // Make sure tlog persists the device configuration
         kernel.getContext().waitForPublishQueueToClear();
         outStream.println("Created device configuration");
