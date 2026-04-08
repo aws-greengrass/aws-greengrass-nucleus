@@ -349,7 +349,6 @@ public class DeviceProvisioningHelper {
                                 + "\"\n      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
                 roleArn = iamClient.createRole(createRoleRequest).role().arn();
             }
-
             CreateRoleAliasRequest createRoleAliasRequest =
                     CreateRoleAliasRequest.builder().roleArn(roleArn).roleAlias(roleAliasName).build();
             roleAliasArn = iotClient.createRoleAlias(createRoleAliasRequest).roleAliasArn();
@@ -368,7 +367,6 @@ public class DeviceProvisioningHelper {
                             + "\t\t\"Resource\": \"" + roleAliasArn + "\"\n\t}\n}").build();
             iotClient.createPolicy(createPolicyRequest);
         }
-
         outStream.println("Attaching TES role policy to IoT thing...");
         AttachPolicyRequest attachPolicyRequest =
                 AttachPolicyRequest.builder().policyName(iotRolePolicyName).target(certificateArn).build();
