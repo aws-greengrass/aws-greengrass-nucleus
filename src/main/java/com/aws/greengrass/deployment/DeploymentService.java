@@ -98,6 +98,7 @@ public class DeploymentService extends GreengrassService {
     public static final String GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY = "configArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
+    public static final String SOURCE_IOT_DATA_ENDPOINT_KEY = "sourceIotDataEndpoint";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
     public static final String DEPLOYMENT_DETAILED_STATUS_KEY = "detailed-deployment-status";
     public static final String DEPLOYMENT_FAILURE_CAUSE_KEY = "deployment-failure-cause";

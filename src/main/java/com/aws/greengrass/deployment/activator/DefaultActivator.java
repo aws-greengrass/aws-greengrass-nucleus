@@ -140,6 +140,17 @@ public class DefaultActivator extends DeploymentActivator {
         }
     }
 
+    /**
+     * Check if the current deployment is an endpoint switch by looking for persisted source endpoint
+     * in DeploymentService runtime config.
+     */
+    private boolean isEndpointSwitch() {
+        Topic t = kernel.getContext().get(DeploymentService.class).getRuntimeConfig()
+                .find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY);
+        String source = t == null ? null : Coerce.toString(t);
+        return source != null && !source.isEmpty();
+    }
+
     void rollback(DeploymentDocument deploymentDocument, CompletableFuture<DeploymentResult> totallyCompleteFuture,
                   Throwable failureCause, DeploymentConfigMerger.AggregateServicesChangeManager rollbackManager) {
         String deploymentId = deploymentDocument.getDeploymentId();
@@ -194,17 +205,6 @@ public class DefaultActivator extends DeploymentActivator {
         } catch (InterruptedException | ServiceUpdateException | ServiceLoadException e) {
             handleFailureRollback(totallyCompleteFuture, failureCause, e);
         }
-    }
-
-    /**
-     * Check if the current deployment is an endpoint switch by looking for persisted source endpoint
-     * in DeploymentService runtime config.
-     */
-    private boolean isEndpointSwitch() {
-        Topic t = kernel.getContext().get(DeploymentService.class).getRuntimeConfig()
-                .find(DeploymentConfigMerger.SOURCE_IOT_DATA_ENDPOINT_KEY);
-        String source = t == null ? null : Coerce.toString(t);
-        return source != null && !source.isEmpty();
     }
 
     private void handleFailureRollback(CompletableFuture totallyCompleteFuture, Throwable deploymentFailureCause,
