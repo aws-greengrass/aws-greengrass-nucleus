@@ -177,6 +177,7 @@ services:
         pingTimeoutMs: 30000
         operationTimeoutMs: 30000
         maxInFlightPublishes: 5
+        standaloneMqttTimeoutMs: 60000
         spooler:
           keepQos0WhenOffline: false
           maxSizeInBytes: 2621440

@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -27,12 +28,20 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.StandaloneMqttConnection;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import software.amazon.awssdk.crt.http.HttpProxyOptions;
+import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,8 +70,9 @@ public class DeploymentConfigMerger {
     public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     public static final String SERVICE_NAME_LOG_KEY = "serviceName";
-    public static final String SOURCE_IOT_DATA_ENDPOINT_KEY = "sourceIotDataEndpoint";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
+    static final long DEFAULT_PREFLIGHT_MQTT_TIMEOUT_MS = 60_000;
+    static final String STANDALONE_MQTT_TIMEOUT_KEY = "standaloneMqttTimeoutMs";
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
@@ -156,9 +166,10 @@ public class DeploymentConfigMerger {
             return;
         }
 
-        // Persist source endpoint before activation for endpoint-switch deployments.
-        // Stored under services.DeploymentService.runtime (internal deployment state, not customer config).
-        // Persisted to config.tlog so it survives device crashes mid-endpoint-switch.
+        // Endpoint-switch deployments: pre-flight connectivity check, then persist source endpoint.
+        // Pre-flight runs BEFORE persisting so that on failure, no device state has changed.
+        // Source endpoint is stored under services.DeploymentService.runtime (internal deployment state,
+        // not customer config). Persisted to config.tlog so it survives device crashes mid-endpoint-switch.
         // Step 5 uses this value to report deployment status back to the source account.
         // Cleared after status reporting; stale keys are harmless and overwritten by the next switch.
         if (isEndpointSwitchDeployment(nucleusConfig, deviceConfiguration)) {
@@ -167,9 +178,25 @@ public class DeploymentConfigMerger {
             logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY)
                     .kv("currentIotDataEndpoint", currentDataEndpoint)
                     .kv("newIotDataEndpoint", newDataEndpoint)
-                    .log("Endpoint switch deployment detected, persisting source endpoint for rollback");
+                    .log("Endpoint switch deployment detected");
+
+            // Pre-flight MQTT connectivity check to new endpoint
+            logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY)
+                    .kv("endpoint", newDataEndpoint)
+                    .log("Starting pre-flight MQTT connectivity check");
+            long preflightTimeout = Coerce.toLong(deviceConfiguration.getMQTTNamespace()
+                    .findOrDefault(DEFAULT_PREFLIGHT_MQTT_TIMEOUT_MS, STANDALONE_MQTT_TIMEOUT_KEY));
+            if (!verifyMqttConnectivity(totallyCompleteFuture, newDataEndpoint, "#endpoint-switch",
+                    preflightTimeout)) {
+                return;
+            }
+            logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY)
+                    .kv("endpoint", newDataEndpoint)
+                    .log("Pre-flight MQTT connectivity check passed");
+
+            // Persist source endpoint only after pre-flight succeeds — no state change on failure
             kernel.getContext().get(DeploymentService.class).getRuntimeConfig()
-                    .lookup(SOURCE_IOT_DATA_ENDPOINT_KEY).withValue(currentDataEndpoint);
+                    .lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY).withValue(currentDataEndpoint);
         }
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
@@ -193,6 +220,57 @@ public class DeploymentConfigMerger {
             }
         }
         return true;
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    boolean verifyMqttConnectivity(CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                                   String endpoint, String clientIdSuffix, long timeoutMs) {
+        String thingName = Coerce.toString(deviceConfiguration.getThingName());
+        String clientId = thingName + clientIdSuffix;
+        try (AwsIotMqttConnectionBuilder mqttBuilder =
+                     kernel.getContext().get(SecurityService.class).getDeviceIdentityMqttConnectionBuilder()) {
+            int mqttPort = Coerce.toInt(deviceConfiguration.getMQTTNamespace()
+                    .findOrDefault(MqttClient.DEFAULT_MQTT_PORT, MqttClient.MQTT_PORT_KEY));
+            mqttBuilder.withEndpoint(endpoint)
+                    .withCertificateAuthorityFromPath(null,
+                            Coerce.toString(deviceConfiguration.getRootCAFilePath()))
+                    .withPort((short) mqttPort)
+                    .withCleanSession(true);
+            // Configure proxy if set — same pattern as MqttClient.
+            // Note: null TLS context means HTTPS proxies are not supported for pre-flight;
+            // HTTP CONNECT tunneling (the common case for MQTT) works without it.
+            if (ProxyUtils.isProxyConfigured(deviceConfiguration)) {
+                HttpProxyOptions httpProxyOptions =
+                        ProxyUtils.getHttpProxyOptions(deviceConfiguration, null);
+                if (httpProxyOptions != null) {
+                    String noProxy = Coerce.toString(deviceConfiguration.getNoProxyAddresses());
+                    boolean useProxy = true;
+                    if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)) {
+                        useProxy = Arrays.stream(noProxy.split(",")).noneMatch(endpoint::matches);
+                    }
+                    if (useProxy) {
+                        mqttBuilder.withHttpProxyOptions(httpProxyOptions);
+                    }
+                }
+            }
+            // Builder is created fresh above — safe to mutate withClientId/withEndpoint per retry.
+            try (StandaloneMqttConnection conn = new StandaloneMqttConnection(mqttBuilder, clientId)) {
+                conn.connect(timeoutMs);
+            }
+            return true;
+        } catch (Exception e) {
+            DeploymentErrorCode errorCode = (e instanceof DeploymentException)
+                    ? ((DeploymentException) e).getErrorCodes().get(0)
+                    : DeploymentErrorCode.MQTT_CONNECTION_FAILED;
+            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                    .kv("endpoint", endpoint)
+                    .log("Pre-flight MQTT connectivity check failed");
+            totallyCompleteFuture.complete(
+                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                            new DeploymentException("MQTT pre-flight connection to " + endpoint + " failed",
+                                    e, errorCode)));
+            return false;
+        }
     }
 
     /**

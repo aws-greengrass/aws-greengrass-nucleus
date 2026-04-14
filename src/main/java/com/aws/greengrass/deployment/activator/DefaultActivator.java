@@ -5,10 +5,9 @@
 
 package com.aws.greengrass.deployment.activator;
 
-import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -202,13 +201,9 @@ public class DefaultActivator extends DeploymentActivator {
      * in DeploymentService runtime config.
      */
     private boolean isEndpointSwitch() {
-        Topics serviceTopic = kernel.findServiceTopic("DeploymentService");
-        if (serviceTopic == null) {
-            return false;
-        }
-        Node t = serviceTopic.findNode(GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC,
-                DeploymentConfigMerger.SOURCE_IOT_DATA_ENDPOINT_KEY);
-        String source = (t instanceof Topic) ? Coerce.toString(t) : null;
+        Topic t = kernel.getContext().get(DeploymentService.class).getRuntimeConfig()
+                .find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY);
+        String source = t == null ? null : Coerce.toString(t);
         return source != null && !source.isEmpty();
     }
 

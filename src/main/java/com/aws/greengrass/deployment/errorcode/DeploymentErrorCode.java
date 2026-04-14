@@ -41,6 +41,9 @@ public enum DeploymentErrorCode {
 
     /* Network / http */
     NETWORK_ERROR(DeploymentErrorType.NETWORK_ERROR),
+    MQTT_CONNECTION_FAILED(DeploymentErrorType.NETWORK_ERROR),
+    TLS_HANDSHAKE_FAILURE(DeploymentErrorType.NETWORK_ERROR),
+    MISSING_MQTT_CONNECT_POLICY(DeploymentErrorType.PERMISSION_ERROR),
     HTTP_REQUEST_ERROR(DeploymentErrorType.HTTP_ERROR),
     DOWNLOAD_DEPLOYMENT_DOCUMENT_ERROR(DeploymentErrorType.HTTP_ERROR),
     GET_GREENGRASS_ARTIFACT_SIZE_ERROR(DeploymentErrorType.HTTP_ERROR),

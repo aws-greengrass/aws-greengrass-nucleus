@@ -11,6 +11,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 
@@ -59,14 +60,17 @@ class DefaultActivatorTest {
     @Mock
     DeploymentDirectoryManager deploymentDirectoryManager;
     @Mock
-    Topics serviceTopics;
+    DeploymentService deploymentService;
+    @Mock
+    Topics runtimeTopics;
 
     DefaultActivator defaultActivator;
 
     @BeforeEach
     void beforeEach() {
         doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
-        lenient().doReturn(serviceTopics).when(kernel).findServiceTopic("DeploymentService");
+        doReturn(deploymentService).when(context).get(DeploymentService.class);
+        lenient().doReturn(runtimeTopics).when(deploymentService).getRuntimeConfig();
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();
         lenient().doReturn(Collections.emptyList()).when(kernel).orderedDependencies();
@@ -77,7 +81,7 @@ class DefaultActivatorTest {
     void GIVEN_endpoint_switch_with_DO_NOTHING_WHEN_activate_THEN_snapshot_taken() throws Exception {
         Topic sourceEndpointTopic = mock(Topic.class);
         when(sourceEndpointTopic.getOnce()).thenReturn("old-endpoint");
-        when(serviceTopics.findNode("runtime", DeploymentConfigMerger.SOURCE_IOT_DATA_ENDPOINT_KEY))
+        when(runtimeTopics.find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
                 .thenReturn(sourceEndpointTopic);
         Path snapshotPath = mock(Path.class);
         when(deploymentDirectoryManager.getSnapshotFilePath()).thenReturn(snapshotPath);
@@ -96,7 +100,7 @@ class DefaultActivatorTest {
         ignoreExceptionOfType(extContext, ServiceUpdateException.class);
         Topic sourceEndpointTopic = mock(Topic.class);
         when(sourceEndpointTopic.getOnce()).thenReturn("old-endpoint");
-        when(serviceTopics.findNode("runtime", DeploymentConfigMerger.SOURCE_IOT_DATA_ENDPOINT_KEY))
+        when(runtimeTopics.find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
                 .thenReturn(sourceEndpointTopic);
         Path snapshotPath = mock(Path.class);
         when(deploymentDirectoryManager.getSnapshotFilePath()).thenReturn(snapshotPath);
@@ -125,7 +129,7 @@ class DefaultActivatorTest {
     void GIVEN_non_endpoint_switch_with_DO_NOTHING_WHEN_failure_THEN_no_rollback(
             ExtensionContext extContext) throws Exception {
         ignoreExceptionOfType(extContext, ServiceUpdateException.class);
-        when(serviceTopics.findNode("runtime", DeploymentConfigMerger.SOURCE_IOT_DATA_ENDPOINT_KEY)).thenReturn(null);
+        when(runtimeTopics.find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY)).thenReturn(null);
 
         CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
 
