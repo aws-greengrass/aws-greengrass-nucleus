@@ -75,10 +75,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 
+@SuppressWarnings({"PMD.CouplingBetweenObjects", "PMD.CloseResource"})
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentConfigMergerTest {
 
@@ -93,12 +95,22 @@ class DeploymentConfigMergerTest {
     @Mock
     private ExecutorService executorService;
     @Mock
+    private DeploymentDirectoryManager deploymentDirectoryManager;
+    @Mock
+    private DeploymentService deploymentService;
+    @Mock
+    private Topics runtimeTopics;
+    @Mock
     private Context context;
 
     @BeforeEach
     void beforeEach() {
         lenient().when(kernel.getContext()).thenReturn(context);
         lenient().when(validator.validate(anyMap(), any(), any())).thenReturn(true);
+        lenient().when(context.get(DeploymentDirectoryManager.class)).thenReturn(deploymentDirectoryManager);
+        lenient().when(context.get(DeploymentService.class)).thenReturn(deploymentService);
+        lenient().when(deploymentService.getRuntimeConfig()).thenReturn(runtimeTopics);
+        lenient().when(runtimeTopics.lookup(any(String.class))).thenReturn(mock(Topic.class));
     }
 
     @AfterEach
@@ -590,4 +602,95 @@ class DeploymentConfigMergerTest {
         Collections.addAll(set, objs);
         return set;
     }
+
+    @Test
+    void GIVEN_data_endpoint_changed_WHEN_isEndpointSwitchDeployment_THEN_returns_true() {
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "old-ats.iot.us-east-1.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+
+        Map<String, Object> nucleusConfig = new HashMap<>();
+        nucleusConfig.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "new-ats.iot.us-west-2.amazonaws.com");
+
+        assertTrue(DeploymentConfigMerger.isEndpointSwitchDeployment(nucleusConfig, deviceConfiguration));
+    }
+
+    @Test
+    void GIVEN_cred_endpoint_only_changed_WHEN_isEndpointSwitchDeployment_THEN_returns_false() {
+        Map<String, Object> nucleusConfig = new HashMap<>();
+        nucleusConfig.put(DEVICE_PARAM_IOT_CRED_ENDPOINT, "new.credentials.iot.us-west-2.amazonaws.com");
+
+        assertFalse(DeploymentConfigMerger.isEndpointSwitchDeployment(nucleusConfig, deviceConfiguration));
+    }
+
+    @Test
+    void GIVEN_data_endpoint_unchanged_WHEN_isEndpointSwitchDeployment_THEN_returns_false() {
+        String dataEndpoint = "same-ats.iot.us-east-1.amazonaws.com";
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, dataEndpoint);
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+
+        Map<String, Object> nucleusConfig = new HashMap<>();
+        nucleusConfig.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, dataEndpoint);
+
+        assertFalse(DeploymentConfigMerger.isEndpointSwitchDeployment(nucleusConfig, deviceConfiguration));
+    }
+
+    @Test
+    void GIVEN_no_endpoint_keys_WHEN_isEndpointSwitchDeployment_THEN_returns_false() {
+        Map<String, Object> nucleusConfig = new HashMap<>();
+        nucleusConfig.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
+
+        assertFalse(DeploymentConfigMerger.isEndpointSwitchDeployment(nucleusConfig, deviceConfiguration));
+    }
+
+    @Test
+    void GIVEN_null_config_WHEN_isEndpointSwitchDeployment_THEN_returns_false() {
+        assertFalse(DeploymentConfigMerger.isEndpointSwitchDeployment(null, deviceConfiguration));
+    }
+
+    @Test
+    void GIVEN_endpoint_switch_deployment_WHEN_updateAction_THEN_source_endpoints_persisted_before_activate()
+            throws Throwable {
+        DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
+        DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
+        when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT,
+                "old-ats.iot.us-east-1.amazonaws.com");
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT,
+                "old.credentials.iot.us-east-1.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+
+        Map<String, Object> nucleusConfigMap = new HashMap<>();
+        nucleusConfigMap.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "new-ats.iot.us-west-2.amazonaws.com");
+        Map<String, Object> nucleusNamespace = new HashMap<>();
+        nucleusNamespace.put(CONFIGURATION_CONFIG_KEY, nucleusConfigMap);
+        Map<String, Object> serviceConfig = new HashMap<>();
+        serviceConfig.put(DEFAULT_NUCLEUS_COMPONENT_NAME, nucleusNamespace);
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
+
+        Topic sourceEndpointTopic = mock(Topic.class);
+        when(runtimeTopics.lookup(DeploymentConfigMerger.SOURCE_IOT_DATA_ENDPOINT_KEY))
+                .thenReturn(sourceEndpointTopic);
+
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
+                executorService);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        lenient().when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
+
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
+
+        // executorService.execute() is called for SKIP_NOTIFY_COMPONENTS
+        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(executorService).execute(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        verify(sourceEndpointTopic).withValue("old-ats.iot.us-east-1.amazonaws.com");
+        verify(deploymentActivator).activate(any(), any(), any(Long.class), any());
+    }
+
 }
