@@ -26,12 +26,11 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.vdurmont.semver4j.Semver;
 
 import java.io.IOException;
@@ -89,9 +88,7 @@ public class KernelConfigResolver {
             Pattern.compile("\\{([.\\w-]+):([.\\w-]+):([^:}]*)}");
     // https://tools.ietf.org/html/rfc6901#section-5
     private static final String JSON_POINTER_WHOLE_DOC = "";
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
-            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    private static final ObjectMapper MAPPER = SerializerFactory.getSortedJsonObjectMapper();
     // Map from Namespace -> Key -> Function which returns the replacement value
     private final Map<String, Map<String, CrashableFunction<ComponentIdentifier, String, IOException>>>
             systemParameters = new HashMap<>();
