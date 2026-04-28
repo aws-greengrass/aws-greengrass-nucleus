@@ -15,6 +15,10 @@ import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
+import com.aws.greengrass.security.SecurityService;
+import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -26,6 +30,7 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,10 +77,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import static org.mockito.Answers.RETURNS_DEEP_STUBS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
@@ -107,6 +114,7 @@ class DeploymentConfigMergerTest {
     void beforeEach() {
         lenient().when(kernel.getContext()).thenReturn(context);
         lenient().when(validator.validate(anyMap(), any(), any())).thenReturn(true);
+        lenient().when(deviceConfiguration.getProxyUrl()).thenReturn("");
         lenient().when(context.get(DeploymentDirectoryManager.class)).thenReturn(deploymentDirectoryManager);
         lenient().when(context.get(DeploymentService.class)).thenReturn(deploymentService);
         lenient().when(deploymentService.getRuntimeConfig()).thenReturn(runtimeTopics);
@@ -461,6 +469,7 @@ class DeploymentConfigMergerTest {
         when(context.get(BootstrapManager.class)).thenReturn(bootstrapManager);
         DefaultActivator defaultActivator = mock(DefaultActivator.class);
         when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
+        setupPreflightMocks();
 
         Topic regionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "us-west-2");
         when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
@@ -582,6 +591,24 @@ class DeploymentConfigMergerTest {
         return deployment;
     }
 
+    private void setupPreflightMocks() throws Exception {
+        SecurityService securityService = mock(SecurityService.class);
+        lenient().when(context.get(SecurityService.class)).thenReturn(securityService);
+        AwsIotMqttConnectionBuilder mqttBuilder = mock(AwsIotMqttConnectionBuilder.class, RETURNS_DEEP_STUBS);
+        lenient().when(securityService.getDeviceIdentityMqttConnectionBuilder()).thenReturn(mqttBuilder);
+        MqttClientConnection mqttConn = mock(MqttClientConnection.class);
+        lenient().when(mqttBuilder.build()).thenReturn(mqttConn);
+        lenient().when(mqttConn.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        lenient().when(mqttConn.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+        Topics mqttTopics = mock(Topics.class);
+        lenient().when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttTopics);
+        lenient().when(mqttTopics.findOrDefault(any(), any())).thenReturn(MqttClient.DEFAULT_MQTT_PORT);
+        Topic thingNameTopic = Topic.of(context, "thingName", "myThing");
+        Topic rootCaTopic = Topic.of(context, "rootCA", "/path/to/ca.pem");
+        lenient().when(deviceConfiguration.getThingName()).thenReturn(thingNameTopic);
+        lenient().when(deviceConfiguration.getRootCAFilePath()).thenReturn(rootCaTopic);
+    }
+
     private GreengrassService createMockGreengrassService(String name) {
         GreengrassService service = mock(GreengrassService.class);
         lenient().when(service.getName()).thenReturn(name);
@@ -654,6 +681,7 @@ class DeploymentConfigMergerTest {
         DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        setupPreflightMocks();
 
         Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT,
                 "old-ats.iot.us-east-1.amazonaws.com");
@@ -673,7 +701,7 @@ class DeploymentConfigMergerTest {
         newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
 
         Topic sourceEndpointTopic = mock(Topic.class);
-        when(runtimeTopics.lookup(DeploymentConfigMerger.SOURCE_IOT_DATA_ENDPOINT_KEY))
+        when(runtimeTopics.lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
                 .thenReturn(sourceEndpointTopic);
 
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
@@ -693,4 +721,105 @@ class DeploymentConfigMergerTest {
         verify(deploymentActivator).activate(any(), any(), any(Long.class), any());
     }
 
+    @Test
+    void GIVEN_endpoint_switch_WHEN_preflight_succeeds_THEN_activate_called(
+            ExtensionContext extensionContext) throws Throwable {
+        ignoreExceptionOfType(extensionContext, IOException.class);
+
+        DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
+        DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
+        when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        setupPreflightMocks();
+
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT,
+                "old-ats.iot.us-east-1.amazonaws.com");
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT,
+                "old.credentials.iot.us-east-1.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+
+        Map<String, Object> nucleusConfigMap = new HashMap<>();
+        nucleusConfigMap.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "new-ats.iot.us-west-2.amazonaws.com");
+        Map<String, Object> nucleusNamespace = new HashMap<>();
+        nucleusNamespace.put(CONFIGURATION_CONFIG_KEY, nucleusConfigMap);
+        Map<String, Object> serviceConfig = new HashMap<>();
+        serviceConfig.put(DEFAULT_NUCLEUS_COMPONENT_NAME, nucleusNamespace);
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
+
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
+                executorService);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        lenient().when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
+
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
+
+        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(executorService).execute(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        verify(deploymentActivator).activate(any(), any(), any(Long.class), any());
+    }
+
+    @Test
+    void GIVEN_endpoint_switch_WHEN_preflight_fails_THEN_deployment_fails_no_state_change(
+            ExtensionContext extensionContext) throws Throwable {
+        ignoreExceptionOfType(extensionContext, IOException.class);
+        ignoreExceptionOfType(extensionContext, MqttConnectionProviderException.class);
+
+        DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
+        DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
+        when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+
+        SecurityService securityService = mock(SecurityService.class);
+        when(context.get(SecurityService.class)).thenReturn(securityService);
+        when(securityService.getDeviceIdentityMqttConnectionBuilder())
+                .thenThrow(new MqttConnectionProviderException("builder failed"));
+
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT,
+                "old-ats.iot.us-east-1.amazonaws.com");
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT,
+                "old.credentials.iot.us-east-1.amazonaws.com");
+        Topic thingNameTopic = Topic.of(context, "thingName", "myThing");
+        Topic rootCaTopic = Topic.of(context, "rootCA", "/path/to/ca.pem");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
+        when(deviceConfiguration.getThingName()).thenReturn(thingNameTopic);
+        lenient().when(deviceConfiguration.getRootCAFilePath()).thenReturn(rootCaTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        Topics mqttTopics = mock(Topics.class);
+        lenient().when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttTopics);
+        lenient().when(mqttTopics.findOrDefault(any(), any())).thenReturn(60_000L);
+
+        Map<String, Object> nucleusConfigMap = new HashMap<>();
+        nucleusConfigMap.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "new-ats.iot.us-west-2.amazonaws.com");
+        Map<String, Object> nucleusNamespace = new HashMap<>();
+        nucleusNamespace.put(CONFIGURATION_CONFIG_KEY, nucleusConfigMap);
+        Map<String, Object> serviceConfig = new HashMap<>();
+        serviceConfig.put(DEFAULT_NUCLEUS_COMPONENT_NAME, nucleusNamespace);
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
+
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
+                executorService);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        lenient().when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
+
+        CompletableFuture<DeploymentResult> future = (CompletableFuture<DeploymentResult>)
+                merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
+
+        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(executorService).execute(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        assertTrue(future.isDone());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                future.get().getDeploymentStatus());
+        verify(deploymentActivator, never()).activate(any(), any(), any(Long.class), any());
+    }
 }
