@@ -584,21 +584,21 @@ public class DeploymentService extends GreengrassService {
                     lastDeploymentConfigArn, deployment.getDeploymentDocumentObj().getConfigurationArn()),
                     DeploymentErrorCode.REJECTED_STALE_DEPLOYMENT));
             return;
-        } else {
-            // Assign currentDeploymentTaskMetadata before persisting IN_PROGRESS and before submitting
-            // the task to the executor. This ensures that any concurrent reader (e.g. ShadowDeploymentListener,
-            // IotJobsHelper) that observes a side-effect of deployment processing will also observe
-            // currentDeploymentTaskMetadata != null. The deploymentResultFuture is set after submit().
-            // This is safe because the only code that reads the future is the poll loop in startDeploymentTask(),
-            // which runs on the same thread as this method, and cancelCurrentDeployment(), which null-checks it.
-            currentDeploymentTaskMetadata =
-                    new DeploymentTaskMetadata(deployment, deploymentTask, new AtomicInteger(1));
-
-            deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
-                    deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
-                    deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
-                    deployment.getDeploymentDocumentObj().getRootPackages());
         }
+
+        // Assign currentDeploymentTaskMetadata before persisting IN_PROGRESS and before submitting
+        // the task to the executor. This ensures that any concurrent reader (e.g. ShadowDeploymentListener,
+        // IotJobsHelper) that observes a side-effect of deployment processing will also observe
+        // currentDeploymentTaskMetadata != null. The deploymentResultFuture is set after submit().
+        // This is safe because the only code that reads the future is the poll loop in startDeploymentTask(),
+        // which runs on the same thread as this method, and cancelCurrentDeployment(), which null-checks it.
+        currentDeploymentTaskMetadata =
+                new DeploymentTaskMetadata(deployment, deploymentTask, new AtomicInteger(1));
+
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
+                deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
+                deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
+                deployment.getDeploymentDocumentObj().getRootPackages());
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
             try {
