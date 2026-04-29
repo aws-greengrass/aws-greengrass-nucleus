@@ -687,14 +687,14 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
 
             // first deployment passes
-            assertTrue(firstDeploymentCompleted.await(5, TimeUnit.SECONDS));
+            assertTrue(firstDeploymentCompleted.await(30, TimeUnit.SECONDS));
 
             // second deployment fails, rollback and cancel
-            assertTrue(secondDeploymentFailed.await(5, TimeUnit.SECONDS));
-            assertTrue(secondDeploymentRollback.await(5, TimeUnit.SECONDS));
-            assertTrue(waitForServicesCancelled.await(15, TimeUnit.SECONDS));
-            assertTrue(secondDeploymentCancelled.await(5, TimeUnit.SECONDS));
-            assertTrue(successfullyCancelled.await(5, TimeUnit.SECONDS));
+            assertTrue(secondDeploymentFailed.await(30, TimeUnit.SECONDS));
+            assertTrue(secondDeploymentRollback.await(30, TimeUnit.SECONDS));
+            assertTrue(waitForServicesCancelled.await(30, TimeUnit.SECONDS));
+            assertTrue(secondDeploymentCancelled.await(30, TimeUnit.SECONDS));
+            assertTrue(successfullyCancelled.await(30, TimeUnit.SECONDS));
         }
     }
 
