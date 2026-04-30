@@ -21,10 +21,24 @@ public class DeploymentTaskMetadata {
     private Deployment deployment;
     @NonNull @Getter
     private DeploymentTask deploymentTask;
-    @NonNull
     private Future<DeploymentResult> deploymentResultFuture;
     @NonNull @Getter
     private AtomicInteger deploymentAttemptCount;
+
+    /**
+     * Construct metadata before the deployment task is submitted to the executor.
+     * The deploymentResultFuture must be set via {@link #setDeploymentResultFuture} once available.
+     *
+     * @param deployment the deployment
+     * @param deploymentTask the deployment task
+     * @param deploymentAttemptCount attempt counter
+     */
+    public DeploymentTaskMetadata(Deployment deployment, DeploymentTask deploymentTask,
+                                  AtomicInteger deploymentAttemptCount) {
+        this.deployment = deployment;
+        this.deploymentTask = deploymentTask;
+        this.deploymentAttemptCount = deploymentAttemptCount;
+    }
 
     @Synchronized
     public void setDeploymentResultFuture(Future<DeploymentResult> deploymentResultFuture) {

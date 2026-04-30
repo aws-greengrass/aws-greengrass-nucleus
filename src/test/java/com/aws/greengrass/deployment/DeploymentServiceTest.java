@@ -706,6 +706,111 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
     }
 
+    @Test
+    void GIVEN_shadow_deployment_in_progress_WHEN_duplicate_shadow_deployment_offered_THEN_skip_not_cancel()
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        lenient().when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
+        String deploymentDocument = getTestDeploymentDocument();
+
+        // Listen for the skip log before starting, so we don't miss it
+        CountDownLatch cdl = new CountDownLatch(1);
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null && m.getMessage().equals("Skip the duplicated SHADOW deployment")) {
+                cdl.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+        // Offer the first SHADOW deployment
+        deploymentQueue.offer(new Deployment(deploymentDocument,
+                Deployment.DeploymentType.SHADOW, TEST_JOB_ID_1));
+
+        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        startDeploymentServiceInAnotherThread();
+
+        // Wait for the first deployment to be picked up
+        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+
+        // Offer a duplicate SHADOW deployment with the same configurationArn (same id)
+        Thread.sleep(TEST_DEPLOYMENT_POLLING_FREQUENCY.toMillis());
+        deploymentQueue.offer(new Deployment(deploymentDocument,
+                Deployment.DeploymentType.SHADOW, TEST_JOB_ID_1));
+
+        assertTrue(cdl.await(4, TimeUnit.SECONDS), "Expected skip log message");
+        Slf4jLogAdapter.removeGlobalListener(listener);
+
+        // cancelCurrentDeployment should NOT have been called — the future should not be cancelled
+        verify(mockFuture, times(0)).cancel(true);
+        // Only one deployment task should have been submitted
+        verify(mockExecutorService, times(1)).submit(any(DefaultDeploymentTask.class));
+    }
+
+    @Test
+    void GIVEN_shadow_deployment_in_progress_WHEN_different_shadow_deployment_offered_THEN_cancel_current()
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        lenient().when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
+        String deploymentDocument = getTestDeploymentDocument();
+
+        // Offer the first SHADOW deployment
+        deploymentQueue.offer(new Deployment(deploymentDocument,
+                Deployment.DeploymentType.SHADOW, TEST_JOB_ID_1));
+
+        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        lenient().when(updateSystemPolicyService.discardPendingUpdateAction(any())).thenReturn(true);
+        startDeploymentServiceInAnotherThread();
+
+        // Wait for the first deployment to be picked up
+        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+
+        // Offer a different SHADOW deployment (different id = different configurationArn)
+        String differentId = "DIFFERENT_CONFIG_ARN";
+        Thread.sleep(TEST_DEPLOYMENT_POLLING_FREQUENCY.toMillis());
+        deploymentQueue.offer(new Deployment(deploymentDocument,
+                Deployment.DeploymentType.SHADOW, differentId));
+
+        // The current deployment should be cancelled
+        verify(mockFuture, WAIT_FOUR_SECONDS).cancel(true);
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.SHADOW),
+                eq(JobStatus.CANCELED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+    }
+
+    @Test
+    void GIVEN_new_deployment_WHEN_createNewDeployment_THEN_metadata_assigned_before_submit()
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        lenient().when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
+        String deploymentDocument = getTestDeploymentDocument();
+
+        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenAnswer(invocation -> {
+            // At the point the task is submitted, metadata must already be non-null.
+            // This is the Bug A invariant: any observer of deployment processing side-effects
+            // must see currentDeploymentTaskMetadata != null.
+            assertThat("currentDeploymentTaskMetadata must be non-null when task is submitted",
+                    deploymentService.getCurrentDeploymentTaskMetadata(), is(IsNull.notNullValue()));
+            return mockFuture;
+        });
+
+        deploymentQueue.offer(new Deployment(deploymentDocument,
+                Deployment.DeploymentType.SHADOW, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        // Verify the task was submitted (which triggers the assertion above)
+        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+        // Verify IN_PROGRESS was persisted
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.SHADOW),
+                eq(JobStatus.IN_PROGRESS.toString()), any(), any());
+    }
+
     String getTestDeploymentDocument() {
         return new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
