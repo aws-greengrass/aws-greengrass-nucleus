@@ -177,6 +177,7 @@ services:
         pingTimeoutMs: 30000
         operationTimeoutMs: 30000
         maxInFlightPublishes: 5
+        standaloneMqttTimeoutMs: 60000
         spooler:
           keepQos0WhenOffline: false
           maxSizeInBytes: 2621440
@@ -195,6 +196,22 @@ services:
         periodicAggregateMetricsIntervalSeconds: 3600
         periodicPublishMetricsIntervalSeconds: 86400
 ```
+
+### Endpoint Switch Configuration
+
+`mqtt.standaloneMqttTimeoutMs` (default: `60000`) — Timeout budget in milliseconds for the pre-flight
+MQTT connectivity check during endpoint-switch deployments. Controls the number of connection attempts
+(timeoutMs / 10s per attempt) with exponential backoff between retries. Actual elapsed time may exceed
+this value due to backoff sleep between attempts. Values ≤ 0 are ignored and the default is used.
+
+**IoT policy requirement:** The pre-flight check connects to the target endpoint using the MQTT client ID
+`<thingName>#endpoint-switch`. If your IoT policy restricts `iot:Connect` to an exact thing name match
+(e.g., `client/${iot:Connection.Thing.ThingName}`), you must update it to allow the suffix pattern:
+```
+"Resource": "arn:aws:iot:*:*:client/${iot:Connection.Thing.ThingName}*"
+```
+This is the same wildcard pattern required by IoT Device Shadow and IoT Jobs clients. Without this,
+endpoint-switch deployments will fail with `MISSING_MQTT_CONNECT_POLICY`.
 
 Setting a custom path to relocate the $GG_ROOT/ipc.socket to another location
  on the filesystem, and it doesn't apply to Windows.
