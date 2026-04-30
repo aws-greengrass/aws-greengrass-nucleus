@@ -144,7 +144,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
 
         ignoreExceptionOfType(context, RejectedExecutionException.class);
-        ignoreExceptionOfType(context, ClosedByInterruptException.class);
+        ignoreExceptionUltimateCauseOfType(context, ClosedByInterruptException.class);
         ignoreExceptionWithStackTraceContaining(context, IllegalAccessException.class,
                 ProvisioningPluginFactory.class.getName());
         ignoreExceptionWithStackTraceContaining(context, NullPointerException.class,
