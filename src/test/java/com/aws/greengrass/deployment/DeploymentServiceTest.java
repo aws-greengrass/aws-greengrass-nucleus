@@ -17,6 +17,7 @@ import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus;
+import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
@@ -54,6 +55,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -790,12 +792,14 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         String deploymentDocument = getTestDeploymentDocument();
 
+        // The deployment service runs on its own thread; an AssertionError thrown from
+        // inside this Answer executes on that thread and is swallowed by the deployment
+        // loop, so the main thread never sees the failure. Capture the service-side view
+        // of metadata into an AtomicReference and assert on the main thread after the
+        // submit() call has been observed.
+        AtomicReference<DeploymentTaskMetadata> metadataAtSubmit = new AtomicReference<>();
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenAnswer(invocation -> {
-            // At the point the task is submitted, metadata must already be non-null.
-            // This is the Bug A invariant: any observer of deployment processing side-effects
-            // must see currentDeploymentTaskMetadata != null.
-            assertThat("currentDeploymentTaskMetadata must be non-null when task is submitted",
-                    deploymentService.getCurrentDeploymentTaskMetadata(), is(IsNull.notNullValue()));
+            metadataAtSubmit.set(deploymentService.getCurrentDeploymentTaskMetadata());
             return mockFuture;
         });
 
@@ -803,12 +807,17 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 Deployment.DeploymentType.SHADOW, TEST_JOB_ID_1));
         startDeploymentServiceInAnotherThread();
 
-        // Verify the task was submitted (which triggers the assertion above)
+        // Verify the task was submitted (which populates metadataAtSubmit)
         verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
         // Verify IN_PROGRESS was persisted
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.SHADOW),
                 eq(JobStatus.IN_PROGRESS.toString()), any(), any());
+        // Bug A invariant: metadata must already be populated at the moment submit() is called,
+        // otherwise concurrent readers (ShadowDeploymentListener, IotJobsHelper) observe null
+        // and can take the wrong branch.
+        assertThat("currentDeploymentTaskMetadata must be non-null when task is submitted",
+                metadataAtSubmit.get(), is(IsNull.notNullValue()));
     }
 
     String getTestDeploymentDocument() {
