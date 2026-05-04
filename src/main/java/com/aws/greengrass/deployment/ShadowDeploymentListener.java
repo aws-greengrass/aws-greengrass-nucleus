@@ -507,4 +507,16 @@ public class ShadowDeploymentListener implements InjectionActions {
             lastConfigurationArn.set(configurationArn);
         }
     }
+
+    /**
+     * Test-only accessor to invoke shadowUpdated from outside the package.
+     *
+     * @param desired  desired state map
+     * @param reported reported state map
+     * @param version  shadow version
+     */
+    public void triggerShadowUpdatedForTest(Map<String, Object> desired,
+                                            Map<String, Object> reported, Integer version) {
+        shadowUpdated(desired, reported, version);
+    }
 }
