@@ -728,16 +728,37 @@ class LifecycleTest {
         TestService testService = new TestService(testServiceTopics);
 
         CountDownLatch uninstallCalled = new CountDownLatch(1);
-        testService.setStartupRunnable(() -> testService.reportState(State.ERRORED));
+        CountDownLatch reachedErrored = new CountDownLatch(1);
+        CountDownLatch blockRetry = new CountDownLatch(1);
+        AtomicBoolean firstAttempt = new AtomicBoolean(true);
+        testService.setStartupRunnable(() -> {
+            if (firstAttempt.compareAndSet(true, false)) {
+                testService.reportState(State.ERRORED);
+                return;
+            }
+            // Block retry attempts so the service cannot cycle to BROKEN before
+            // requestUninstall() is called.
+            try {
+                blockRetry.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // interrupted by uninstall — expected
+            }
+        });
         testService.setUninstallRunnable(() -> uninstallCalled.countDown());
+        context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (newState.equals(State.ERRORED)) {
+                reachedErrored.countDown();
+            }
+        });
 
         testService.postInject();
         testService.requestStart();
-        assertThat(testService::getState, eventuallyEval(is(State.ERRORED)));
+        assertTrue(reachedErrored.await(5, TimeUnit.SECONDS), "Service should reach ERRORED");
 
         testService.requestUninstall();
-        
-        assertTrue(uninstallCalled.await(2, TimeUnit.SECONDS), "Uninstall should be called");
+        blockRetry.countDown();
+
+        assertTrue(uninstallCalled.await(5, TimeUnit.SECONDS), "Uninstall should be called");
         assertThat(testService::getState, eventuallyEval(is(State.UNINSTALLED)));
     }
 
