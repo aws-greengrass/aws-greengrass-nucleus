@@ -422,9 +422,9 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                     DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
                     System.currentTimeMillis());
 
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
-            countDownLatch.await(10, TimeUnit.SECONDS);
+            countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS);
             Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
             assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
                     Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
@@ -466,7 +466,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_1.json")
                             .toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // verify config in config store and interpolation result
             Map<String, Object> resultConfig =
@@ -482,7 +482,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_2.json")
                             .toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // verify config in config store
             resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
@@ -523,7 +523,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_3.json")
                             .toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // verify config in config store
             resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
@@ -565,7 +565,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_4.json")
                             .toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // verify config in config store
             resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
@@ -607,7 +607,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_5.json")
                             .toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // verify config in config store and interpolation result
             resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
@@ -679,7 +679,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(DeploymentTaskIntegrationTest.class
                             .getResource("ComponentConfigTest_InitialDocumentWithUpdate.json").toURI(),
                     System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // verify config in config store and interpolation result
             Map<String, Object> resultConfig =
@@ -750,7 +750,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("CrossComponentConfigTest_DeployDocument.json")
                             .toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // verify interpolation result
             assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
@@ -788,7 +788,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("SystemConfigTest_DeployDocument.json").toURI(),
                     System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // The main comes from SystemConfigTest_DeployDocument.json
             String mainComponentName = "aws.iot.gg.test.integ.SystemConfigTest";
@@ -838,7 +838,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("CustomerAppAndYellowSignal.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
+        resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(GreengrassService::getName).collect(Collectors.toList());
@@ -904,7 +904,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_1.json").toURI(),
                     System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
             // verify configs
             String posixUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
@@ -921,7 +921,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertEquals(1.5, cpus);
 
             // verify user
-            countDownLatch.await(10, TimeUnit.SECONDS);
+            countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS);
             // Install has RequiresPrivilege. On Windows, expect current user is the privileged user
             if (isWindows) {
                 assertThat(stdouts, hasItem(containsString("installing app with user " + currentUser)));
@@ -956,7 +956,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertEquals(currentUser, posixUser);
             assertEquals(WINDOWS_TEST_UESRNAME_2, windowsUser);
 
-            countDownLatch.await(10, TimeUnit.SECONDS);
+            countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS);
             if (isWindows) {
                 assertThat(stdouts, hasItem(containsString("stopping app with user " + WINDOWS_TEST_UESRNAME)));
                 assertThat(stdouts, hasItem(containsString("installing app with user " + currentUser)));
@@ -980,7 +980,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentRemovingUser.json").toURI(),
                     System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
             String posixUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             String windowsUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
@@ -990,7 +990,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertThat(windowsUser, is(nullValue()));
 
             // Assert fall back to runWithDefault
-            countDownLatch.await(10, TimeUnit.SECONDS);
+            countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS);
             if (isWindows) {
                 assertThat(stdouts, hasItem(containsString("stopping app with user " + WINDOWS_TEST_UESRNAME_2)));
                 assertThat(stdouts, hasItem(containsString("installing app with user " + currentUser)));
