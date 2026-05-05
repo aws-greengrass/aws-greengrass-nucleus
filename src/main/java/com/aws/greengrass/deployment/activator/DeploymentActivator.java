@@ -40,7 +40,7 @@ public abstract class DeploymentActivator {
         this.deploymentDirectoryManager = kernel.getContext().get(DeploymentDirectoryManager.class);
     }
 
-    public abstract void activate(Map<String, Object> newConfig, Deployment deployment,
+    public abstract void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
                                   CompletableFuture<DeploymentResult> totallyCompleteFuture);
 
     protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture) {
@@ -145,6 +145,8 @@ public abstract class DeploymentActivator {
         insideServiceMergeBehavior.getChildOverride().put(
                 CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
 
+        logger.atDebug().kv("Root merge behavior", rootMergeBehavior)
+                .log("Created deployment configuration root merge behavior.");
         return rootMergeBehavior;
     }
 

@@ -27,6 +27,7 @@ import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Kernel32Util;
 import com.sun.jna.platform.win32.Win32Exception;
 import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinReg;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,7 +36,10 @@ import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 import org.zeroturnaround.process.WindowsProcess;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -50,6 +54,7 @@ import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +82,8 @@ public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE_PREFIX = "\\\\.\\pipe\\NucleusNamedPipe-";
     private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
     private static final int MAX_NAMED_PIPE_LEN = 256;
+    private static final String REGISTRY_KEY_NAME = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion";
+    private static final String WMI_QUERY_EXCEPTION_LOG = "Unable to execute WMI query command, skipping";
     // Well-known SIDs reference
     // https://docs.microsoft.com/pt-PT/windows/security/identity-protection/access-control/security-identifiers#well-known-sids
     protected static final String EVERYONE_SID = "S-1-1-0";
@@ -656,6 +663,82 @@ public class WindowsPlatform extends Platform {
     @Override
     public String loaderFilename() {
         return "loader.cmd";
+    }
+
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    @Override
+    public Map<String, Object> getOSAndKernelMetrics() {
+        return new HashMap<String, Object>() {{
+            put("OSBuildMajor", Advapi32Util.registryGetStringValue(
+                    WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME,
+                    "CurrentBuild"
+            ));
+            put("OSBuildMinor", Advapi32Util.registryGetIntValue(
+                    WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME,
+                    "UBR"
+            ));
+            put("Family", Advapi32Util.registryGetStringValue(
+                    WinReg.HKEY_LOCAL_MACHINE, REGISTRY_KEY_NAME,
+                    "ProductName"
+            ));
+            put("CPUArchitecture", Advapi32Util.registryGetStringValue(
+                    WinReg.HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+                    "PROCESSOR_ARCHITECTURE"
+            ));
+            put("OSName", getOSName());
+            put("OSVersion", getOSVersion());
+            put("KnowledgeBaseArticles", getInstalledKBs());
+        }};
+    }
+
+    private String getOSName() {
+        return executePowerShellCommand("Get-CimInstance -ClassName Win32_OperatingSystem "
+                + "| Select-Object -ExpandProperty Caption");
+    }
+
+    private String getOSVersion() {
+        return executePowerShellCommand("Get-CimInstance -ClassName Win32_OperatingSystem "
+                + "| Select-Object -ExpandProperty Version");
+    }
+
+    private String getInstalledKBs() {
+        List<String> installedKnowledgeBaseArticles = new ArrayList<>();
+        String knowledgeBaseQueryCommand = "Get-HotFix | Select-Object -ExpandProperty HotFixID";
+        try {
+            ProcessBuilder builder = new ProcessBuilder("powershell.exe",
+                    "-Command", knowledgeBaseQueryCommand);
+            Process process = builder.start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line = reader.readLine();
+                while (line != null) {
+                    String trimmed = line.trim();
+                    if (!Utils.isEmpty(trimmed)) {
+                        installedKnowledgeBaseArticles.add(trimmed);
+                    }
+                    line = reader.readLine();
+                }
+            }
+        } catch (IOException e) {
+            logger.atDebug().setCause(e).kv("command", knowledgeBaseQueryCommand).log(WMI_QUERY_EXCEPTION_LOG);
+        }
+        return String.join(",", installedKnowledgeBaseArticles);
+    }
+
+    @SuppressWarnings("PMD.ConfusingTernary")
+    private String executePowerShellCommand(String command) {
+        try {
+            ProcessBuilder builder = new ProcessBuilder("powershell.exe", "-Command", command);
+            Process process = builder.start();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String output = reader.readLine();
+                return output != null ? output.trim() : "";
+            }
+        } catch (IOException e) {
+            logger.atDebug().setCause(e).kv("command", command).log(WMI_QUERY_EXCEPTION_LOG);
+            return "";
+        }
     }
 
     /**

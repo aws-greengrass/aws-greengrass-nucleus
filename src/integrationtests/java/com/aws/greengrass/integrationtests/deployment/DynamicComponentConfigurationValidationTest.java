@@ -130,7 +130,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 }});
             }});
         }};
-        deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig).get(60, TimeUnit.SECONDS);
+        deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
 
         assertTrue(mainRestarted.get());
         assertTrue(serviceStarted.get());
@@ -217,7 +217,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                     put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig(kernel));
                 }});
             }};
-            DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig)
+            DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig, System.currentTimeMillis())
                     .get(60, TimeUnit.SECONDS);
             assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
             assertTrue(eventReceivedByClient.await(20, TimeUnit.SECONDS));
@@ -289,7 +289,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                     put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig(kernel));
                 }});
             }};
-            DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig)
+            DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig, System.currentTimeMillis())
                     .get(60, TimeUnit.SECONDS);
             assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
             assertTrue(result.getFailureCause() instanceof ComponentConfigurationValidationException);

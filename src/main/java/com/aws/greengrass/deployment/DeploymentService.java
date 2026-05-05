@@ -98,6 +98,7 @@ public class DeploymentService extends GreengrassService {
     public static final String GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY = "configArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
+    public static final String SOURCE_IOT_DATA_ENDPOINT_KEY = "sourceIotDataEndpoint";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
     public static final String DEPLOYMENT_DETAILED_STATUS_KEY = "detailed-deployment-status";
     public static final String DEPLOYMENT_FAILURE_CAUSE_KEY = "deployment-failure-cause";
@@ -249,13 +250,23 @@ public class DeploymentService extends GreengrassService {
                     // The deployment type is shadow
                     if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW.equals(
                             currentDeploymentTaskMetadata.getDeploymentType())) {
-                        // A new device deployment invalidates the previous deployment, cancel the ongoing device
-                        //deployment and wait till the new device deployment can be picked up.
-                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
-                                        currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                                .log("Canceling current device deployment");
-                        cancelCurrentDeployment();
+                        if (currentDeploymentTaskMetadata.getDeploymentId().equals(nextDeployment.getId())) {
+                            // The new deployment is duplicate of current in progress deployment. Ignore the new one.
+                            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, nextDeployment.getId())
+                                    .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                            currentDeploymentTaskMetadata.getGreengrassDeploymentId())
+                                    .log("Skip the duplicated SHADOW deployment");
+                            nextDeployment = null;
+                        } else {
+                            // A new device deployment invalidates the previous deployment, cancel the ongoing device
+                            // deployment and wait till the new device deployment can be picked up.
+                            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME,
+                                            currentDeploymentTaskMetadata.getDeploymentId())
+                                    .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                            currentDeploymentTaskMetadata.getGreengrassDeploymentId())
+                                    .log("Canceling current device deployment");
+                            cancelCurrentDeployment();
+                        }
                     } else if (currentDeploymentTaskMetadata == null) {
                         // Since no in progress deployment, just create a deployment.
                         createNewDeployment(nextDeployment);
@@ -573,12 +584,21 @@ public class DeploymentService extends GreengrassService {
                     lastDeploymentConfigArn, deployment.getDeploymentDocumentObj().getConfigurationArn()),
                     DeploymentErrorCode.REJECTED_STALE_DEPLOYMENT));
             return;
-        } else {
-            deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
-                    deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
-                    deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
-                    deployment.getDeploymentDocumentObj().getRootPackages());
         }
+
+        // Assign currentDeploymentTaskMetadata before persisting IN_PROGRESS and before submitting
+        // the task to the executor. This ensures that any concurrent reader (e.g. ShadowDeploymentListener,
+        // IotJobsHelper) that observes a side-effect of deployment processing will also observe
+        // currentDeploymentTaskMetadata != null. The deploymentResultFuture is set after submit().
+        // This is safe because the only code that reads the future is the poll loop in startDeploymentTask(),
+        // which runs on the same thread as this method, and cancelCurrentDeployment(), which null-checks it.
+        currentDeploymentTaskMetadata =
+                new DeploymentTaskMetadata(deployment, deploymentTask, new AtomicInteger(1));
+
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
+                deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
+                deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
+                deployment.getDeploymentDocumentObj().getRootPackages());
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
             try {
@@ -627,10 +647,8 @@ public class DeploymentService extends GreengrassService {
 
 
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
+        currentDeploymentTaskMetadata.setDeploymentResultFuture(process);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
-
-        currentDeploymentTaskMetadata =
-                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1));
     }
 
     /*
@@ -872,7 +890,7 @@ public class DeploymentService extends GreengrassService {
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                 deploymentConfigMerger, logger.createChild(), deployment, config, executorService,
-                deploymentDocumentDownloader, thingGroupHelper);
+                deploymentDocumentDownloader, thingGroupHelper, deviceConfiguration);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {

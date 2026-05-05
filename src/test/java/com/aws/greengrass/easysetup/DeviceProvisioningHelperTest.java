@@ -10,7 +10,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
-import com.aws.greengrass.util.RootCAUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -441,12 +440,10 @@ class DeviceProvisioningHelperTest {
         Path caFilePath = certPath.resolve("rootCA.pem");
         File caFile = caFilePath.toFile();
 
-        RootCAUtils.downloadRootCAToFile(caFile, RootCAUtils.AMAZON_ROOT_CA_3_URL);
-
         String certificates = new String(Files.readAllBytes(caFile.toPath()), StandardCharsets.UTF_8);
         List<String> certificateArray = Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER)).filter(s -> !s.isEmpty()).collect(Collectors.toList());
 
-        assertEquals(2, certificateArray.size());
+        assertEquals(5, certificateArray.size());
     }
 
     @Test

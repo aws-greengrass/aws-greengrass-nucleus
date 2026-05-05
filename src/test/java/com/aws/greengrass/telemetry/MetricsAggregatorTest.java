@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,8 @@ import static com.aws.greengrass.telemetry.MetricsAggregator.AGGREGATE_METRICS_F
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class MetricsAggregatorTest {
@@ -47,7 +50,7 @@ class MetricsAggregatorTest {
     private final MetricFactory greengrassComponentsMetricsFactory = new MetricFactory(GREENGRASS_COMPONENTS_NS);
     private final MetricFactory streamManagerMetricsFactory = new MetricFactory(STREAM_MANAGER_NS);
     private final MetricFactory aggregatedMetricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
-    private final MetricsAggregator metricsAggregator = new MetricsAggregator();
+    private final MetricsAggregator metricsAggregator = spy(new MetricsAggregator());
     @TempDir
     protected Path tempRootDir;
 
@@ -166,6 +169,8 @@ class MetricsAggregatorTest {
 
     @Test
     void GIVEN_aggregated_metrics_WHEN_publish_THEN_collect_only_the_latest_values() throws InterruptedException {
+        when(metricsAggregator.getKernelAndOSMetrics()).thenReturn(new ArrayList<>(getTestOSAndKernelMetrics()));
+
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();
@@ -173,11 +178,11 @@ class MetricsAggregatorTest {
         List<AggregatedMetric> metricList = new ArrayList<>();
         Map<String, Object> map = new HashMap<>();
         map.put("Average", 4000);
-        metricList.add(new AggregatedMetric("C", map, TelemetryUnit.Count));
+        metricList.add(new AggregatedMetric("C", map, String.valueOf(TelemetryUnit.Count)));
         map.put("Average", 15);
-        metricList.add(new AggregatedMetric("A", map, TelemetryUnit.Percent));
+        metricList.add(new AggregatedMetric("A", map, String.valueOf(TelemetryUnit.Percent)));
         map.put("Average", 9000);
-        metricList.add(new AggregatedMetric("B", map, TelemetryUnit.Megabytes));
+        metricList.add(new AggregatedMetric("B", map, String.valueOf(TelemetryUnit.Megabytes)));
         AggregatedNamespaceData aggregatedMetric = new AggregatedNamespaceData(currentTimestamp, GREENGRASS_COMPONENTS_NS, metricList);
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
@@ -195,8 +200,8 @@ class MetricsAggregatorTest {
         // we only have one list of the metrics collected
         assertEquals(1, aggregatedNamespaceDataMap.size());
 
-        //we have 3 entries of the aggregated metrics before this latest TS + one metric for each namespace
-        assertEquals(3 + 1, aggregatedNamespaceDataMap.get(currentTimestamp).size());
+        //we have 3 entries of the aggregated metrics before this latest TS + one metric for each namespace + one aggregated metric for os and kernel metrics
+        assertEquals(3 + 1 + 1, aggregatedNamespaceDataMap.get(currentTimestamp).size());
 
         TimeUnit.SECONDS.sleep(1);
         currentTimestamp = Instant.now().toEpochMilli();
@@ -210,8 +215,8 @@ class MetricsAggregatorTest {
         // we only have one list of the metrics collected
         assertEquals(1, aggregatedNamespaceDataMap.size());
 
-        // Will not collect the first 3 entries as they are stale. Latest 2 + n accumulated data point
-        assertEquals(2 + 1, aggregatedNamespaceDataMap.get(currentTimestamp).size());
+        // Will not collect the first 3 entries as they are stale. Latest 2 + n accumulated data point + 1 aggregated kernel and OS metric
+        assertEquals(2 + 1 + 1, aggregatedNamespaceDataMap.get(currentTimestamp).size());
     }
 
     @Test
@@ -224,15 +229,15 @@ class MetricsAggregatorTest {
         List<AggregatedMetric> metricList = new ArrayList<>();
         Map<String, Object> map1 = new HashMap<>();
         map1.put("Average", 4000);
-        AggregatedMetric am = new AggregatedMetric("C", map1, TelemetryUnit.Count);
+        AggregatedMetric am = new AggregatedMetric("C", map1, String.valueOf(TelemetryUnit.Count));
         metricList.add(am);
         Map<String, Object> map2 = new HashMap<>();
         map2.put("Average", 15);
-        am = new AggregatedMetric("A", map2, TelemetryUnit.Percent);
+        am = new AggregatedMetric("A", map2, String.valueOf(TelemetryUnit.Percent));
         metricList.add(am);
         Map<String, Object> map3 = new HashMap<>();
         map3.put("Average", 9000);
-        am = new AggregatedMetric("B", map3, TelemetryUnit.Megabytes);
+        am = new AggregatedMetric("B", map3, String.valueOf(TelemetryUnit.Megabytes));
         metricList.add(am);
         AggregatedNamespaceData aggregatedMetric = new AggregatedNamespaceData(currentTimestamp, GREENGRASS_COMPONENTS_NS, metricList);
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
@@ -249,8 +254,8 @@ class MetricsAggregatorTest {
         // The published metrics will not contain the null aggregated metric
         assertFalse(metricsMap.get(currentTimestamp).contains(null));
 
-        // Out of 6 aggregated metrics, only 4 are published plus there is one accumulated point for each namespace
-        assertEquals(4 + 1, metricsMap.get(currentTimestamp).size());
+        // Out of 6 aggregated metrics, only 4 are published plus there is one accumulated point for each namespace + 1 aggregated kernel and OS metric
+        assertEquals(4 + 1 + 1, metricsMap.get(currentTimestamp).size());
 
         //The accumulated data points will always be at end the of the list and has the same ts as publish. Acc data
         // points begin from index 4 as first 4 are aggregated metrics
@@ -267,6 +272,8 @@ class MetricsAggregatorTest {
     @Test
     void GIVEN_stream_manager_metrics_WHEN_aggregate_THEN_aggregate_only_the_latest_values()
             throws InterruptedException, IOException {
+        when(metricsAggregator.getKernelAndOSMetrics()).thenReturn(new ArrayList<>(getTestOSAndKernelMetrics()));
+
         //Create a sample file with stream manager metrics so we can test the freshness of the file and logs
         //with respect to the current timestamp
         long lastAgg = Instant.now().toEpochMilli();
@@ -334,6 +341,8 @@ class MetricsAggregatorTest {
 
     @Test
     void GIVEN_aggregated_metrics_for_stream_manager_WHEN_publish_THEN_does_not_send_accumulated_metric() throws InterruptedException {
+        when(metricsAggregator.getKernelAndOSMetrics()).thenReturn(new ArrayList<>(getTestOSAndKernelMetrics()));
+
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();
@@ -341,11 +350,11 @@ class MetricsAggregatorTest {
         List<AggregatedMetric> metricList = new ArrayList<>();
         Map<String, Object> map = new HashMap<>();
         map.put("Sum", 4000);
-        metricList.add(new AggregatedMetric("BytesUploadedToS3", map, TelemetryUnit.Count));
+        metricList.add(new AggregatedMetric("BytesUploadedToS3", map, String.valueOf(TelemetryUnit.Count)));
         map.put("Sum", 15);
-        metricList.add(new AggregatedMetric("BytesUploadedToKinesis", map, TelemetryUnit.Count));
+        metricList.add(new AggregatedMetric("BytesUploadedToKinesis", map, String.valueOf(TelemetryUnit.Count)));
         map.put("Sum", 9000);
-        metricList.add(new AggregatedMetric("BytesUploadedToIotAnalytics", map, TelemetryUnit.Count));
+        metricList.add(new AggregatedMetric("BytesUploadedToIotAnalytics", map, String.valueOf(TelemetryUnit.Count)));
         AggregatedNamespaceData aggregatedMetric = new AggregatedNamespaceData(currentTimestamp, STREAM_MANAGER_NS, metricList);
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         aggregatedMetricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
@@ -362,7 +371,13 @@ class MetricsAggregatorTest {
         // we only have one list of the metrics collected
         assertEquals(1, aggregatedNamespaceDataMap.size());
 
-        //we have 3 entries of the aggregated metrics before this latest TS
-        assertEquals(3, aggregatedNamespaceDataMap.get(currentTimestamp).size());
+        //we have 3 entries of the aggregated metrics before this latest TS + 1 aggregated kernel and OS metric
+        assertEquals(3 + 1, aggregatedNamespaceDataMap.get(currentTimestamp).size());
+    }
+
+    private List<AggregatedMetric> getTestOSAndKernelMetrics() {
+        return Arrays.asList(
+                AggregatedMetric.builder().name("dummy-os-metric-name").unit("dummy-os-metric-unit").build(),
+                AggregatedMetric.builder().name("dummy-os-metric-name").unit("dummy-metric-os-unit").build());
     }
 }

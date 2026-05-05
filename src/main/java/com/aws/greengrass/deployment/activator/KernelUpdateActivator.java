@@ -66,7 +66,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
     }
 
     @Override
-    public void activate(Map<String, Object> newConfig, Deployment deployment,
+    public void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         if (!takeConfigSnapshot(totallyCompleteFuture)) {
             return;
@@ -101,7 +101,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
         // Wait for all services to close.
         lifecycle.softShutdown(30);
 
-        updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
+        updateConfiguration(configMergeTimestamp, newConfig);
 
         // Try and delete restart panic file if it exists
         try {

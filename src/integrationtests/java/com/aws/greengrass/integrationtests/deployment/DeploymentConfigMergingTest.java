@@ -158,7 +158,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         ((Map<String, Object>)newConfig.get(SERVICES_NAMESPACE_TOPIC)).put(DEFAULT_NUCLEUS_COMPONENT_NAME,
                 getNucleusConfig());
 
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
 
         t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
         assertNotNull(t, "FSS Topics should not be null after merging");
@@ -210,7 +210,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     }});
                     put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
                 }});
-            }}).get(60, TimeUnit.SECONDS);
+            }}, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
 
             // THEN
             assertTrue(mainRestarted.await(10, TimeUnit.SECONDS), "main restarted");
@@ -268,7 +268,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
                 put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
             }});
-        }}).get(60, TimeUnit.SECONDS);
+        }}, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
         // THEN
         assertTrue(newServiceStarted.get(), "new service started");
     }
@@ -338,7 +338,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
                 put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
             }});
-        }}).get(60, TimeUnit.SECONDS);
+        }}, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
 
         // THEN
         assertTrue(newService2Started.get());
@@ -411,7 +411,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.getContext().addGlobalStateChangeListener(listener);
 
         GreengrassService main = kernel.locate("main");
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
         kernel.getContext().waitForPublishQueueToClear();
 
         // Verify that first merge succeeded.
@@ -437,7 +437,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // THEN
         // merge in the same config the second time
         // merge shouldn't block
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
         kernel.getContext().waitForPublishQueueToClear();
 
         // main should be finished
@@ -484,7 +484,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         lifecycle.put(LIFECYCLE_RUN_NAMESPACE_TOPIC,
                 ((String) lifecycle.get(LIFECYCLE_RUN_NAMESPACE_TOPIC)).replace("5", "10"));
 
-        Future<DeploymentResult> deploymentFuture = deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
+        Future<DeploymentResult> deploymentFuture = deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig, System.currentTimeMillis());
 
         DeploymentResult deploymentResult = deploymentFuture.get(30, TimeUnit.SECONDS);
 
@@ -588,7 +588,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Deployment testDeployment = testDeployment();
         Future<DeploymentResult> future =
-                deploymentConfigMerger.mergeInNewConfig(testDeployment, currentConfig);
+                deploymentConfigMerger.mergeInNewConfig(testDeployment, currentConfig, System.currentTimeMillis());
 
         // update should be deferred for 5 seconds
         assertThrows(TimeoutException.class, () -> future.get(5, TimeUnit.SECONDS),
@@ -632,7 +632,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     }});
                     put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
                 }});
-            }}).get(60, TimeUnit.SECONDS);
+            }}, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
 
             // THEN
             mainRestarted.run();
@@ -696,7 +696,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
                     put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
                 }});
-            }}).get(60, TimeUnit.SECONDS);
+            }}, System.currentTimeMillis()).get(60, TimeUnit.SECONDS);
 
             // THEN
             serviceRestarts.run();

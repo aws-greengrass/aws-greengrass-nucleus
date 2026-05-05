@@ -39,6 +39,7 @@ import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -203,8 +204,19 @@ public class ComponentManager implements InjectionActions {
             Map<String, Requirement> versionRequirements,
             ComponentIdentifier localCandidate)
             throws PackagingException, InterruptedException {
-        ResolvedComponentVersion resolvedComponentVersion;
 
+        // Special handling for Nucleus component - skip download if same version
+        if (DEFAULT_NUCLEUS_COMPONENT_NAME.equals(componentName) && localCandidate != null) {
+            String currentNucleusVersion = deviceConfiguration.getNucleusVersion();
+            if (localCandidate.getVersion().toString().equals(currentNucleusVersion)) {
+                logger.atInfo().kv(COMPONENT_NAME, componentName)
+                        .kv("version", currentNucleusVersion)
+                        .log("Skipping Nucleus download as the same version is already installed");
+                return localCandidate;
+            }
+        }
+
+        ResolvedComponentVersion resolvedComponentVersion;
         if (localCandidate == null) {
             try {
                 resolvedComponentVersion = RetryUtils.runWithRetry(clientExceptionRetryConfig,
@@ -441,9 +453,14 @@ public class ComponentManager implements InjectionActions {
     void prepareArtifacts(ComponentIdentifier componentIdentifier, List<ComponentArtifact> artifacts)
             throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException,
             InterruptedException {
-        if (artifacts == null) {
-            logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
-                    .log("Artifact list was null, expected non-null and non-empty");
+        if (Utils.isEmpty(artifacts)) {
+            if (DEFAULT_NUCLEUS_COMPONENT_NAME.equals(componentIdentifier.getName())) {
+                logger.atDebug().kv(PACKAGE_IDENTIFIER, componentIdentifier).log("Skipping Nucleus artifact"
+                        + " download as version to be deployed is already running");
+            } else {
+                logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
+                        .log("Artifact list was null, expected non-null and non-empty");
+            }
             return;
         }
         Path packageArtifactDirectory = componentStore.resolveArtifactDirectoryPath(componentIdentifier);
@@ -545,8 +562,20 @@ public class ComponentManager implements InjectionActions {
      * Delete stale versions from local store. It's best effort and all the errors are logged.
      */
     public void cleanupStaleVersions() {
+        cleanupStaleVersions(true, null);
+    }
+
+
+    /**
+     * Delete stale versions from local store with deployment context. It's best
+     * effort and all the errors are logged.
+     *
+     * @param isDeploymentAborted the result of the deployment, true of deployment is abnormal and aborted
+     * @param currentDeploymentVersions map of component names to their versions in the last tried deployment
+     */
+    public void cleanupStaleVersions(final boolean isDeploymentAborted, Map<String, String> currentDeploymentVersions) {
         logger.atDebug("cleanup-stale-versions-start").log();
-        Map<String, Set<String>> versionsToKeep = getVersionsToKeep();
+        Map<String, Set<String>> versionsToKeep = getVersionsToKeep(isDeploymentAborted, currentDeploymentVersions);
         Map<String, Set<String>> versionsToRemove = componentStore.listAvailableComponentVersions();
         // remove all local versions that does not exist in versionsToKeep
         for (Map.Entry<String, Set<String>> localVersions : versionsToRemove.entrySet()) {
@@ -576,11 +605,28 @@ public class ComponentManager implements InjectionActions {
      * @return mapping from component name string to collection of non-stale version strings
      */
     public Map<String, Set<String>> getVersionsToKeep() {
+        return getVersionsToKeep(true, null);
+    }
+
+
+    /**
+     * Query service config to obtain non-stale versions of components which should
+     * not be cleaned up.
+     *
+     * @param isDeploymentAborted the result of the deployment, true of deployment is abnormal and aborted
+     * @param currentDeploymentVersions map of component names to their versions in the last tried deployment
+     * @return mapping from component name string to collection of non-stale version
+     *         strings
+     */
+    public Map<String, Set<String>> getVersionsToKeep(final boolean isDeploymentAborted,
+                                                      Map<String, String> currentDeploymentVersions) {
         Map<String, Set<String>> result = new HashMap<>();
         for (GreengrassService service : kernel.orderedDependencies()) {
             Set<String> nonStaleVersions = new HashSet<>();
             Topic versionTopic = service.getServiceConfig().find(VERSION_CONFIG_KEY);
             Topic prevVersionTopic = service.getServiceConfig().find(PREV_VERSION_CONFIG_KEY);
+
+            // always keep last 2 successful deployment
             if (versionTopic != null) {
                 String version = (String) versionTopic.getOnce();
                 nonStaleVersions.add(version);
@@ -590,6 +636,19 @@ public class ComponentManager implements InjectionActions {
                 nonStaleVersions.add(version);
             }
             result.put(service.getName(), nonStaleVersions);
+        }
+
+        //if not successful or we got a null deployment result, and we have reference to the previous versions.
+        if (isDeploymentAborted && currentDeploymentVersions != null) {
+            for (Map.Entry<String, String> entry : currentDeploymentVersions.entrySet()) {
+                String componentName = entry.getKey();
+                String currentVersion = entry.getValue();
+                result.computeIfAbsent(componentName, k -> new HashSet<>()).add(currentVersion);
+                logger.atDebug()
+                        .kv("ComponentName", componentName)
+                        .kv("CurrentVersions", currentVersion)
+                        .log("Current component version: ", componentName, currentVersion);
+            }
         }
         return result;
     }

@@ -79,6 +79,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             result = deploymentResultCompletableFuture.get();
         } catch (InterruptedException | ExecutionException | CancellationException e) {
             // nothing to report when deployment is cancelled
+            componentManager.cleanupStaleVersions();
             return null;
         }
         componentManager.cleanupStaleVersions();

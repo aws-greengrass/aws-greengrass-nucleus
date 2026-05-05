@@ -20,6 +20,7 @@ import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -116,7 +117,7 @@ class PluginComponentTest extends BaseITCase {
                         deploymentConfigMerger, LogManager.getLogger("Deployer"),
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null),
-                        kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper);
+                        kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class));
         return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
     }
 

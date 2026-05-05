@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -68,6 +69,8 @@ class KernelUpdateActivatorTest {
     @Mock
     Configuration config;
     @Mock
+    Topic deploymentConfigurationTimeSource;
+    @Mock
     DeploymentDirectoryManager deploymentDirectoryManager;
     @Mock
     BootstrapManager bootstrapManager;
@@ -108,7 +111,7 @@ class KernelUpdateActivatorTest {
 
         IOException mockIOE = new IOException();
         doThrow(mockIOE).when(deploymentDirectoryManager).takeConfigSnapshot(any());
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
         verify(totallyCompleteFuture).complete(captor.capture());
         DeploymentResult result = captor.getValue();
@@ -130,8 +133,7 @@ class KernelUpdateActivatorTest {
         IOException mockIOE = new IOException("mock error");
         doThrow(mockIOE).when(kernelAlternatives).prepareBootstrap(eq("testId"));
         doThrow(new IOException()).when(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
-
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
@@ -157,8 +159,7 @@ class KernelUpdateActivatorTest {
         doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         doThrow(mockSUE).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
-
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
@@ -183,8 +184,7 @@ class KernelUpdateActivatorTest {
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
         doReturn(NO_OP).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doReturn(false).when(bootstrapManager).hasNext();
-
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
@@ -203,8 +203,7 @@ class KernelUpdateActivatorTest {
         doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         doReturn(REQUEST_REBOOT).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doReturn(true).when(bootstrapManager).hasNext();
-
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
@@ -218,7 +217,7 @@ class KernelUpdateActivatorTest {
 
         DirectoryValidationException mockException = new DirectoryValidationException("error msg");
         doThrow(mockException).when(kernelAlternatives).validateLaunchDirSetupVerbose();
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
         verify(totallyCompleteFuture).complete(captor.capture());
         DeploymentResult result = captor.getValue();
@@ -234,7 +233,7 @@ class KernelUpdateActivatorTest {
     @Test
     void GIVEN_deployment_activate_WHEN_bootstrap_a_finishes_THEN_request_restart() throws Exception  {
         when(totallyCompleteFuture.isCancelled()).thenReturn(true);
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         verify(deploymentDirectoryManager, never()).takeConfigSnapshot(any());
         verify(bootstrapManager, never()).persistBootstrapTaskList(any());
         verify(kernelAlternatives, never()).prepareBootstrap(any());

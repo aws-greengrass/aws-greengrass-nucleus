@@ -47,10 +47,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static com.aws.greengrass.tes.CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_MIN;
-import static com.aws.greengrass.tes.CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_MIN;
-import static com.aws.greengrass.tes.CredentialRequestHandler.TIME_BEFORE_CACHE_EXPIRE_IN_MIN;
-import static com.aws.greengrass.tes.CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_MIN;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC;
+import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_TIME_BEFORE_CACHE_EXPIRE_IN_SEC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -320,7 +320,7 @@ class CredentialRequestHandlerTest {
         verify(mockStream, times(1)).write(expectedResponse);
 
         // Expiry time in recent future won't give error but there wil be no caching
-        expirationTime = Instant.now().plus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN - 1));
+        expirationTime = Instant.now().plus(Duration.ofSeconds(DEFAULT_TIME_BEFORE_CACHE_EXPIRE_IN_SEC - 60));
         responseStr = String.format(RESPONSE_STR, expirationTime.toString());
         mockResponse = new IotCloudResponse(responseStr.getBytes(StandardCharsets.UTF_8), 200);
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(mockResponse);
@@ -328,7 +328,7 @@ class CredentialRequestHandlerTest {
         verify(mockCloudHelper, times(2)).sendHttpRequest(any(), any(), any(), any(), any());
 
         // Expiry time in future will result in credentials being cached
-        expirationTime = Instant.now().plus(Duration.ofMinutes(TIME_BEFORE_CACHE_EXPIRE_IN_MIN + 1));
+        expirationTime = Instant.now().plus(Duration.ofSeconds(DEFAULT_TIME_BEFORE_CACHE_EXPIRE_IN_SEC + 60));
         responseStr = String.format(RESPONSE_STR, expirationTime.toString());
         mockResponse = new IotCloudResponse(responseStr.getBytes(StandardCharsets.UTF_8), 200);
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(mockResponse);
@@ -401,7 +401,7 @@ class CredentialRequestHandlerTest {
                 String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 2 minutes
         handler.getAwsCredentials();
-        Instant expirationTime = Instant.now().plus(Duration.ofMinutes(CLOUD_4XX_ERROR_CACHE_IN_MIN));
+        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
         handler.getAwsCredentials();
@@ -425,7 +425,7 @@ class CredentialRequestHandlerTest {
                 String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 1 minute
         handler.getAwsCredentials();
-        Instant expirationTime = Instant.now().plus(Duration.ofMinutes(CLOUD_5XX_ERROR_CACHE_IN_MIN));
+        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
         handler.getAwsCredentials();
@@ -449,7 +449,7 @@ class CredentialRequestHandlerTest {
                 String.format("TES responded with status code: %d. Caching response. ", expectedStatus).getBytes();
         // expire in 5 minutes
         handler.getAwsCredentials();
-        Instant expirationTime = Instant.now().plus(Duration.ofMinutes(UNKNOWN_ERROR_CACHE_IN_MIN));
+        Instant expirationTime = Instant.now().plus(Duration.ofSeconds(DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC));
         Clock mockClock = Clock.fixed(expirationTime, ZoneId.of("UTC"));
         handler.setClock(mockClock);
         handler.getAwsCredentials();

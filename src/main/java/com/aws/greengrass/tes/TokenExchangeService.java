@@ -9,6 +9,7 @@ import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -41,6 +42,16 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     private String iotRoleAlias;
     private HttpServerImpl server;
 
+    public static final String CREDENTIAL_RETRY_CONFIG_TOPIC = "credentialRetryInSec";
+    public static final String CLOUD_4XX_ERROR_CACHE_TOPIC = "clientError";
+    public static final String CLOUD_5XX_ERROR_CACHE_TOPIC = "serverError";
+    public static final String UNKNOWN_ERROR_CACHE_TOPIC = "unknownError";
+    private static final int MINIMUM_ERROR_CACHE_IN_SEC = 10;
+    private static final int MAXIMUM_ERROR_CACHE_IN_SEC = 42_900;
+    private int cloud4xxErrorCache;
+    private int cloud5xxErrorCache;
+    private int unknownErrorCache;
+
     private final AuthorizationHandler authZHandler;
     private final CredentialRequestHandler credentialRequestHandler;
 
@@ -57,24 +68,75 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                                 AuthorizationHandler authZHandler, DeviceConfiguration deviceConfiguration) {
         super(topics);
         port = Coerce.toInt(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT));
-        config.subscribe((why, node) -> {
-            if (node != null && node.childOf(PORT_TOPIC)) {
-                logger.atDebug("tes-config-change").kv("node", node).kv("why", why).log();
-                port = Coerce.toInt(node);
-                Topic activePortTopic = config.lookup(CONFIGURATION_CONFIG_KEY, ACTIVE_PORT_TOPIC);
-                if (port != Coerce.toInt(activePortTopic)) {
-                    logger.atInfo("tes-config-change").kv(PORT_TOPIC, port).kv("node", node).kv("why", why)
-                            .log("Restarting TES server due to port config change");
-                    requestRestart();
-                }
-            }
-        });
         deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
             iotRoleAlias = Coerce.toString(newv);
         });
 
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;
+
+        cloud4xxErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
+                CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, CLOUD_4XX_ERROR_CACHE_TOPIC)), CLOUD_4XX_ERROR_CACHE_TOPIC,
+                CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+        cloud5xxErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
+                CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, CLOUD_5XX_ERROR_CACHE_TOPIC)), CLOUD_5XX_ERROR_CACHE_TOPIC,
+                CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+        unknownErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
+                CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, UNKNOWN_ERROR_CACHE_TOPIC)), UNKNOWN_ERROR_CACHE_TOPIC,
+                CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
+
+        credentialRequestHandler.configureCacheSettings(cloud4xxErrorCache, cloud5xxErrorCache, unknownErrorCache);
+
+        config.subscribe((why, node) -> {
+            logger.atDebug("tes-config-change").kv("node", node).kv("what", why).log();
+            if (why.equals(WhatHappened.timestampUpdated)) {
+                return;
+            }
+            if (node != null && node.childOf(CREDENTIAL_RETRY_CONFIG_TOPIC)) {
+
+                int newCloud4xxErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
+                        CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, CLOUD_4XX_ERROR_CACHE_TOPIC)), CLOUD_4XX_ERROR_CACHE_TOPIC,
+                        CredentialRequestHandler.DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC);
+                int newCloud5xxErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
+                        CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, CLOUD_5XX_ERROR_CACHE_TOPIC)), CLOUD_5XX_ERROR_CACHE_TOPIC,
+                        CredentialRequestHandler.DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC);
+                int newUnknownErrorCache = validateErrorCacheConfig(Coerce.toInt(config.findOrDefault(
+                        CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC, CONFIGURATION_CONFIG_KEY,
+                        CREDENTIAL_RETRY_CONFIG_TOPIC, UNKNOWN_ERROR_CACHE_TOPIC)), UNKNOWN_ERROR_CACHE_TOPIC,
+                        CredentialRequestHandler.DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC);
+
+                if (cloud4xxErrorCache != newCloud4xxErrorCache
+                        || cloud5xxErrorCache != newCloud5xxErrorCache
+                        || unknownErrorCache != newUnknownErrorCache) {
+
+                    cloud4xxErrorCache = newCloud4xxErrorCache;
+                    cloud5xxErrorCache = newCloud5xxErrorCache;
+                    unknownErrorCache = newUnknownErrorCache;
+
+                    credentialRequestHandler.configureCacheSettings(
+                            newCloud4xxErrorCache, newCloud5xxErrorCache, newUnknownErrorCache);
+
+                    logger.atInfo("tes-credential-retry-config-change")
+                            .kv("node", node).kv("why", why)
+                            .log("TES credential retry configuration updated");
+                }
+            }
+            if (node != null && node.childOf(PORT_TOPIC)) {
+                port = Coerce.toInt(node);
+                Topic activePortTopic = config.lookup(CONFIGURATION_CONFIG_KEY, ACTIVE_PORT_TOPIC);
+
+                if (port != Coerce.toInt(activePortTopic)) {
+                    logger.atInfo("tes-port-config-change").kv(PORT_TOPIC, port).kv("node", node).kv("why", why)
+                            .log("Restarting TES server due to port config change");
+                    requestRestart();
+                }
+            }
+        });
     }
 
     @Override
@@ -128,6 +190,17 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
         if (Utils.isEmpty(iotRoleAlias)) {
             throw new IllegalArgumentException(String.format(TES_CONFIG_ERROR_STR, IOT_ROLE_ALIAS_TOPIC));
         }
+    }
+
+    private int validateErrorCacheConfig(int newCacheValue, String topic, int defaultCacheValue) {
+        if (newCacheValue < MINIMUM_ERROR_CACHE_IN_SEC || newCacheValue > MAXIMUM_ERROR_CACHE_IN_SEC) {
+            logger.atError()
+                    .log("Credential retry value must be between {} and {} seconds, setting {}.{} to default value {}",
+                    MINIMUM_ERROR_CACHE_IN_SEC, MAXIMUM_ERROR_CACHE_IN_SEC, CREDENTIAL_RETRY_CONFIG_TOPIC,
+                    topic, defaultCacheValue);
+            return defaultCacheValue;
+        }
+        return newCacheValue;
     }
 
     @Override

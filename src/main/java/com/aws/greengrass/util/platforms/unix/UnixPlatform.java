@@ -27,6 +27,7 @@ import org.zeroturnaround.process.Processes;
 import oshi.SystemInfo;
 import oshi.software.os.OSProcess;
 import oshi.software.os.OperatingSystem;
+import oshi.software.os.OperatingSystem.OSVersionInfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -41,6 +42,8 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
@@ -57,7 +60,6 @@ public class UnixPlatform extends Platform {
 
     public static final String LOADER_LOGS_FILE_NAME = "loader.log";
     public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
-    public static final String PRIVILEGED_USER = "root";
     public static final String STDOUT = "stdout";
     public static final String STDERR = "stderr";
     protected static final int SIGTERM = 15;
@@ -77,23 +79,34 @@ public class UnixPlatform extends Platform {
     private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
     public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
 
+    @SuppressFBWarnings(value = "ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD",
+            justification = "Writing to static field in constructor is safe because Platform is a singleton.")
+    private static String PRIVILEGED_USER;
     private static UnixUserAttributes CURRENT_USER;
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
     private static final Lock lock = LockFactory.newReentrantLock(UnixPlatform.class.getSimpleName());
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private final UnixRunWithGenerator runWithGenerator;
-
-    private final OperatingSystem oshiOs = new SystemInfo().getOperatingSystem();
+    private final SystemInfo oshiSystemInfo = new SystemInfo();
+    private final OperatingSystem oshiOs = oshiSystemInfo.getOperatingSystem();
+    private final OSVersionInfo oshiVersionInfo = oshiOs.getVersionInfo();
 
     /**
      * Construct a new instance.
      */
+    @SuppressWarnings("PMD.AssignmentToNonFinalStatic")
     public UnixPlatform() {
         super();
         // avoid spamming DEBUG-level oshi logs when reading process stats
         LogManager.getLogger(oshi.util.FileUtil.class.getName()).setLevel("INFO");
         runWithGenerator = new UnixRunWithGenerator(this);
+        try {
+            PRIVILEGED_USER = loadCurrentUser().getPrincipalName();
+        } catch (IOException e) {
+            // This should not happen, but set the PRIVILEGED_USER to root if it fails
+            PRIVILEGED_USER = "root";
+        }
     }
 
     /**
@@ -694,6 +707,18 @@ public class UnixPlatform extends Platform {
     @Override
     public String loaderFilename() {
         return "loader";
+    }
+
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    @Override
+    public Map<String, Object> getOSAndKernelMetrics() {
+        return new HashMap<String, Object>() {{
+            put("OSName", oshiOs.getFamily());
+            put("OSVersion", oshiVersionInfo.getVersion());
+            put("KernelVersion", oshiVersionInfo.getBuildNumber());
+            put("CPUArchitecture", oshiSystemInfo.getHardware().getProcessor().getProcessorIdentifier()
+                    .getMicroarchitecture());
+        }};
     }
 
     private enum IdOption {

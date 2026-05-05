@@ -1,0 +1,25 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: CustomTimeoutUninstallComponent
+ComponentVersion: '1.0.0'
+ComponentDescription: Component with custom uninstall timeout
+ComponentPublisher: Amazon
+Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      Run: powershell -command "echo 'Component running'"
+      Uninstall:
+        Script: |-
+          powershell -command "& { echo 'Starting uninstall with custom timeout'; sleep 15; echo 'Uninstall completed' }"
+        Timeout: 10
+  - Platform:
+      os: all
+    Lifecycle:
+      Run: echo "Component running"
+      Uninstall:
+        Script: |-
+          echo "Starting uninstall with custom timeout"
+          sleep 15
+          echo "Uninstall completed"
+        Timeout: 10

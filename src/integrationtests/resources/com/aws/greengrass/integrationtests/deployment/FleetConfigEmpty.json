@@ -1,0 +1,14 @@
+{
+  "deploymentId": "RemoveAllComponents",
+  "configurationArn": "Test",
+  "components": {},
+  "creationTimestamp": 1601276785086,
+  "failureHandlingPolicy": "ROLLBACK",
+  "componentUpdatePolicy": {
+    "timeout": 60,
+    "action": "NOTIFY_COMPONENTS"
+  },
+  "configurationValidationPolicy": {
+    "timeout": 60
+  }
+}

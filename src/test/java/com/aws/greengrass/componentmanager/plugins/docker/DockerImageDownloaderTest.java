@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
@@ -33,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.ecr.model.ServerException;
 
+import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -83,6 +85,12 @@ public class DockerImageDownloaderTest {
                     .maxRetryInterval(Duration.ofMillis(50L)).maxAttempt(2).retryableExceptions(
                             Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
                                     SdkClientException.class, ServerException.class)).build();
+
+    private final RetryUtils.RetryConfig finiteDeleteAttemptsRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(50L))
+                    .maxRetryInterval(Duration.ofMillis(50L)).maxAttempt(3).retryableExceptions(
+                            Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
+                                    DockerImageDeleteException.class)).build();
 
     @Mock
     private DefaultDockerClient dockerClient;
@@ -565,6 +573,52 @@ public class DockerImageDownloaderTest {
     }
 
     @Test
+    void GIVEN_cleanup_WHEN_delete_image_succeeds_THEN_no_retries_needed() throws Exception {
+        URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
+        DockerImageDownloader downloader = spy(getDownloader(artifactUri));
+
+        doReturn(false).when(downloader).ifImageUsedByOther(any());
+        doNothing().when(dockerClient).deleteImage(any());
+
+        downloader.cleanup();
+
+        verify(dockerClient, times(1)).deleteImage(any());
+    }
+
+    @Test
+    void GIVEN_cleanup_WHEN_delete_image_fails_then_succeeds_THEN_retry_and_succeed(ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, DockerImageDeleteException.class);
+        
+        URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
+        DockerImageDownloader downloader = spy(getDownloader(artifactUri));
+
+        doReturn(false).when(downloader).ifImageUsedByOther(any());
+        doThrow(new DockerImageDeleteException("Delete failed"))
+                .doThrow(new DockerImageDeleteException("Delete failed"))
+                .doNothing().when(dockerClient).deleteImage(any());
+
+        downloader.cleanup();
+
+        verify(dockerClient, times(3)).deleteImage(any());
+    }
+
+    @Test
+    void GIVEN_cleanup_WHEN_delete_image_exhausts_retries_THEN_throw_IOException(ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, DockerImageDeleteException.class);
+        
+        URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
+        DockerImageDownloader downloader = spy(getDownloader(artifactUri));
+
+        doReturn(false).when(downloader).ifImageUsedByOther(any());
+        doThrow(new DockerImageDeleteException("Delete failed")).when(dockerClient).deleteImage(any());
+
+        IOException exception = assertThrows(IOException.class, () -> downloader.cleanup());
+        assertTrue(exception.getCause() instanceof DockerImageDeleteException);
+
+        verify(dockerClient, times(3)).deleteImage(any());
+    }
+
+    @Test
     void GIVEN_network_error_WHEN_download_docker_image_THEN_retry_download_image_until_succeed(
             ExtensionContext extensionContext) throws Exception {
         ignoreExceptionOfType(extensionContext, ConnectionException.class);
@@ -618,6 +672,7 @@ public class DockerImageDownloaderTest {
                 mqttClient, componentStore);
         downloader.setInfiniteAttemptsRetryConfig(infiniteAttemptsRetryConfig);
         downloader.setFiniteAttemptsRetryConfig(finiteAttemptsRetryConfig);
+        downloader.setFiniteDeleteAttemptsRetryConfig(finiteDeleteAttemptsRetryConfig);
         return downloader;
     }
 }

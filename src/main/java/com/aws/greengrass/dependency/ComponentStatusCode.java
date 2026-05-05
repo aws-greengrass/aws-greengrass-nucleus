@@ -51,7 +51,11 @@ public enum ComponentStatusCode {
     SHUTDOWN_ERROR("An error occurred while shutting down the component.",
             "The shutdown script exited with code %s."),
     SHUTDOWN_TIMEOUT("Shutdown script didn't finish within the timeout period. Increase the timeout to give it more "
-            + "time to run or check your code.");
+            + "time to run or check your code."),
+
+    UNINSTALL_TIMEOUT("uninstall script didn't finish within the timeout period. Increase the timeout to give it "
+                             + "more time to run or check your code."),
+    UNINSTALL_ERROR("An error occurred while uninstalling the component.");
 
     @Getter
     private String description;
@@ -165,6 +169,8 @@ public enum ComponentStatusCode {
                 return RUN_ERROR;
             case STOPPING:
                 return SHUTDOWN_ERROR;
+            case UNINSTALLING:
+                return UNINSTALL_ERROR;
             default:
                 return NONE;
         }

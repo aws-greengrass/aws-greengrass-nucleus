@@ -20,7 +20,10 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ExtendWith({GGExtension.class})
 @DisabledOnOs(OS.WINDOWS)
@@ -61,6 +64,16 @@ class UnixPlatformTest   {
                         .withUser("foo")
                         .decorate(command),
                 is(arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "--", "echo", "hello", "world")));
+    }
+
+    @Test
+    void GIVEN_unix_platform_WHEN_get_privileged_user_THEN_returns_current_user() {
+        UnixPlatform platform = new UnixPlatform();
+        String privilegedUser = platform.getPrivilegedUser();
+
+        assertThat(privilegedUser, is(notNullValue()));
+        assertThat(privilegedUser, is(not(equalTo(""))));
+        assertThat(privilegedUser, is(equalTo(System.getProperty("user.name"))));
     }
 
     @Test

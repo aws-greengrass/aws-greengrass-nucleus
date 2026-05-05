@@ -20,6 +20,7 @@ import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -45,6 +46,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
+import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.Matchers;
 import org.hamcrest.collection.IsMapContaining;
 import org.hamcrest.collection.IsMapWithSize;
@@ -52,7 +54,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -121,9 +122,11 @@ import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @SuppressWarnings("PMD.ExcessiveClassLength")
@@ -131,6 +134,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 class DeploymentTaskIntegrationTest extends BaseITCase {
 
     public static final String SIMPLE_APP_NAME = "SimpleApp";
+    public static final String BREAKING_APP_NAME = "BreakingApp";
     private static final String TEST_CUSTOMER_APP_STRING = "Hello Greengrass. This is a test";
     private static final String MOCK_GROUP_NAME = "thinggroup/group1";
     // Based on the recipe files of the packages in sample job document
@@ -868,10 +872,10 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      * Start a service running with a user, then deploy an update to change the user and ensure the correct user stops
      * the process and starts the new one.
      */
-    @Disabled
     @Test
     @Order(9) // deploy before tests that break services
     void GIVEN_a_deployment_with_runwith_config_WHEN_submitted_THEN_runwith_updated() throws Exception {
+        assumeTrue("root".equals(SystemUtils.USER_NAME), "Test requires root access for cgroup management");
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
                 .put("plugin", GreengrassService.class.getName());
 
@@ -1294,6 +1298,172 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME));
     }
 
+    /**
+     *  The following 4 test cases(102-105) aims to test artifact clean up for deployments
+     *  we always keep 2 successful versions
+     *  and if the latest deployment fails we keep that recent one on top of the 2 successful ones.
+     * @throws Exception
+     */
+
+    @Test
+    @Order(102)
+    void GIVEN_two_successful_deployments_WHEN_completed_THEN_both_artifacts_exist() throws Exception {
+        ComponentIdentifier comp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
+        ComponentIdentifier comp2 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"));
+
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result1 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result1.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
+        Future<DeploymentResult> result2 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
+                System.currentTimeMillis());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result2.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+
+        assertRecipeArtifactExists(comp1);
+        assertRecipeArtifactExists(comp2);
+    }
+
+    @Test
+    @Order(103)
+    void GIVEN_two_successful_and_two_unsuccessful_deployments_WHEN_completed_THEN_successful_and_latest_artifacts_exist(ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+        ComponentIdentifier comp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
+        ComponentIdentifier comp2 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"));
+        ComponentIdentifier comp3 = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ComponentIdentifier comp4 = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("2.0.0"));
+
+        //deploy 1 good component
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result1 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result1.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+
+        //deploy second good component
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
+        Future<DeploymentResult> result2 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
+                System.currentTimeMillis());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result2.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+
+
+        //deploy first bad component
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result3 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        assertThrows(ServiceLoadException.class, () -> kernel.locate(BREAKING_APP_NAME));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result3.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+        assertRecipeArtifactExists(comp3);
+
+        //deploy third good component
+        preloadLocalStoreContent(BREAKING_APP_NAME, "2.0.0");
+        Future<DeploymentResult> result4 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc2.json").toURI(),
+                System.currentTimeMillis());
+        assertNotSame(result4.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus(), DeploymentResult.DeploymentStatus.SUCCESSFUL);
+
+
+        assertRecipeArtifactExists(comp1);
+        assertRecipeArtifactExists(comp2);
+        assertRecipeArtifactNotExists(comp3);
+        assertRecipeArtifactExists(comp4);
+    }
+
+    @Test
+    @Order(104)
+    void GIVEN_multiple_unsuccessful_deployments_with_final_success_WHEN_completed_THEN_only_latest_successful_artifacts_exist(ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+        ComponentIdentifier comp1 = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ComponentIdentifier comp2 = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("2.0.0"));
+        ComponentIdentifier comp3 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
+
+        //first bad component
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result1 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        assertThrows(ServiceLoadException.class, () -> kernel.locate(BREAKING_APP_NAME));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result1.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+        assertRecipeArtifactExists(comp1);
+
+        //second bad component
+        preloadLocalStoreContent(BREAKING_APP_NAME, "2.0.0");
+        Future<DeploymentResult> result2 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc2.json").toURI(),
+                System.currentTimeMillis());
+        assertThrows(ServiceLoadException.class, () -> kernel.locate(BREAKING_APP_NAME));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result2.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+        assertRecipeArtifactNotExists(comp1);
+        assertRecipeArtifactExists(comp2);
+
+        // last good component
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result3 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result3.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+
+        assertRecipeArtifactNotExists(comp1);
+        assertRecipeArtifactNotExists(comp2);
+        assertRecipeArtifactExists(comp3);
+    }
+
+    @Test
+    @Order(105)
+    void GIVEN_successful_deployment_with_multiple_unsuccessful_deployments_with_final_success_WHEN_completed_THEN_last_two_successful_artifacts_exist(ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+        ComponentIdentifier comp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
+        ComponentIdentifier comp2 = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ComponentIdentifier comp3 = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("2.0.0"));
+        ComponentIdentifier comp4 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"));
+
+        //first good component
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result1 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result1.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+
+        //first bad component
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result2 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        assertThrows(ServiceLoadException.class, () -> kernel.locate(BREAKING_APP_NAME));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result2.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+        assertRecipeArtifactExists(comp1);
+        assertRecipeArtifactExists(comp2);
+
+        // second bad component
+        preloadLocalStoreContent(BREAKING_APP_NAME, "2.0.0");
+        Future<DeploymentResult> result3 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc2.json").toURI(),
+                System.currentTimeMillis());
+        assertThrows(ServiceLoadException.class, () -> kernel.locate(BREAKING_APP_NAME));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result3.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+        assertRecipeArtifactExists(comp1);
+        assertRecipeArtifactNotExists(comp2);
+        assertRecipeArtifactExists(comp3);
+
+        //last good component
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
+        Future<DeploymentResult> result4 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
+                System.currentTimeMillis());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result4.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+
+        assertRecipeArtifactExists(comp1);
+        assertRecipeArtifactNotExists(comp2);
+        assertRecipeArtifactNotExists(comp3);
+        assertRecipeArtifactExists(comp4);
+
+    }
+
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
         kernel.getContext().get(DeploymentDirectoryManager.class)
@@ -1306,7 +1476,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper);
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class));
         return executorService.submit(deploymentTask);
     }
 }

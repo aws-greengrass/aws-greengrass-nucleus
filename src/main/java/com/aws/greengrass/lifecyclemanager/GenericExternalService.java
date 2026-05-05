@@ -63,6 +63,7 @@ public class GenericExternalService extends GreengrassService {
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
     private static final String CONFIG_NODE = "configNode";
+    public static final String COMPONENT_VERSION_ENV_NAME = "GREENGRASS_COMPONENT_VERSION";
     // Logger which write to a file for just this service
     protected final Logger separateLogger;
     protected final Platform platform;
@@ -383,8 +384,8 @@ public class GenericExternalService extends GreengrassService {
                     logger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
                     separateLogger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
                     State state = getState();
-                    if (startingStateGeneration == getStateGeneration() && State.STARTING.equals(state)
-                            || State.RUNNING.equals(state)) {
+                    if (startingStateGeneration == getStateGeneration()
+                            && (State.STARTING.equals(state) || State.RUNNING.equals(state))) {
                         if (exit == 0 && State.STARTING.equals(state)) {
                             reportState(State.RUNNING);
                         } else if (exit != 0) {
@@ -601,6 +602,51 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
+     * Execute the uninstall lifecycle script for permanent component removal.
+     */
+    @Override
+    protected void uninstall() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atInfo().log("Shutdown initiated");
+
+            try {
+                RunResult result = run(Lifecycle.LIFECYCLE_UNINSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses, false);
+                if (result.getExec() != null) {
+                    Topic versionTopic = getConfig().find(VERSION_CONFIG_KEY);
+                    if (versionTopic != null) {
+                        result.getExec().setenv(COMPONENT_VERSION_ENV_NAME, Coerce.toString(versionTopic));
+                    }
+                    if (result.getDoExec() != null) {
+                        result.getDoExec().apply();
+                    }
+                }
+            } catch (InterruptedException ex) {
+                logger.atWarn("generic-service-uninstall-interrupted")
+                        .kv("componentName:", getServiceName())
+                        .log("Thread interrupted while uninstalling service");
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /**
+     * Shutdown a service without running the shutdown script.
+     * Including stop processes and clean up resources.
+     */
+    public void forceShutdown() {
+
+        stopAllLifecycleProcessesWithoutLock(lifecycleProcesses);
+
+        // Clean up any resource manager entities (can be OS specific) that might have been created for this
+        // component.
+        systemResourceController.removeResourceController(this);
+
+        logger.atInfo().setEventType("force-service-shutdown").log();
+
+        resetRunWith();
+    }
+
+    /**
      * Stop all the lifecycle processes.
      *
      * <p>public for integ test use only.
@@ -627,6 +673,27 @@ public class GenericExternalService extends GreengrassService {
                 } else {
                     processes.remove(e);
                 }
+            }
+        }
+    }
+
+    /**
+     * Force stop processes without acquiring the lock.
+     */
+    @SuppressWarnings("PMD.CloseResource")
+    private void stopAllLifecycleProcessesWithoutLock(List<Exec> processes) {
+        for (Exec e : processes) {
+            if (e != null && e.isRunning()) {
+                logger.atInfo().log("Force shutting down process {}", e);
+                try {
+                    e.close();
+                    logger.atInfo().log("Force shutdown completed for process {}", e);
+                    processes.remove(e);
+                } catch (IOException ex) {
+                    logger.atWarn().log("Force shutdown timed out for process {}", e);
+                }
+            } else {
+                processes.remove(e);
             }
         }
     }

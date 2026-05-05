@@ -126,11 +126,16 @@ public class UnixExec extends Exec {
                 boolean isAnyProcessAlive = pidProcesses.stream().anyMatch(pidProcess -> {
                     try {
                         return pidProcess.isAlive();
-                    } catch (IOException ignored) {
+                    } catch (IOException e) {
+                        logger.atWarn().cause(e).log("Unable to determine if process is alive, "
+                                + "assuming it is to allow further cleanup attempts");
+                        return true;
                     } catch (InterruptedException e) {
+                        logger.atWarn().cause(e).log("Unable to determine if process is alive, "
+                                + "assuming it is to allow further cleanup attempts");
                         Thread.currentThread().interrupt();
+                        return true;
                     }
-                    return false;
                 });
                 if (isAnyProcessAlive) {
                     logger.atWarn()
