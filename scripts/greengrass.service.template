@@ -1,6 +1,7 @@
 [Unit]
 Description=Greengrass Core
 After=network.target
+After=systemd-time-wait-sync.service
 
 [Service]
 Type=simple
