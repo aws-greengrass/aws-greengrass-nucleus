@@ -7,6 +7,9 @@ package com.aws.greengrass.util.platforms;
 
 import lombok.Getter;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * Decorate a command to run as another user or group.
  */
@@ -15,6 +18,8 @@ public abstract class UserDecorator implements CommandDecorator {
     protected String user;
     @Getter
     protected String group;
+    @Getter
+    protected Map<String, String> env = Collections.emptyMap();
 
     /**
      * Set the user to run with.
@@ -33,6 +38,17 @@ public abstract class UserDecorator implements CommandDecorator {
      */
     public UserDecorator withGroup(String group) {
         this.group = group;
+        return this;
+    }
+
+    /**
+     * Set environment variables to preserve when switching users.
+     *
+     * @param env map of env var names to values; only the keys are used by the decorator.
+     * @return this.
+     */
+    public UserDecorator withEnv(Map<String, String> env) {
+        this.env = env == null ? Collections.emptyMap() : env;
         return this;
     }
 }

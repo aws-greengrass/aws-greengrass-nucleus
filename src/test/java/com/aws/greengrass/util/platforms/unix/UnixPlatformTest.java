@@ -13,6 +13,9 @@ import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -43,7 +46,7 @@ class UnixPlatformTest   {
                         .withUser("foo")
                         .withGroup("bar")
                         .decorate(command),
-                is(arrayContaining("sudo", "-n",  "-E", "-H", "-u", "foo", "-g", "bar", "--", "echo", "hello",
+                is(arrayContaining("sudo", "-n", "-H", "-u", "foo", "-g", "bar", "--", "echo", "hello",
                         "world")));
     }
 
@@ -54,7 +57,7 @@ class UnixPlatformTest   {
                         .withGroup("200")
                         .decorate(command),
 
-                is(arrayContaining("sudo", "-n", "-E", "-H", "-u", "#100", "-g", "#200", "--", "echo", "hello",
+                is(arrayContaining("sudo", "-n", "-H", "-u", "#100", "-g", "#200", "--", "echo", "hello",
                         "world")));
     }
 
@@ -63,7 +66,66 @@ class UnixPlatformTest   {
         assertThat(new UnixPlatform.SudoDecorator()
                         .withUser("foo")
                         .decorate(command),
-                is(arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "--", "echo", "hello", "world")));
+                is(arrayContaining("sudo", "-n", "-H", "-u", "foo", "--", "echo", "hello", "world")));
+    }
+
+    @Test
+    void GIVEN_empty_env_WHEN_decorate_THEN_no_preserve_env_flag() {
+        assertThat(new UnixPlatform.SudoDecorator()
+                        .withUser("foo")
+                        .withEnv(Collections.emptyMap())
+                        .decorate(command),
+                is(arrayContaining("sudo", "-n", "-H", "-u", "foo", "--", "echo", "hello", "world")));
+    }
+
+    @Test
+    void GIVEN_null_env_WHEN_decorate_THEN_no_preserve_env_flag() {
+        assertThat(new UnixPlatform.SudoDecorator()
+                        .withUser("foo")
+                        .withEnv(null)
+                        .decorate(command),
+                is(arrayContaining("sudo", "-n", "-H", "-u", "foo", "--", "echo", "hello", "world")));
+    }
+
+    @Test
+    void GIVEN_env_WHEN_decorate_THEN_emit_preserve_env_flag_with_sorted_keys() {
+        Map<String, String> env = new LinkedHashMap<>();
+        env.put("SVCUID", "abc123");
+        env.put("GG_ROOT_CA_PATH", "/greengrass/v2/rootCA.pem");
+
+        assertThat(new UnixPlatform.SudoDecorator()
+                        .withUser("foo")
+                        .withEnv(env)
+                        .decorate(command),
+                is(arrayContaining("sudo", "-n", "--preserve-env=GG_ROOT_CA_PATH,SVCUID",
+                        "-H", "-u", "foo", "--", "echo", "hello", "world")));
+    }
+
+    @Test
+    void GIVEN_env_and_group_WHEN_decorate_THEN_preserve_env_precedes_user_and_group() {
+        Map<String, String> env = new LinkedHashMap<>();
+        env.put("SVCUID", "abc123");
+
+        assertThat(new UnixPlatform.SudoDecorator()
+                        .withUser("foo")
+                        .withGroup("bar")
+                        .withEnv(env)
+                        .decorate(command),
+                is(arrayContaining("sudo", "-n", "--preserve-env=SVCUID",
+                        "-H", "-u", "foo", "-g", "bar", "--", "echo", "hello", "world")));
+    }
+
+    @Test
+    void GIVEN_single_env_entry_WHEN_decorate_THEN_no_trailing_comma() {
+        Map<String, String> env = new LinkedHashMap<>();
+        env.put("SVCUID", "abc123");
+
+        assertThat(new UnixPlatform.SudoDecorator()
+                        .withUser("foo")
+                        .withEnv(env)
+                        .decorate(command),
+                is(arrayContaining("sudo", "-n", "--preserve-env=SVCUID",
+                        "-H", "-u", "foo", "--", "echo", "hello", "world")));
     }
 
     @Test

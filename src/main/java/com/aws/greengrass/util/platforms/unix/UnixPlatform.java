@@ -40,9 +40,11 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -801,27 +803,29 @@ public class UnixPlatform extends Platform {
                 return command;
             }
 
-            int size = (group == null) ? 7 : 9;
-            String[] ret = new String[command.length + size];
-            ret[0] = "sudo";
-            ret[1] = "-n";  // don't prompt for password
-            ret[2] = "-E";  // pass env vars through
-            ret[3] = "-H";  // set $HOME
-            ret[4] = "-u";  // set user
+            List<String> ret = new ArrayList<>(command.length + 10);
+            ret.add("sudo");
+            ret.add("-n");
+            // --preserve-env=KEY1,... works with both classic sudo and sudo-rs (which drops -E)
+            if (!env.isEmpty()) {
+                ret.add("--preserve-env=" + env.keySet().stream().sorted().collect(Collectors.joining(",")));
+            }
+            ret.add("-H");  // set $HOME
+            ret.add("-u");  // set user
             if (user.chars().allMatch(Character::isDigit)) {
                 user = "#" + user;
             }
-            ret[5] = user;
+            ret.add(user);
             if (group != null) {
-                ret[6] = "-g"; // set group
+                ret.add("-g"); // set group
                 if (group.chars().allMatch(Character::isDigit)) {
                     group = "#" + group;
                 }
-                ret[7] = group;
+                ret.add(group);
             }
-            ret[size - 1] = "--";
-            System.arraycopy(command, 0, ret, size, command.length);
-            return ret;
+            ret.add("--");
+            ret.addAll(Arrays.asList(command));
+            return ret.toArray(new String[0]);
         }
     }
 }

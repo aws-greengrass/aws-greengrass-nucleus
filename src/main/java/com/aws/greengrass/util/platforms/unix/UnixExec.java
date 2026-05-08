@@ -91,6 +91,7 @@ public class UnixExec extends Exec {
             decorated = shellDecorator.decorate(decorated);
         }
         if (userDecorator != null) {
+            userDecorator.withEnv(environment);
             decorated = userDecorator.decorate(decorated);
         }
         return decorated;
