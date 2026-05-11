@@ -81,6 +81,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithStackTraceContaining;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -704,7 +705,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     @Test
     void GIVEN_kernel_activation_resume_WHEN_shadow_update_arrives_before_metadata_set_THEN_deployment_not_cancelled(
             ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, NullPointerException.class);
+        ignoreExceptionWithStackTraceContaining(context, NullPointerException.class, "KernelUpdateDeploymentTask");
         ignoreExceptionOfType(context, ServiceLoadException.class);
         ignoreExceptionOfType(context, java.nio.file.NoSuchFileException.class);
         String configArn = "arn:aws:greengrass:us-east-1:123456789:configuration:testGroup:31";
@@ -720,7 +721,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         DeploymentDocument deploymentDocument = convertFromDeploymentConfiguration(deploymentConfiguration);
         Deployment resumedDeployment = new Deployment(deploymentDocument, DeploymentType.SHADOW, configArn,
                 Deployment.DeploymentStage.KERNEL_ACTIVATION);
-        resumedDeployment.setDeploymentStage(Deployment.DeploymentStage.KERNEL_ACTIVATION);
         deploymentQueue.offer(resumedDeployment);
 
         // Reset listener to post-restart state (lastConfigurationArn = null, as it would be after Nucleus restart)
@@ -739,14 +739,9 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             assertTrue(startedLatch.await(10, TimeUnit.SECONDS), "Deployment must start");
         }
 
-        // Inject duplicate shadow update into the race window
-        Map<String, Object> desired = new HashMap<>();
-        desired.put(ShadowDeploymentListener.FLEET_CONFIG_KEY, fleetConfigStr);
-        desired.put(ShadowDeploymentListener.DESIRED_STATUS_KEY, "SUCCEEDED");
-        shadowListener.triggerShadowUpdatedForTest(desired, null, 1);
-
-        // Assert: the duplicate is NOT re-enqueued and the deployment is NOT spuriously cancelled.
-        // Listen for 3s — if "Canceling current device deployment" fires, the bug is present.
+        // Inject duplicate shadow update and assert it does NOT cause spurious cancellation.
+        // Listener must be registered before triggering the shadow update to avoid a false negative
+        // if the cancellation log fires synchronously before the latch is observed.
         CountDownLatch cancelledLatch = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> cancelListener = m -> {
             if ("Canceling current device deployment".equals(m.getMessage())) {
@@ -754,6 +749,11 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             }
         };
         try (AutoCloseable l = TestUtils.createCloseableLogListener(cancelListener)) {
+            Map<String, Object> desired = new HashMap<>();
+            desired.put(ShadowDeploymentListener.FLEET_CONFIG_KEY, fleetConfigStr);
+            desired.put(ShadowDeploymentListener.DESIRED_STATUS_KEY, "SUCCEEDED");
+            shadowListener.triggerShadowUpdatedForTest(desired, null, 1);
+
             assertFalse(cancelledLatch.await(3, TimeUnit.SECONDS),
                     "Deployment should NOT be spuriously cancelled after duplicate shadow update");
         }
