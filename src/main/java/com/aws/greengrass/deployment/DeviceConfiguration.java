@@ -103,6 +103,8 @@ public class DeviceConfiguration {
     public static final String FLEET_STATUS_CONFIG_TOPICS = "fleetStatus";
 
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
+    public static final String CREDENTIAL_ENDPOINT_TIMEOUT_MS_TOPIC = "credentialEndpointTimeoutMs";
+    public static final long DEFAULT_CREDENTIAL_ENDPOINT_TIMEOUT_MS = 60_000L;
     public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
     public static final String DEPLOYMENT_POLLING_FREQUENCY_SECONDS = "deploymentPollingFrequencySeconds";
     public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
@@ -534,6 +536,10 @@ public class DeviceConfiguration {
 
     public Topic getIotRoleAlias() {
         return getTopic(IOT_ROLE_ALIAS_TOPIC).dflt("");
+    }
+
+    public Topic getCredentialEndpointTimeoutMs() {
+        return getTopic(CREDENTIAL_ENDPOINT_TIMEOUT_MS_TOPIC).dflt(DEFAULT_CREDENTIAL_ENDPOINT_TIMEOUT_MS);
     }
 
     public Topic getComponentStoreMaxSizeBytes() {
