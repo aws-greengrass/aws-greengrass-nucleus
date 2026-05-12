@@ -14,7 +14,13 @@ import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.AWSIotException;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
+import com.aws.greengrass.iot.IotCloudHelper;
+import com.aws.greengrass.iot.IotConnectionManager;
+import com.aws.greengrass.iot.model.IotCloudResponse;
 import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
@@ -73,6 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
@@ -87,7 +94,7 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentCompo
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 
-@SuppressWarnings({"PMD.CouplingBetweenObjects", "PMD.CloseResource"})
+@SuppressWarnings({"PMD.CouplingBetweenObjects", "PMD.CloseResource", "PMD.ExcessiveClassLength"})
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentConfigMergerTest {
 
@@ -585,6 +592,16 @@ class DeploymentConfigMergerTest {
 
     }
 
+    private IotCloudHelper setupCredentialEndpointMocks() {
+        IotCloudHelper iotCloudHelper = mock(IotCloudHelper.class);
+        IotConnectionManager iotConnectionManager = mock(IotConnectionManager.class);
+        lenient().when(context.get(IotCloudHelper.class)).thenReturn(iotCloudHelper);
+        lenient().when(context.get(IotConnectionManager.class)).thenReturn(iotConnectionManager);
+        Topic thingNameTopic = Topic.of(context, "thingName", "myThing");
+        when(deviceConfiguration.getThingName()).thenReturn(thingNameTopic);
+        return iotCloudHelper;
+    }
+
     private Deployment createMockDeployment(DeploymentDocument doc) {
         Deployment deployment = mock(Deployment.class);
         doReturn(doc).when(deployment).getDeploymentDocumentObj();
@@ -607,6 +624,22 @@ class DeploymentConfigMergerTest {
         Topic rootCaTopic = Topic.of(context, "rootCA", "/path/to/ca.pem");
         lenient().when(deviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         lenient().when(deviceConfiguration.getRootCAFilePath()).thenReturn(rootCaTopic);
+
+        // Mock credential endpoint validation dependencies
+        IotCloudHelper iotCloudHelper = mock(IotCloudHelper.class);
+        IotConnectionManager iotConnectionManager = mock(IotConnectionManager.class);
+        lenient().when(context.get(IotCloudHelper.class)).thenReturn(iotCloudHelper);
+        lenient().when(context.get(IotConnectionManager.class)).thenReturn(iotConnectionManager);
+        IotCloudResponse credResponse = new IotCloudResponse("{\"credentials\":{}}".getBytes(), 200);
+        lenient().when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(credResponse);
+        Topic roleAliasTopic = Topic.of(context, "iotRoleAlias", "myRoleAlias");
+        lenient().when(deviceConfiguration.getIotRoleAlias()).thenReturn(roleAliasTopic);
+        Topic credTimeoutTopic = Topic.of(context, "credentialEndpointTimeoutMs", 60000L);
+        lenient().when(deviceConfiguration.getCredentialEndpointTimeoutMs()).thenReturn(credTimeoutTopic);
+
+        // Register the validator in context (resolved via DI in production code)
+        lenient().when(context.get(EndpointSwitchPreflightValidator.class)).thenReturn(
+                new EndpointSwitchPreflightValidator(kernel, deviceConfiguration, iotCloudHelper, iotConnectionManager));
     }
 
     private GreengrassService createMockGreengrassService(String name) {
@@ -795,6 +828,11 @@ class DeploymentConfigMergerTest {
         lenient().when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttTopics);
         lenient().when(mqttTopics.findOrDefault(any(), any())).thenReturn(60_000L);
 
+        // Register validator in context (resolved via DI)
+        lenient().when(context.get(EndpointSwitchPreflightValidator.class)).thenReturn(
+                new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                        mock(IotCloudHelper.class), mock(IotConnectionManager.class)));
+
         Map<String, Object> nucleusConfigMap = new HashMap<>();
         nucleusConfigMap.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "new-ats.iot.us-west-2.amazonaws.com");
         Map<String, Object> nucleusNamespace = new HashMap<>();
@@ -821,5 +859,345 @@ class DeploymentConfigMergerTest {
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
                 future.get().getDeploymentStatus());
         verify(deploymentActivator, never()).activate(any(), any(), any(Long.class), any());
+    }
+
+    // Direct unit tests for isolated error code mapping — integration tests below verify end-to-end through mergeInNewConfig
+
+    @Test
+    void GIVEN_credential_endpoint_returns_200_WHEN_verifyCredentialEndpoint_THEN_returns_true() throws Exception {
+        IotCloudHelper iotCloudHelper = setupCredentialEndpointMocks();
+
+        IotCloudResponse response = new IotCloudResponse("{\"credentials\":{}}".getBytes(), 200);
+        when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(response);
+
+        EndpointSwitchPreflightValidator validator = new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                iotCloudHelper, context.get(IotConnectionManager.class));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
+
+        assertTrue(validator.verifyCredentialEndpoint(future, "new.credentials.iot.us-west-2.amazonaws.com", "GreengrassCoreTokenExchangeRoleAlias", 60000));
+        assertFalse(future.isDone());
+    }
+
+    @Test
+    void GIVEN_credential_endpoint_returns_403_WHEN_verifyCredentialEndpoint_THEN_fails_immediately(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, DeploymentException.class);
+
+        IotCloudHelper iotCloudHelper = setupCredentialEndpointMocks();
+
+        IotCloudResponse response = new IotCloudResponse("Forbidden".getBytes(), 403);
+        when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(response);
+
+        EndpointSwitchPreflightValidator validator = new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                iotCloudHelper, context.get(IotConnectionManager.class));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
+
+        assertFalse(validator.verifyCredentialEndpoint(future, "new.credentials.iot.us-west-2.amazonaws.com", "GreengrassCoreTokenExchangeRoleAlias", 60000));
+        assertTrue(future.isDone());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, future.get().getDeploymentStatus());
+        assertTrue(((DeploymentException) future.get().getFailureCause()).getErrorCodes()
+                .contains(DeploymentErrorCode.CREDENTIAL_ENDPOINT_AUTH_FAILURE));
+        // Verify no retry — only one call
+        verify(iotCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void GIVEN_credential_endpoint_returns_401_WHEN_verifyCredentialEndpoint_THEN_fails_immediately(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, DeploymentException.class);
+
+        IotCloudHelper iotCloudHelper = setupCredentialEndpointMocks();
+
+        IotCloudResponse response = new IotCloudResponse("Unauthorized".getBytes(), 401);
+        when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(response);
+
+        EndpointSwitchPreflightValidator validator = new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                iotCloudHelper, context.get(IotConnectionManager.class));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
+
+        assertFalse(validator.verifyCredentialEndpoint(future, "new.credentials.iot.us-west-2.amazonaws.com", "GreengrassCoreTokenExchangeRoleAlias", 60000));
+        assertTrue(future.isDone());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, future.get().getDeploymentStatus());
+        assertTrue(((DeploymentException) future.get().getFailureCause()).getErrorCodes()
+                .contains(DeploymentErrorCode.CREDENTIAL_ENDPOINT_AUTH_FAILURE));
+        verify(iotCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void GIVEN_credential_endpoint_returns_404_WHEN_verifyCredentialEndpoint_THEN_fails_immediately(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, DeploymentException.class);
+
+        IotCloudHelper iotCloudHelper = setupCredentialEndpointMocks();
+
+        IotCloudResponse response = new IotCloudResponse(
+                "{\"message\":\"Role alias does not exist\"}".getBytes(), 404);
+        when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(response);
+
+        EndpointSwitchPreflightValidator validator = new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                iotCloudHelper, context.get(IotConnectionManager.class));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
+
+        assertFalse(validator.verifyCredentialEndpoint(future, "new.credentials.iot.us-west-2.amazonaws.com", "GreengrassCoreTokenExchangeRoleAlias", 60000));
+        assertTrue(future.isDone());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, future.get().getDeploymentStatus());
+        assertTrue(((DeploymentException) future.get().getFailureCause()).getErrorCodes()
+                .contains(DeploymentErrorCode.CREDENTIAL_ENDPOINT_AUTH_FAILURE));
+        verify(iotCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void GIVEN_credential_endpoint_returns_500_WHEN_verifyCredentialEndpoint_THEN_retries_and_fails(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, AWSIotException.class);
+
+        IotCloudHelper iotCloudHelper = setupCredentialEndpointMocks();
+
+        // sendHttpRequest throws AWSIotException wrapping the 5xx (since IotCloudHelper's internal retry
+        // will eventually throw). We simulate the retry exhaustion at our level.
+        when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any()))
+                .thenThrow(new AWSIotException("Server error"));
+
+        EndpointSwitchPreflightValidator validator = new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                iotCloudHelper, context.get(IotConnectionManager.class));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
+
+        // Use short timeout to avoid long test
+        assertFalse(validator.verifyCredentialEndpoint(future, "new.credentials.iot.us-west-2.amazonaws.com", "GreengrassCoreTokenExchangeRoleAlias", 20000));
+        assertTrue(future.isDone());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, future.get().getDeploymentStatus());
+        assertTrue(((DeploymentException) future.get().getFailureCause()).getErrorCodes()
+                .contains(DeploymentErrorCode.CREDENTIAL_ENDPOINT_SERVER_ERROR));
+        // 20000ms timeout / 10000ms max retry interval = 2 attempts
+        verify(iotCloudHelper, times(2)).sendHttpRequest(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void GIVEN_credential_endpoint_network_error_WHEN_verifyCredentialEndpoint_THEN_retries_and_fails(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, AWSIotException.class);
+
+        IotCloudHelper iotCloudHelper = setupCredentialEndpointMocks();
+
+        when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any()))
+                .thenThrow(new AWSIotException("Unable to connect"));
+
+        EndpointSwitchPreflightValidator validator = new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                iotCloudHelper, context.get(IotConnectionManager.class));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
+
+        assertFalse(validator.verifyCredentialEndpoint(future, "new.credentials.iot.us-west-2.amazonaws.com", "GreengrassCoreTokenExchangeRoleAlias", 20000));
+        assertTrue(future.isDone());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, future.get().getDeploymentStatus());
+        assertTrue(((DeploymentException) future.get().getFailureCause()).getErrorCodes()
+                .contains(DeploymentErrorCode.CREDENTIAL_ENDPOINT_SERVER_ERROR));
+    }
+
+    @Test
+    void GIVEN_empty_role_alias_WHEN_verifyCredentialEndpoint_THEN_fails_immediately(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, DeploymentException.class);
+
+        EndpointSwitchPreflightValidator validator = new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                mock(IotCloudHelper.class), mock(IotConnectionManager.class));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
+
+        assertFalse(validator.verifyCredentialEndpoint(future, "new.credentials.iot.us-west-2.amazonaws.com", "", 60000));
+        assertTrue(future.isDone());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, future.get().getDeploymentStatus());
+        assertTrue(((DeploymentException) future.get().getFailureCause()).getErrorCodes()
+                .contains(DeploymentErrorCode.CREDENTIAL_ENDPOINT_AUTH_FAILURE));
+    }
+
+    @Test
+    void GIVEN_null_role_alias_WHEN_verifyCredentialEndpoint_THEN_fails_immediately(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, DeploymentException.class);
+
+        EndpointSwitchPreflightValidator validator = new EndpointSwitchPreflightValidator(kernel, deviceConfiguration,
+                mock(IotCloudHelper.class), mock(IotConnectionManager.class));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
+
+        assertFalse(validator.verifyCredentialEndpoint(future, "new.credentials.iot.us-west-2.amazonaws.com", null, 60000));
+        assertTrue(future.isDone());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, future.get().getDeploymentStatus());
+        assertTrue(((DeploymentException) future.get().getFailureCause()).getErrorCodes()
+                .contains(DeploymentErrorCode.CREDENTIAL_ENDPOINT_AUTH_FAILURE));
+    }
+
+    @Test
+    void GIVEN_cred_endpoint_unchanged_WHEN_endpoint_switch_THEN_credential_check_skipped() throws Throwable {
+        DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
+        DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
+        when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        setupPreflightMocks();
+
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT,
+                "old-ats.iot.us-east-1.amazonaws.com");
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT,
+                "same.credentials.iot.us-east-1.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+
+        // Only data endpoint changes, cred endpoint stays the same
+        Map<String, Object> nucleusConfigMap = new HashMap<>();
+        nucleusConfigMap.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "new-ats.iot.us-west-2.amazonaws.com");
+        Map<String, Object> nucleusNamespace = new HashMap<>();
+        nucleusNamespace.put(CONFIGURATION_CONFIG_KEY, nucleusConfigMap);
+        Map<String, Object> serviceConfig = new HashMap<>();
+        serviceConfig.put(DEFAULT_NUCLEUS_COMPONENT_NAME, nucleusNamespace);
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
+
+        Topic sourceEndpointTopic = mock(Topic.class);
+        when(runtimeTopics.lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
+                .thenReturn(sourceEndpointTopic);
+
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
+                executorService);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        lenient().when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
+
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
+
+        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(executorService).execute(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        // IotCloudHelper should never be called since cred endpoint didn't change
+        IotCloudHelper iotCloudHelper = context.get(IotCloudHelper.class);
+        verify(iotCloudHelper, never()).sendHttpRequest(any(), any(), any(), any(), any());
+        verify(deploymentActivator).activate(any(), any(), any(Long.class), any());
+    }
+
+    @Test
+    void GIVEN_role_alias_changed_WHEN_endpoint_switch_THEN_credential_check_runs() throws Throwable {
+        DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
+        DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
+        when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        setupPreflightMocks();
+
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT,
+                "old-ats.iot.us-east-1.amazonaws.com");
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT,
+                "same.credentials.iot.us-east-1.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
+        Topic roleAliasTopic = Topic.of(context, DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC, "OldRoleAlias");
+        lenient().when(deviceConfiguration.getIotRoleAlias()).thenReturn(roleAliasTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+
+        // Data endpoint changes AND role alias changes, but cred endpoint stays the same
+        Map<String, Object> nucleusConfigMap = new HashMap<>();
+        nucleusConfigMap.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "new-ats.iot.us-west-2.amazonaws.com");
+        nucleusConfigMap.put(DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC, "NewRoleAlias");
+        Map<String, Object> nucleusNamespace = new HashMap<>();
+        nucleusNamespace.put(CONFIGURATION_CONFIG_KEY, nucleusConfigMap);
+        Map<String, Object> serviceConfig = new HashMap<>();
+        serviceConfig.put(DEFAULT_NUCLEUS_COMPONENT_NAME, nucleusNamespace);
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
+
+        Topic sourceEndpointTopic = mock(Topic.class);
+        when(runtimeTopics.lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
+                .thenReturn(sourceEndpointTopic);
+
+        // Mock IotCloudHelper to return 200 (credential check passes)
+        IotCloudHelper iotCloudHelper = mock(IotCloudHelper.class);
+        IotConnectionManager iotConnectionManager = mock(IotConnectionManager.class);
+        lenient().when(context.get(IotCloudHelper.class)).thenReturn(iotCloudHelper);
+        lenient().when(context.get(IotConnectionManager.class)).thenReturn(iotConnectionManager);
+        IotCloudResponse successResponse = new IotCloudResponse("{\"credentials\":{}}".getBytes(), 200);
+        when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(successResponse);
+
+        // Re-register validator with the new mocks
+        when(context.get(EndpointSwitchPreflightValidator.class)).thenReturn(
+                new EndpointSwitchPreflightValidator(kernel, deviceConfiguration, iotCloudHelper, iotConnectionManager));
+
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
+                executorService);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        lenient().when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
+
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
+
+        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(executorService).execute(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        // Verify the URL includes the new role alias
+        verify(iotCloudHelper).sendHttpRequest(any(), any(),
+                contains("NewRoleAlias"), any(), any());
+        verify(deploymentActivator).activate(any(), any(), any(Long.class), any());
+    }
+
+    @Test
+    void GIVEN_both_cred_endpoint_and_role_alias_changed_WHEN_endpoint_switch_THEN_credential_check_uses_both_new_values() throws Throwable {
+        DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
+        DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
+        when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        setupPreflightMocks();
+
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT,
+                "old-ats.iot.us-east-1.amazonaws.com");
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT,
+                "old.credentials.iot.us-east-1.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
+        Topic roleAliasTopic = Topic.of(context, DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC, "OldRoleAlias");
+        lenient().when(deviceConfiguration.getIotRoleAlias()).thenReturn(roleAliasTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+
+        // Both iotCredEndpoint and iotRoleAlias change
+        Map<String, Object> nucleusConfigMap = new HashMap<>();
+        nucleusConfigMap.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "new-ats.iot.us-west-2.amazonaws.com");
+        nucleusConfigMap.put(DEVICE_PARAM_IOT_CRED_ENDPOINT, "new.credentials.iot.us-west-2.amazonaws.com");
+        nucleusConfigMap.put(DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC, "NewRoleAlias");
+        Map<String, Object> nucleusNamespace = new HashMap<>();
+        nucleusNamespace.put(CONFIGURATION_CONFIG_KEY, nucleusConfigMap);
+        Map<String, Object> serviceConfig = new HashMap<>();
+        serviceConfig.put(DEFAULT_NUCLEUS_COMPONENT_NAME, nucleusNamespace);
+        Map<String, Object> newConfig = new HashMap<>();
+        newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
+
+        Topic sourceEndpointTopic = mock(Topic.class);
+        when(runtimeTopics.lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
+                .thenReturn(sourceEndpointTopic);
+
+        IotCloudHelper iotCloudHelper = mock(IotCloudHelper.class);
+        IotConnectionManager iotConnectionManager = mock(IotConnectionManager.class);
+        lenient().when(context.get(IotCloudHelper.class)).thenReturn(iotCloudHelper);
+        lenient().when(context.get(IotConnectionManager.class)).thenReturn(iotConnectionManager);
+        IotCloudResponse successResponse = new IotCloudResponse("{\"credentials\":{}}".getBytes(), 200);
+        when(iotCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(successResponse);
+
+        when(context.get(EndpointSwitchPreflightValidator.class)).thenReturn(
+                new EndpointSwitchPreflightValidator(kernel, deviceConfiguration, iotCloudHelper, iotConnectionManager));
+
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
+                executorService);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        lenient().when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
+
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
+
+        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(executorService).execute(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        // Verify the URL contains both the new credential endpoint and the new role alias
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(iotCloudHelper).sendHttpRequest(any(), any(), urlCaptor.capture(), any(), any());
+        String capturedUrl = urlCaptor.getValue();
+        assertTrue(capturedUrl.contains("new.credentials.iot.us-west-2.amazonaws.com"));
+        assertTrue(capturedUrl.contains("NewRoleAlias"));
+        verify(deploymentActivator).activate(any(), any(), any(Long.class), any());
     }
 }
