@@ -17,7 +17,9 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.StandaloneMqttConnector;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.util.Coerce;
@@ -26,6 +28,9 @@ import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -46,6 +51,7 @@ import software.amazon.awssdk.iot.iotjobs.model.RejectedError;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -97,6 +103,10 @@ public class IotJobsHelper implements InjectionActions {
             "Interrupted while subscribing to Iot jobs event notifications topic";
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
     private static final String NEXT_JOB_LITERAL = "$next";
+    /**
+     * IoT Jobs status detail values are limited to 1024 characters by the service.
+     */
+    private static final int JOB_STATUS_DETAIL_MAX_LENGTH = 1024;
     // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
     // with, and keep retrying the request until we get a non-empty response.
@@ -107,6 +117,7 @@ public class IotJobsHelper implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(IotJobsHelper.class);
     private static final long WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN = Duration.ofMinutes(2).toMillis();
     private static final Random RANDOM = new Random();
+    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
     // setter is only used for testing
     @Setter
@@ -361,20 +372,28 @@ public class IotJobsHelper implements InjectionActions {
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         String jobId = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
         String status = (String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME);
+
+        // Endpoint-switch deployment: report SUCCEEDED to the source endpoint via standalone MQTT.
+        //
+        // After a successful switch the main MQTT client is on the destination endpoint, so the
+        // IoT Job at the source endpoint can only be updated via a standalone connection.
+        //
+        // FAILED (rollback): the device is still on the source endpoint (sourceEndpoint ==
+        // currentEndpoint), so the block clears keys and falls through — the existing
+        // updateJobStatus() below publishes FAILED via the main MQTT client which is still
+        // connected to the source endpoint.
+        //
+        // IN_PROGRESS: only reaches this block after a nucleus restart (the source endpoint
+        // already received IN_PROGRESS before the restart). Dropped to avoid publishing to the
+        // destination endpoint where the IoT Job doesn't exist.
+        if (handleEndpointSwitchStatus(jobId, status, deploymentDetails)) {
+            return true;
+        }
+
+        @SuppressWarnings("unchecked")
         Map<String, Object> statusDetails =
                 (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
-        HashMap<String, String> jobStatusDetails = new HashMap<>();
-        statusDetails.forEach((k, v) -> {
-            if (v instanceof String) {
-                jobStatusDetails.put(k, (String) v);
-            } else {
-                try {
-                    jobStatusDetails.put(k, SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(v));
-                } catch (JsonProcessingException e) {
-                    logger.atWarn().kv("status-detail-value", v).setCause(e).log("Failed to serialize status detail");
-                }
-            }
-        });
+        HashMap<String, String> jobStatusDetails = buildJobStatusDetails(statusDetails);
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                 .kv("StatusDetails", statusDetails).log("Updating status of persisted deployment");
         try {
@@ -435,7 +454,8 @@ public class IotJobsHelper implements InjectionActions {
                 });
 
         // Truncate status detail map values longer than the 1024 characters limit
-        statusDetailsMap.entrySet().forEach(e -> statusDetailsMap.put(e.getKey(), Utils.truncate(e.getValue(), 1024)));
+        statusDetailsMap.entrySet().forEach(e -> statusDetailsMap.put(e.getKey(),
+                Utils.truncate(e.getValue(), JOB_STATUS_DETAIL_MAX_LENGTH)));
 
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
         updateJobRequest.jobId = jobId;
@@ -662,6 +682,90 @@ public class IotJobsHelper implements InjectionActions {
         } catch (ServiceLoadException e) {
             logger.atError().setCause(e).log("Failed to find deployment service");
         }
+    }
+
+    /**
+     * Handle endpoint-switch status reporting. If this deployment is an endpoint switch,
+     * report terminal status to the source endpoint via standalone MQTT and clear persisted state.
+     *
+     * @return true if this status update was handled (caller should return), false to continue normal path
+     */
+    private boolean handleEndpointSwitchStatus(String jobId, String status,
+                                               Map<String, Object> deploymentDetails) {
+        EndpointSwitchState endpointSwitchState = kernel.getContext().get(EndpointSwitchState.class);
+        if (!endpointSwitchState.isEndpointSwitchDeployment(jobId)) {
+            return false;
+        }
+        if (JobStatus.IN_PROGRESS.toString().equals(status)) {
+            return true;
+        }
+        String sourceEndpoint = endpointSwitchState.getSourceIotDataEndpoint();
+        if (sourceEndpoint == null) {
+            // State was cleared concurrently — fall through to normal path
+            endpointSwitchState.clear();
+            return false;
+        }
+        if (!sourceEndpoint.equals(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))) {
+            publishStatusToSourceEndpoint(sourceEndpoint, jobId, deploymentDetails);
+            endpointSwitchState.clear();
+            return true;
+        }
+        endpointSwitchState.clear();
+        return false;
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressFBWarnings("REC_CATCH_EXCEPTION")
+    private void publishStatusToSourceEndpoint(String sourceEndpoint, String jobId,
+                                                  Map<String, Object> deploymentDetails) {
+        String status = (String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> statusDetails =
+                (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+        HashMap<String, String> jobStatusDetails = buildJobStatusDetails(statusDetails);
+
+        String thing = Coerce.toString(deviceConfiguration.getThingName());
+        String topic = String.format(IotJobsClientWrapper.UPDATE_JOB_TOPIC, thing, jobId);
+        long connectTimeout = deviceConfiguration.getStandaloneMqttTimeout();
+        try (StandaloneMqttConnector connector = StandaloneMqttConnector.forEndpointSwitch(
+                kernel.getContext().get(SecurityService.class), deviceConfiguration, sourceEndpoint)) {
+            connector.connect(connectTimeout);
+            UpdateJobExecutionRequest request = new UpdateJobExecutionRequest();
+            request.status = JobStatus.valueOf(status);
+            request.statusDetails = jobStatusDetails;
+            request.thingName = thing;
+            request.jobId = jobId;
+            byte[] payload = GSON.toJson(request).getBytes(StandardCharsets.UTF_8);
+            connector.publish(topic, payload, QualityOfService.AT_LEAST_ONCE,
+                    EndpointSwitchState.DEFAULT_STANDALONE_MQTT_TIMEOUT_MS);
+            logger.atInfo().kv("jobId", jobId).kv("status", status)
+                    .kv("sourceEndpoint", sourceEndpoint)
+                    .log("Reported terminal job status to source endpoint");
+        } catch (Exception e) {
+            logger.atWarn().kv("jobId", jobId).kv("status", status).kv("sourceEndpoint", sourceEndpoint)
+                    .setCause(e).log("Failed to report terminal job status to source endpoint");
+        }
+    }
+
+    @SuppressWarnings("PMD.LooseCoupling") // UpdateJobExecutionRequest.statusDetails requires HashMap
+    private HashMap<String, String> buildJobStatusDetails(Map<String, Object> statusDetails) {
+        HashMap<String, String> jobStatusDetails = new HashMap<>();
+        if (statusDetails == null) {
+            return jobStatusDetails;
+        }
+        statusDetails.forEach((k, v) -> {
+            if (v instanceof String) {
+                jobStatusDetails.put(k, (String) v);
+            } else {
+                try {
+                    jobStatusDetails.put(k, SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(v));
+                } catch (JsonProcessingException e) {
+                    logger.atWarn().setCause(e).log("Failed to serialize status detail");
+                }
+            }
+        });
+        jobStatusDetails.replaceAll((k, v) -> Utils.truncate(v, JOB_STATUS_DETAIL_MAX_LENGTH));
+        return jobStatusDetails;
     }
 
     public static class WrapperMqttConnectionFactory {

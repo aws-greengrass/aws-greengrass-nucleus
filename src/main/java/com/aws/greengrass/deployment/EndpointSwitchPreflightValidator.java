@@ -62,10 +62,9 @@ class EndpointSwitchPreflightValidator {
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "REC_CATCH_EXCEPTION",
             justification = "Defensive catch for unexpected errors from CRT builder and proxy config")
     boolean verifyMqttConnectivity(CompletableFuture<DeploymentResult> totallyCompleteFuture,
-                                   String endpoint, String clientIdSuffix, long timeoutMs) {
-        try (StandaloneMqttConnector conn = StandaloneMqttConnector.of(
-                kernel.getContext().get(SecurityService.class), deviceConfiguration,
-                endpoint, clientIdSuffix)) {
+                                   String endpoint, long timeoutMs) {
+        try (StandaloneMqttConnector conn = StandaloneMqttConnector.forEndpointSwitch(
+                kernel.getContext().get(SecurityService.class), deviceConfiguration, endpoint)) {
             conn.connect(timeoutMs);
             return true;
         } catch (MqttConnectionProviderException e) {
@@ -84,7 +83,7 @@ class EndpointSwitchPreflightValidator {
                         .kv(ENDPOINT_LOG_KEY, endpoint)
                         .log("Pre-flight MQTT connectivity check failed: MQTT CONNECT rejected. "
                                 + "Possible causes: (1) IoT policy does not allow client ID \""
-                                + thingName + clientIdSuffix + "\" — update iot:Connect resource to "
+                                + thingName + "#endpoint-switch\" — update iot:Connect resource to "
                                 + "\"arn:aws:iot:*:*:client/" + thingName + "*\", or "
                                 + "(2) device certificate is not authorized in the target account");
             } else {
