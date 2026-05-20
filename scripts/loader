@@ -85,7 +85,7 @@ while [ $j -le 3 ] && [ $sigterm_received -eq 0 ];  do
     ;;
   101)
     echo "Rebooting host"
-    sudo reboot
+    reboot
     exit 0
     ;;
   *)
