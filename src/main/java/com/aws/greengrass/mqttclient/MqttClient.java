@@ -138,6 +138,7 @@ public class MqttClient implements Closeable {
     private final List<IndividualMqttClient> connections = new CopyOnWriteArrayList<>();
     private final Map<Subscribe, IndividualMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, IndividualMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
+    private final Map<Subscribe, AtomicBoolean> subscribeCancellations = new ConcurrentHashMap<>();
     private final Set<Integer> activeClientIds = new HashSet<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
     @Getter
@@ -437,7 +438,7 @@ public class MqttClient implements Closeable {
      * @param request subscribe request
      * @throws MqttRequestException if the request is invalid for any reason
      */
-    @SuppressWarnings("PMD.CloseResource")
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidDeeplyNestedIfStmts"})
     public CompletableFuture<SubscribeResponse> subscribe(Subscribe request)
             throws MqttRequestException {
         try (LockScope ls = LockScope.lock(lock)) {
@@ -472,8 +473,28 @@ public class MqttClient implements Closeable {
             // Connection isn't null, so we should subscribe to the topic
             if (connection != null) {
                 IndividualMqttClient finalConnection = connection;
-                return connection.subscribe(request).whenComplete((i, t) -> {
+                AtomicBoolean cancelled = new AtomicBoolean(false);
+                subscribeCancellations.put(request, cancelled);
+                return connection.connect().thenCompose(ignored -> {
+                    if (cancelled.get()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                    return finalConnection.subscribe(request);
+                }).whenComplete((i, t) -> {
                     try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
+                        subscribeCancellations.remove(request);
+                        if (cancelled.get()) {
+                            // Cancelled while in-flight; undo if broker subscribe already completed
+                            if (t == null && i != null && i.isSuccessful()) {
+                                finalConnection.unsubscribe(request.getTopic()).whenComplete((r, err) -> {
+                                    if (err != null) {
+                                        logger.atWarn().kv(TOPIC_KEY, request.getTopic())
+                                                .log("Failed to unsubscribe cancelled subscription", err);
+                                    }
+                                });
+                            }
+                            return;
+                        }
                         if (t == null && (i == null || i.isSuccessful())) {
                             subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
                         } else {
@@ -571,6 +592,10 @@ public class MqttClient implements Closeable {
                 for (Map.Entry<Subscribe, IndividualMqttClient> sub : subscriptions.entrySet()) {
                     if (sub.getKey().getCallback() == request.getSubscriptionCallback() && sub.getKey().getTopic()
                             .equals(request.getTopic())) {
+                        AtomicBoolean cancelled = subscribeCancellations.remove(sub.getKey());
+                        if (cancelled != null) {
+                            cancelled.set(true);
+                        }
                         subscriptions.remove(sub.getKey());
                     }
 
