@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,10 @@ public class PlatformResolver {
     public static final String ARCH_X86 = "x86";
     public static final String ARCH_ARM = "arm";
     public static final String ARCH_AARCH64 = "aarch64";
+
+    private static final List<String> SUPPORTED_ARM_ARCH_DETAILS = Arrays.asList(
+            "armv6l", "armv7l", "armv8l", "armv6b", "armv7b", "armv8b"
+    );
 
     private final DeviceConfiguration deviceConfiguration;
 
@@ -159,7 +164,7 @@ public class PlatformResolver {
                         .createNewProcessRunner().sh("uname -m").toLowerCase();
                 // TODO: "uname -m" is not sufficient to capture arch details on all platforms.
                 // Currently only return if detected arm, as required by lambda launcher.
-                if ("armv6l".equals(archDetail) || "armv7l".equals(archDetail) || "armv8l".equals(archDetail)) {
+                if (SUPPORTED_ARM_ARCH_DETAILS.contains(archDetail)) {
                     return archDetail;
                 }
             }
