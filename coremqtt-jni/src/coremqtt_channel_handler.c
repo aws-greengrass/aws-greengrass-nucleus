@@ -187,57 +187,120 @@ static int s_process_read_message(
 
     /* If waiting for CONNACK, check if we got it */
     if (h->waiting_for_connack) {
-        /* CONNACK is: type byte (0x20) + remaining length + payload */
         size_t available = h->recv_write_pos - h->recv_read_pos;
-        if (available >= 2) {
-            uint8_t *buf = h->recv_buffer_storage + h->recv_read_pos;
-            if ((buf[0] & 0xF0) == MQTT_PACKET_TYPE_CONNACK) {
-                /* Parse remaining length to know full packet size */
-                uint32_t rem_len = buf[1]; /* simplified: assumes 1-byte remaining length */
-                size_t packet_size = 2 + rem_len;
-                if (available >= packet_size) {
-                    /* We have the full CONNACK - consume it from buffer */
-                    h->recv_read_pos += packet_size;
-                    if (h->recv_read_pos == h->recv_write_pos) {
-                        h->recv_read_pos = 0;
-                        h->recv_write_pos = 0;
-                    }
+        uint8_t *buf = h->recv_buffer_storage + h->recv_read_pos;
 
-                    h->waiting_for_connack = false;
-                    h->is_connected = true;
-                    h->mqtt_ctx.connectStatus = MQTTConnected;
-                    h->mqtt_ctx.index = 0; /* Reset parser state for clean ProcessLoop */
-                    h->mqtt_ctx.keepAliveIntervalSec = h->keep_alive_sec;
-                    h->mqtt_ctx.connectionProperties.serverMaxPacketSize = 268435460U; /* MQTT max */
-                    h->mqtt_ctx.connectionProperties.maxPacketSize = COREMQTT_NETWORK_BUFFER_SIZE;
-                    s_schedule_keepalive(h);
+        /* Need at least 2 bytes: type + minimum 1-byte remaining length */
+        if (available < 2) {
+            return AWS_OP_SUCCESS; /* Wait for more data */
+        }
 
-                    /* Notify Java */
-                    if (h->java_callback != NULL) {
-                        JNIEnv *env = NULL;
-                        (*h->jvm)->AttachCurrentThread(h->jvm, (void **)&env, NULL);
-                        if (env) {
-                            (*env)->CallVoidMethod(env, h->java_callback, h->on_connection_success_mid,
-                                                  (jboolean)false);
-                        }
-                    }
+        /* Check packet type before consuming anything */
+        uint8_t packet_type = buf[0] & 0xF0U;
+
+        if (packet_type == MQTT_PACKET_TYPE_DISCONNECT) {
+            h->waiting_for_connack = false;
+            if (h->java_callback != NULL) {
+                JNIEnv *env = NULL;
+                (*h->jvm)->AttachCurrentThread(h->jvm, (void **)&env, NULL);
+                if (env) {
+                    (*env)->CallVoidMethod(env, h->java_callback, h->on_connection_failure_mid, (jint)142);
                 }
-            } else if ((buf[0] & 0xF0) == MQTT_PACKET_TYPE_DISCONNECT) {
-                /* Server sent DISCONNECT instead of CONNACK */
-                h->waiting_for_connack = false;
-                if (h->java_callback != NULL) {
-                    JNIEnv *env = NULL;
-                    (*h->jvm)->AttachCurrentThread(h->jvm, (void **)&env, NULL);
-                    if (env) {
-                        (*env)->CallVoidMethod(env, h->java_callback, h->on_connection_failure_mid, (jint)142);
-                    }
-                }
-                aws_channel_shutdown(slot->channel, AWS_ERROR_INVALID_STATE);
-            } else {
-                /* Not a CONNACK - server sent something unexpected, disconnect */
-                h->waiting_for_connack = false;
-                aws_channel_shutdown(slot->channel, AWS_ERROR_INVALID_STATE);
             }
+            aws_channel_shutdown(slot->channel, AWS_ERROR_INVALID_STATE);
+            return AWS_OP_SUCCESS;
+        }
+
+        if (packet_type != MQTT_PACKET_TYPE_CONNACK) {
+            h->waiting_for_connack = false;
+            aws_channel_shutdown(slot->channel, AWS_ERROR_INVALID_STATE);
+            return AWS_OP_SUCCESS;
+        }
+
+        /* Decode variable-length remaining length by peeking at the buffer */
+        uint32_t remaining_length = 0;
+        uint32_t multiplier = 1;
+        size_t len_bytes = 0;
+        bool length_complete = false;
+
+        for (size_t i = 1; i < available && i <= 4; i++) {
+            remaining_length += (uint32_t)(buf[i] & 0x7FU) * multiplier;
+            multiplier *= 128U;
+            len_bytes = i;
+            if ((buf[i] & 0x80U) == 0U) {
+                length_complete = true;
+                break;
+            }
+        }
+
+        if (!length_complete) {
+            /* Haven't received all remaining length bytes yet */
+            return AWS_OP_SUCCESS;
+        }
+
+        size_t header_length = 1 + len_bytes; /* type byte + remaining length bytes */
+        size_t total_packet_size = header_length + remaining_length;
+
+        if (available < total_packet_size) {
+            /* Have the header but not the full payload yet */
+            return AWS_OP_SUCCESS;
+        }
+
+        /* We have the full CONNACK packet — deserialize it */
+        MQTTPacketInfo_t packet_info = {
+            .type = buf[0],
+            .pRemainingData = buf + header_length,
+            .remainingLength = remaining_length,
+            .headerLength = header_length,
+        };
+
+        bool session_present = false;
+        MQTTConnectionProperties_t connect_props;
+        memset(&connect_props, 0, sizeof(connect_props));
+        connect_props.maxPacketSize = COREMQTT_NETWORK_BUFFER_SIZE;
+
+        MQTTStatus_t status = MQTT_DeserializeConnAck(&packet_info, &session_present, NULL, &connect_props);
+
+        /* Consume the packet from the ring buffer regardless of result */
+        h->recv_read_pos += total_packet_size;
+        if (h->recv_read_pos == h->recv_write_pos) {
+            h->recv_read_pos = 0;
+            h->recv_write_pos = 0;
+        }
+
+        h->waiting_for_connack = false;
+
+        if (status == MQTTSuccess) {
+            h->is_connected = true;
+            h->mqtt_ctx.connectStatus = MQTTConnected;
+            h->mqtt_ctx.index = 0;
+            h->mqtt_ctx.connectionProperties = connect_props;
+
+            /* MQTT 5: if server sent a keep-alive value, client MUST use it */
+            if (connect_props.serverKeepAlive != 0) {
+                h->keep_alive_sec = connect_props.serverKeepAlive;
+            }
+            h->mqtt_ctx.keepAliveIntervalSec = h->keep_alive_sec;
+            s_schedule_keepalive(h);
+
+            if (h->java_callback != NULL) {
+                JNIEnv *env = NULL;
+                (*h->jvm)->AttachCurrentThread(h->jvm, (void **)&env, NULL);
+                if (env) {
+                    (*env)->CallVoidMethod(env, h->java_callback, h->on_connection_success_mid,
+                                          (jboolean)session_present);
+                }
+            }
+        } else {
+            /* CONNACK indicated failure (MQTTServerRefused or MQTTBadResponse) */
+            if (h->java_callback != NULL) {
+                JNIEnv *env = NULL;
+                (*h->jvm)->AttachCurrentThread(h->jvm, (void **)&env, NULL);
+                if (env) {
+                    (*env)->CallVoidMethod(env, h->java_callback, h->on_connection_failure_mid, (jint)status);
+                }
+            }
+            aws_channel_shutdown(slot->channel, AWS_ERROR_INVALID_STATE);
         }
         return AWS_OP_SUCCESS;
     }
