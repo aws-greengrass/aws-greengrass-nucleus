@@ -40,7 +40,7 @@ import java.util.function.Consumer;
 @SuppressWarnings("PMD.AvoidCatchingGenericException")
 @SuppressFBWarnings("NM_METHOD_NAMING_CONVENTION")
 public class IotJobsClientWrapper extends IotJobsClient {
-    private static final String UPDATE_JOB_TOPIC =
+    static final String UPDATE_JOB_TOPIC =
             "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update";
     static final String JOB_UPDATE_ACCEPTED_TOPIC =
             "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update/accepted";

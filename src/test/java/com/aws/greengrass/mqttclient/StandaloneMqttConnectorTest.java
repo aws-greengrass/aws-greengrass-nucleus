@@ -15,8 +15,10 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import software.amazon.awssdk.crt.mqtt.MqttMessage;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.lenient;
@@ -175,5 +179,73 @@ class StandaloneMqttConnectorTest {
     void GIVEN_error_code_mapping_WHEN_null_cause_THEN_returns_MQTT_CONNECTION_FAILED() {
         assertEquals(DeploymentErrorCode.MQTT_CONNECTION_FAILED,
                 StandaloneMqttConnector.mapExceptionToErrorCode(null));
+    }
+
+    // --- publish() tests ---
+
+    @Test
+    void GIVEN_connected_WHEN_publish_THEN_succeeds() throws Exception {
+        when(mqttConnection.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        when(mqttConnection.publish(any(MqttMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(0));
+
+        StandaloneMqttConnector conn = new StandaloneMqttConnector(builder, "thing-publish");
+        conn.connect(5000);
+        conn.publish("test/topic", "hello".getBytes(StandardCharsets.UTF_8),
+                QualityOfService.AT_LEAST_ONCE, 5000);
+
+        verify(mqttConnection).publish(any(MqttMessage.class));
+    }
+
+    @Test
+    void GIVEN_not_connected_WHEN_publish_THEN_throws_deployment_exception() {
+        StandaloneMqttConnector conn = new StandaloneMqttConnector(builder, "thing-publish");
+        DeploymentException ex = assertThrows(DeploymentException.class,
+                () -> conn.publish("test/topic", "hello".getBytes(StandardCharsets.UTF_8),
+                        QualityOfService.AT_LEAST_ONCE, 5000));
+        assertTrue(ex.getMessage().contains("not connected"));
+    }
+
+    @Test
+    void GIVEN_transient_publish_failure_WHEN_publish_THEN_retries_and_succeeds(
+            ExtensionContext extContext) throws Exception {
+        ignoreExceptionOfType(extContext, ExecutionException.class);
+        when(mqttConnection.connect()).thenReturn(CompletableFuture.completedFuture(true));
+
+        AtomicInteger publishAttempts = new AtomicInteger(0);
+        when(mqttConnection.publish(any(MqttMessage.class))).thenAnswer(invocation -> {
+            if (publishAttempts.incrementAndGet() < 3) {
+                CompletableFuture<Integer> f = new CompletableFuture<>();
+                f.completeExceptionally(new Exception("PUBACK timeout"));
+                return f;
+            }
+            return CompletableFuture.completedFuture(0);
+        });
+
+        StandaloneMqttConnector conn = new StandaloneMqttConnector(builder, "thing-publish");
+        conn.connect(60_000);
+        conn.publish("test/topic", "hello".getBytes(StandardCharsets.UTF_8),
+                QualityOfService.AT_LEAST_ONCE, 60_000);
+
+        assertEquals(3, publishAttempts.get());
+    }
+
+    @Test
+    void GIVEN_persistent_publish_failure_WHEN_publish_THEN_throws_after_retries(
+            ExtensionContext extContext) {
+        ignoreExceptionOfType(extContext, ExecutionException.class);
+        when(mqttConnection.connect()).thenReturn(CompletableFuture.completedFuture(true));
+
+        CompletableFuture<Integer> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new Exception("connection lost"));
+        when(mqttConnection.publish(any(MqttMessage.class))).thenReturn(failedFuture);
+
+        StandaloneMqttConnector conn = new StandaloneMqttConnector(builder, "thing-publish");
+        assertDoesNotThrow(() -> conn.connect(5000));
+
+        DeploymentException ex = assertThrows(DeploymentException.class,
+                () -> conn.publish("test/topic", "hello".getBytes(StandardCharsets.UTF_8),
+                        QualityOfService.AT_LEAST_ONCE, 30_000));
+        assertTrue(ex.getMessage().contains("publish failed"));
     }
 }

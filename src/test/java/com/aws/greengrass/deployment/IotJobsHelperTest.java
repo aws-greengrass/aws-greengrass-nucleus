@@ -15,7 +15,9 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.StandaloneMqttConnector;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -47,6 +49,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -55,6 +58,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+
+import org.mockito.MockedStatic;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_ACCEPTED_TOPIC;
@@ -71,6 +76,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -635,6 +642,228 @@ class IotJobsHelperTest {
         iotJobsHelper.getCallbacks().onConnectionResumed(false);
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(deploymentStatusKeeper, times(2)).publishPersistedStatusUpdates(eq(IOT_JOBS));
+    }
+
+    @Test
+    void GIVEN_source_endpoint_and_id_match_WHEN_status_changed_THEN_publishes_to_source_and_clears()
+            throws Exception {
+        iotJobsHelper.postInject();
+        EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
+        when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
+        when(mockEndpointSwitchState.isEndpointSwitchDeployment("test-job-id")).thenReturn(true);
+        when(mockEndpointSwitchState.getSourceIotDataEndpoint()).thenReturn("source.iot.us-east-1.amazonaws.com");
+
+        when(deviceConfiguration.getStandaloneMqttTimeout()).thenReturn(60_000L);
+
+        SecurityService mockSecurityService = mock(SecurityService.class);
+        when(mockContext.get(SecurityService.class)).thenReturn(mockSecurityService);
+
+        try (StandaloneMqttConnector mockConnector = mock(StandaloneMqttConnector.class);
+             MockedStatic<StandaloneMqttConnector> staticMock = mockStatic(StandaloneMqttConnector.class)) {
+            staticMock.when(() -> StandaloneMqttConnector.forEndpointSwitch(any(), any(), any()))
+                    .thenReturn(mockConnector);
+
+            // Capture the consumer registered with deploymentStatusKeeper
+            ArgumentCaptor<java.util.function.Function> consumerCaptor =
+                    ArgumentCaptor.forClass(java.util.function.Function.class);
+            verify(deploymentStatusKeeper).registerDeploymentStatusConsumer(
+                    eq(IOT_JOBS), consumerCaptor.capture(), any());
+
+            Map<String, Object> details = new HashMap<>();
+            details.put("DeploymentId", "test-job-id");
+            details.put("DeploymentStatus", "SUCCEEDED");
+            Map<String, Object> statusDetails = new HashMap<>();
+            statusDetails.put("detailed-deployment-status", "SUCCESSFUL");
+            details.put("DeploymentStatusDetails", statusDetails);
+
+            Boolean result = (Boolean) consumerCaptor.getValue().apply(details);
+            assertTrue(result);
+
+            verify(mockConnector).connect(60_000L);
+            ArgumentCaptor<byte[]> payloadCaptor = ArgumentCaptor.forClass(byte[].class);
+            verify(mockConnector).publish(
+                    eq("$aws/things/" + TEST_THING_NAME + "/jobs/test-job-id/namespace-aws-gg-deployment/update"),
+                    payloadCaptor.capture(), eq(QualityOfService.AT_LEAST_ONCE), eq(60_000L));
+            // Verify payload contains expected IoT Jobs fields
+            String payload = new String(payloadCaptor.getValue(), java.nio.charset.StandardCharsets.UTF_8);
+            assertTrue(payload.contains("\"status\":\"SUCCEEDED\""), "Payload should contain status");
+            assertTrue(payload.contains("\"jobId\":\"test-job-id\""), "Payload should contain jobId");
+            assertTrue(payload.contains("\"thingName\":\"" + TEST_THING_NAME + "\""),
+                    "Payload should contain thingName");
+            // Verify keys cleared
+            verify(mockEndpointSwitchState).clear();
+        }
+    }
+
+    @Test
+    void GIVEN_source_endpoint_id_mismatch_WHEN_status_changed_THEN_uses_normal_path()
+            throws Exception {
+        iotJobsHelper.postInject();
+        EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
+        when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
+        when(mockEndpointSwitchState.isEndpointSwitchDeployment("test-job-id")).thenReturn(false);
+
+        // Capture the consumer
+        ArgumentCaptor<java.util.function.Function> consumerCaptor =
+                ArgumentCaptor.forClass(java.util.function.Function.class);
+        verify(deploymentStatusKeeper).registerDeploymentStatusConsumer(
+                eq(IOT_JOBS), consumerCaptor.capture(), any());
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("DeploymentId", "test-job-id");
+        details.put("DeploymentStatus", "SUCCEEDED");
+        Map<String, Object> statusDetails = new HashMap<>();
+        statusDetails.put("detailed-deployment-status", "SUCCESSFUL");
+        details.put("DeploymentStatusDetails", statusDetails);
+
+        when(mockIotJobsClientWrapper.SubscribeToUpdateJobExecutionAccepted(any(), any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIotJobsClientWrapper.SubscribeToUpdateJobExecutionRejected(any(), any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        consumerCaptor.getValue().apply(details);
+
+        // Not an endpoint-switch deployment — no source key clearing
+        verify(mockEndpointSwitchState, never()).clear();
+    }
+
+    @Test
+    void GIVEN_source_endpoint_same_as_current_WHEN_status_changed_THEN_clears_keys_uses_normal_path()
+            throws Exception {
+        iotJobsHelper.postInject();
+        EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
+        when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
+        // Rollback: isEndpointSwitchDeployment returns true (keys present, ID matches)
+        // but source endpoint equals current endpoint (config was reverted)
+        when(mockEndpointSwitchState.isEndpointSwitchDeployment("test-job-id")).thenReturn(true);
+        when(mockEndpointSwitchState.getSourceIotDataEndpoint()).thenReturn("source.iot.us-east-1.amazonaws.com");
+
+        Topic currentEndpointTopic = mock(Topic.class);
+        when(currentEndpointTopic.getOnce()).thenReturn("source.iot.us-east-1.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(currentEndpointTopic);
+
+        ArgumentCaptor<java.util.function.Function> consumerCaptor =
+                ArgumentCaptor.forClass(java.util.function.Function.class);
+        verify(deploymentStatusKeeper).registerDeploymentStatusConsumer(
+                eq(IOT_JOBS), consumerCaptor.capture(), any());
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("DeploymentId", "test-job-id");
+        details.put("DeploymentStatus", "FAILED");
+        Map<String, Object> statusDetails = new HashMap<>();
+        statusDetails.put("detailed-deployment-status", "FAILED_ROLLBACK_COMPLETE");
+        details.put("DeploymentStatusDetails", statusDetails);
+
+        when(mockIotJobsClientWrapper.SubscribeToUpdateJobExecutionAccepted(any(), any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIotJobsClientWrapper.SubscribeToUpdateJobExecutionRejected(any(), any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        consumerCaptor.getValue().apply(details);
+
+        // Rollback: keys cleared, normal path publishes via main MQTT
+        verify(mockEndpointSwitchState).clear();
+    }
+
+    @Test
+    void GIVEN_no_source_endpoint_WHEN_status_changed_THEN_normal_path() throws Exception {
+        iotJobsHelper.postInject();
+        EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
+        when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
+        when(mockEndpointSwitchState.isEndpointSwitchDeployment("test-job-id")).thenReturn(false);
+
+        ArgumentCaptor<java.util.function.Function> consumerCaptor =
+                ArgumentCaptor.forClass(java.util.function.Function.class);
+        verify(deploymentStatusKeeper).registerDeploymentStatusConsumer(
+                eq(IOT_JOBS), consumerCaptor.capture(), any());
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("DeploymentId", "test-job-id");
+        details.put("DeploymentStatus", "SUCCEEDED");
+        Map<String, Object> statusDetails = new HashMap<>();
+        statusDetails.put("detailed-deployment-status", "SUCCESSFUL");
+        details.put("DeploymentStatusDetails", statusDetails);
+
+        // Normal path — will try updateJobStatus which may fail, but no source routing
+        when(mockIotJobsClientWrapper.SubscribeToUpdateJobExecutionAccepted(any(), any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIotJobsClientWrapper.SubscribeToUpdateJobExecutionRejected(any(), any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+        consumerCaptor.getValue().apply(details);
+
+        // No source endpoint → no standalone connector used
+        // (StandaloneMqttConnector.of never called)
+    }
+
+    @Test
+    void GIVEN_source_endpoint_standalone_fails_WHEN_status_changed_THEN_clears_keys_returns_true(
+            ExtensionContext extContext) throws Exception {
+        ignoreExceptionOfType(extContext, RuntimeException.class);
+        iotJobsHelper.postInject();
+        EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
+        when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
+        when(mockEndpointSwitchState.isEndpointSwitchDeployment("test-job-id")).thenReturn(true);
+        when(mockEndpointSwitchState.getSourceIotDataEndpoint()).thenReturn("source.iot.us-east-1.amazonaws.com");
+
+        when(deviceConfiguration.getStandaloneMqttTimeout()).thenReturn(60_000L);
+
+        SecurityService mockSecurityService = mock(SecurityService.class);
+        when(mockContext.get(SecurityService.class)).thenReturn(mockSecurityService);
+
+        try (StandaloneMqttConnector mockConnector = mock(StandaloneMqttConnector.class);
+             MockedStatic<StandaloneMqttConnector> staticMock = mockStatic(StandaloneMqttConnector.class)) {
+            staticMock.when(() -> StandaloneMqttConnector.forEndpointSwitch(any(), any(), any()))
+                    .thenReturn(mockConnector);
+            doThrow(new RuntimeException("connect failed")).when(mockConnector).connect(60_000L);
+
+            ArgumentCaptor<java.util.function.Function> consumerCaptor =
+                    ArgumentCaptor.forClass(java.util.function.Function.class);
+            verify(deploymentStatusKeeper).registerDeploymentStatusConsumer(
+                    eq(IOT_JOBS), consumerCaptor.capture(), any());
+
+            Map<String, Object> details = new HashMap<>();
+            details.put("DeploymentId", "test-job-id");
+            details.put("DeploymentStatus", "SUCCEEDED");
+            Map<String, Object> statusDetails = new HashMap<>();
+            statusDetails.put("detailed-deployment-status", "SUCCESSFUL");
+            details.put("DeploymentStatusDetails", statusDetails);
+
+            Boolean result = (Boolean) consumerCaptor.getValue().apply(details);
+            assertTrue(result);
+            // Keys still cleared even on failure
+            verify(mockEndpointSwitchState).clear();
+        }
+    }
+
+    @Test
+    void GIVEN_endpoint_switch_IN_PROGRESS_WHEN_status_changed_THEN_returns_true_without_publish()
+            throws Exception {
+        iotJobsHelper.postInject();
+        EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
+        when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
+        when(mockEndpointSwitchState.isEndpointSwitchDeployment("test-job-id")).thenReturn(true);
+
+        ArgumentCaptor<java.util.function.Function> consumerCaptor =
+                ArgumentCaptor.forClass(java.util.function.Function.class);
+        verify(deploymentStatusKeeper).registerDeploymentStatusConsumer(
+                eq(IOT_JOBS), consumerCaptor.capture(), any());
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("DeploymentId", "test-job-id");
+        details.put("DeploymentStatus", "IN_PROGRESS");
+        Map<String, Object> statusDetails = new HashMap<>();
+        details.put("DeploymentStatusDetails", statusDetails);
+
+        Boolean result = (Boolean) consumerCaptor.getValue().apply(details);
+        assertTrue(result);
+
+        // IN_PROGRESS should be dropped — no standalone connection, no clear
+        verify(mockEndpointSwitchState, never()).getSourceIotDataEndpoint();
+        verify(mockEndpointSwitchState, never()).clear();
     }
 
     private JobExecutionData getMockJobExecutionData(String jobId, Timestamp ts) {

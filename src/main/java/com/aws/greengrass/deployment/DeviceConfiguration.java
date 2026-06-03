@@ -506,6 +506,25 @@ public class DeviceConfiguration {
         return getTopics(DEVICE_MQTT_NAMESPACE);
     }
 
+    /**
+     * Get the standalone MQTT timeout for endpoint-switch operations, falling back to the default
+     * if the configured value is invalid (≤ 0).
+     *
+     * @return timeout in milliseconds (always positive)
+     */
+    public long getStandaloneMqttTimeout() {
+        long timeout = Coerce.toLong(getMQTTNamespace()
+                .findOrDefault(EndpointSwitchState.DEFAULT_STANDALONE_MQTT_TIMEOUT_MS,
+                        EndpointSwitchState.STANDALONE_MQTT_TIMEOUT_KEY));
+        if (timeout <= 0) {
+            logger.atWarn().kv("configured", timeout)
+                    .kv("using", EndpointSwitchState.DEFAULT_STANDALONE_MQTT_TIMEOUT_MS)
+                    .log("Invalid standaloneMqttTimeoutMs, using default");
+            return EndpointSwitchState.DEFAULT_STANDALONE_MQTT_TIMEOUT_MS;
+        }
+        return timeout;
+    }
+
     public Topics getSpoolerNamespace() {
         return getMQTTNamespace().lookupTopics(DEVICE_SPOOLER_NAMESPACE);
     }

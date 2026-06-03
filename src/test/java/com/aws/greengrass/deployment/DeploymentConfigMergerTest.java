@@ -124,8 +124,13 @@ class DeploymentConfigMergerTest {
         lenient().when(deviceConfiguration.getProxyUrl()).thenReturn("");
         lenient().when(context.get(DeploymentDirectoryManager.class)).thenReturn(deploymentDirectoryManager);
         lenient().when(context.get(DeploymentService.class)).thenReturn(deploymentService);
+        lenient().when(context.get(EndpointSwitchState.class)).thenReturn(mock(EndpointSwitchState.class));
         lenient().when(deploymentService.getRuntimeConfig()).thenReturn(runtimeTopics);
         lenient().when(runtimeTopics.lookup(any(String.class))).thenReturn(mock(Topic.class));
+        lenient().when(deviceConfiguration.getStandaloneMqttTimeout()).thenReturn(60_000L);
+        Topics mqttTopics = mock(Topics.class);
+        lenient().when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttTopics);
+        lenient().when(mqttTopics.findOrDefault(any(), any())).thenReturn(60000L);
     }
 
     @AfterEach
@@ -605,6 +610,7 @@ class DeploymentConfigMergerTest {
     private Deployment createMockDeployment(DeploymentDocument doc) {
         Deployment deployment = mock(Deployment.class);
         doReturn(doc).when(deployment).getDeploymentDocumentObj();
+        lenient().doReturn(doc.getDeploymentId()).when(deployment).getId();
         return deployment;
     }
 
@@ -733,9 +739,8 @@ class DeploymentConfigMergerTest {
         Map<String, Object> newConfig = new HashMap<>();
         newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
 
-        Topic sourceEndpointTopic = mock(Topic.class);
-        when(runtimeTopics.lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
-                .thenReturn(sourceEndpointTopic);
+        EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
+        when(context.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
 
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
                 executorService);
@@ -750,7 +755,7 @@ class DeploymentConfigMergerTest {
         verify(executorService).execute(runnableCaptor.capture());
         runnableCaptor.getValue().run();
 
-        verify(sourceEndpointTopic).withValue("old-ats.iot.us-east-1.amazonaws.com");
+        verify(mockEndpointSwitchState).persist("old-ats.iot.us-east-1.amazonaws.com", "DeploymentId");
         verify(deploymentActivator).activate(any(), any(), any(Long.class), any());
     }
 
@@ -824,6 +829,7 @@ class DeploymentConfigMergerTest {
         when(deviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         lenient().when(deviceConfiguration.getRootCAFilePath()).thenReturn(rootCaTopic);
         when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        lenient().when(deviceConfiguration.getStandaloneMqttTimeout()).thenReturn(60_000L);
         Topics mqttTopics = mock(Topics.class);
         lenient().when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttTopics);
         lenient().when(mqttTopics.findOrDefault(any(), any())).thenReturn(60_000L);
@@ -1051,9 +1057,6 @@ class DeploymentConfigMergerTest {
         Map<String, Object> newConfig = new HashMap<>();
         newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
 
-        Topic sourceEndpointTopic = mock(Topic.class);
-        when(runtimeTopics.lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
-                .thenReturn(sourceEndpointTopic);
 
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator,
                 executorService);
@@ -1102,9 +1105,6 @@ class DeploymentConfigMergerTest {
         Map<String, Object> newConfig = new HashMap<>();
         newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
 
-        Topic sourceEndpointTopic = mock(Topic.class);
-        when(runtimeTopics.lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
-                .thenReturn(sourceEndpointTopic);
 
         // Mock IotCloudHelper to return 200 (credential check passes)
         IotCloudHelper iotCloudHelper = mock(IotCloudHelper.class);
@@ -1166,9 +1166,6 @@ class DeploymentConfigMergerTest {
         Map<String, Object> newConfig = new HashMap<>();
         newConfig.put(SERVICES_NAMESPACE_TOPIC, serviceConfig);
 
-        Topic sourceEndpointTopic = mock(Topic.class);
-        when(runtimeTopics.lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
-                .thenReturn(sourceEndpointTopic);
 
         IotCloudHelper iotCloudHelper = mock(IotCloudHelper.class);
         IotConnectionManager iotConnectionManager = mock(IotConnectionManager.class);
@@ -1200,4 +1197,5 @@ class DeploymentConfigMergerTest {
         assertTrue(capturedUrl.contains("NewRoleAlias"));
         verify(deploymentActivator).activate(any(), any(), any(Long.class), any());
     }
+
 }

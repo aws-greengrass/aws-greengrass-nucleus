@@ -5,9 +5,8 @@
 
 package com.aws.greengrass.deployment.activator;
 
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
-import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.EndpointSwitchState;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -15,7 +14,6 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
-import com.aws.greengrass.util.Coerce;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -52,12 +50,13 @@ public class DefaultActivator extends DeploymentActivator {
         }
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
+        String deploymentId = deployment.getId();
         boolean autoRollback = isAutoRollbackRequested(deploymentDocument);
 
         // Endpoint switch deployments force config snapshot and rollback regardless of FailureHandlingPolicy,
         // so that we can restore the original endpoint if the new one is unreachable after applying the change.
         // Only check when auto-rollback is not already requested to avoid redundant config store reads.
-        boolean forceSnapshotForEndpointSwitch = !autoRollback && isEndpointSwitch();
+        boolean forceSnapshotForEndpointSwitch = !autoRollback && isEndpointSwitch(deploymentId);
         if (forceSnapshotForEndpointSwitch) {
             logger.atInfo(MERGE_CONFIG_EVENT_KEY)
                     .log("Endpoint switch deployment: forcing config snapshot and rollback support");
@@ -86,7 +85,7 @@ public class DefaultActivator extends DeploymentActivator {
             servicesChangeManager.reinstallBrokenServices();
         });
         if (setDesiredStateFailureCause != null) {
-            handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture,
+            handleFailure(servicesChangeManager, deploymentDocument, deploymentId, totallyCompleteFuture,
                     setDesiredStateFailureCause);
             return;
         }
@@ -119,16 +118,17 @@ public class DefaultActivator extends DeploymentActivator {
                     .setCause(e).log("Deployment interrupted: will not attempt rollback, regardless of policy");
             totallyCompleteFuture.complete(null);
         } catch (ServiceUpdateException | ServiceLoadException e) {
-            handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture, e);
+            handleFailure(servicesChangeManager, deploymentDocument, deploymentId, totallyCompleteFuture, e);
         }
     }
 
     private void handleFailure(DeploymentConfigMerger.AggregateServicesChangeManager servicesChangeManager,
-                               DeploymentDocument deploymentDocument, CompletableFuture totallyCompleteFuture,
+                               DeploymentDocument deploymentDocument, String deploymentId,
+                               CompletableFuture totallyCompleteFuture,
                                Throwable failureCause) {
         logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                 .setCause(failureCause).log("Deployment failed");
-        if (isAutoRollbackRequested(deploymentDocument) || isEndpointSwitch()) {
+        if (isAutoRollbackRequested(deploymentDocument) || isEndpointSwitch(deploymentId)) {
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .log("Initiating rollback for failed deployment");
             rollback(deploymentDocument, totallyCompleteFuture, failureCause,
@@ -142,13 +142,10 @@ public class DefaultActivator extends DeploymentActivator {
 
     /**
      * Check if the current deployment is an endpoint switch by looking for persisted source endpoint
-     * in DeploymentService runtime config.
+     * and matching deployment ID in EndpointSwitchState.
      */
-    private boolean isEndpointSwitch() {
-        Topic t = kernel.getContext().get(DeploymentService.class).getRuntimeConfig()
-                .find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY);
-        String source = t == null ? null : Coerce.toString(t);
-        return source != null && !source.isEmpty();
+    private boolean isEndpointSwitch(String deploymentId) {
+        return kernel.getContext().get(EndpointSwitchState.class).isEndpointSwitchDeployment(deploymentId);
     }
 
     void rollback(DeploymentDocument deploymentDocument, CompletableFuture<DeploymentResult> totallyCompleteFuture,

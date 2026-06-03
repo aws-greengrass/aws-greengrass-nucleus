@@ -17,7 +17,9 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.StandaloneMqttConnector;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockFactory;
 import com.aws.greengrass.util.LockScope;
@@ -98,6 +100,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     private static final String SHADOW_GET_TOPIC = "$aws/things/{thingName}/shadow/name/{shadowName}/get/accepted";
     private static final String SUBSCRIBE_ERROR_RETRY_MESSAGE =
             "Caught exception while subscribing to shadow topics, will retry shortly";
+    static final String SHADOW_UPDATE_TOPIC = "$aws/things/%s/shadow/name/%s/update";
 
     @Inject
     private Kernel kernel;
@@ -330,6 +333,27 @@ public class ShadowDeploymentListener implements InjectionActions {
     @SuppressFBWarnings
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         lastDeploymentStatus.set(deploymentDetails);
+
+        String configArn = (String) deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME);
+        String status = (String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME);
+
+        // Endpoint-switch deployment: report SUCCEEDED to the source endpoint via standalone MQTT.
+        //
+        // After a successful switch the main MQTT client is on the destination endpoint, so the
+        // deployment shadow at the source endpoint can only be updated via a standalone connection.
+        //
+        // FAILED (rollback): the device is still on the source endpoint (sourceEndpoint ==
+        // currentEndpoint), so the block clears keys and falls through — the existing
+        // updateReportedSectionOfShadowWithDeploymentStatus() below publishes FAILED via the
+        // main MQTT client which is still connected to the source endpoint.
+        //
+        // IN_PROGRESS: only reaches this block after a nucleus restart (the source endpoint
+        // already received IN_PROGRESS before the restart). Dropped to avoid writing stale
+        // state to the destination endpoint's deployment shadow.
+        if (handleEndpointSwitchStatus(configArn, status, deploymentDetails)) {
+            return true;
+        }
+
         return updateReportedSectionOfShadowWithDeploymentStatus();
     }
 
@@ -495,6 +519,68 @@ public class ShadowDeploymentListener implements InjectionActions {
 
     private MqttClientConnection getMqttClientConnection() {
         return new WrapperMqttClientConnection(mqttClient);
+    }
+
+    /**
+     * Handle endpoint-switch status reporting. If this deployment is an endpoint switch,
+     * report terminal status to the source endpoint via standalone MQTT and clear persisted state.
+     *
+     * @return true if this status update was handled (caller should return), false to continue normal path
+     */
+    private boolean handleEndpointSwitchStatus(String configArn, String status,
+                                               Map<String, Object> deploymentDetails) {
+        EndpointSwitchState endpointSwitchState = kernel.getContext().get(EndpointSwitchState.class);
+        if (!endpointSwitchState.isEndpointSwitchDeployment(configArn)) {
+            return false;
+        }
+        if (JobStatus.IN_PROGRESS.toString().equals(status)) {
+            return true;
+        }
+        String sourceEndpoint = endpointSwitchState.getSourceIotDataEndpoint();
+        if (sourceEndpoint == null) {
+            endpointSwitchState.clear();
+            return false;
+        }
+        if (!sourceEndpoint.equals(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))) {
+            publishStatusToSourceEndpoint(sourceEndpoint, deploymentDetails);
+            endpointSwitchState.clear();
+            return true;
+        }
+        endpointSwitchState.clear();
+        return false;
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressFBWarnings("REC_CATCH_EXCEPTION")
+    private void publishStatusToSourceEndpoint(String sourceEndpoint, Map<String, Object> deploymentDetails) {
+        String thing = Coerce.toString(deviceConfiguration.getThingName());
+        String topic = String.format(SHADOW_UPDATE_TOPIC, thing, DEPLOYMENT_SHADOW_NAME);
+        long connectTimeout = deviceConfiguration.getStandaloneMqttTimeout();
+        try (StandaloneMqttConnector connector = StandaloneMqttConnector.forEndpointSwitch(
+                kernel.getContext().get(SecurityService.class), deviceConfiguration, sourceEndpoint)) {
+            HashMap<String, Object> reported = populateReportedSectionOfShadow(deploymentDetails);
+
+            HashMap<String, Object> state = new HashMap<>();
+            state.put("reported", reported);
+
+            HashMap<String, Object> payload = new HashMap<>();
+            payload.put("state", state);
+
+            byte[] payloadBytes = SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsBytes(payload);
+
+            connector.connect(connectTimeout);
+            connector.publish(topic, payloadBytes, QualityOfService.AT_LEAST_ONCE,
+                    EndpointSwitchState.DEFAULT_STANDALONE_MQTT_TIMEOUT_MS);
+            logger.atInfo().kv("configArn", deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME))
+                    .kv("status", deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
+                    .kv("sourceEndpoint", sourceEndpoint)
+                    .log("Reported terminal shadow status to source endpoint");
+        } catch (Exception e) {
+            logger.atWarn().kv("configArn", deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME))
+                    .kv("status", deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
+                    .kv("sourceEndpoint", sourceEndpoint)
+                    .setCause(e).log("Failed to report terminal shadow status to source endpoint");
+        }
     }
 
     /**

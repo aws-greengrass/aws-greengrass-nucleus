@@ -6,12 +6,10 @@
 package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.config.Configuration;
-import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
-import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.EndpointSwitchState;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 
 import com.aws.greengrass.deployment.model.Deployment;
@@ -59,17 +57,14 @@ class DefaultActivatorTest {
     @Mock
     DeploymentDirectoryManager deploymentDirectoryManager;
     @Mock
-    DeploymentService deploymentService;
-    @Mock
-    Topics runtimeTopics;
+    EndpointSwitchState endpointSwitchState;
 
     DefaultActivator defaultActivator;
 
     @BeforeEach
     void beforeEach() {
         doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
-        doReturn(deploymentService).when(context).get(DeploymentService.class);
-        lenient().doReturn(runtimeTopics).when(deploymentService).getRuntimeConfig();
+        doReturn(endpointSwitchState).when(context).get(EndpointSwitchState.class);
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();
         lenient().doReturn(Collections.emptyList()).when(kernel).orderedDependencies();
@@ -78,10 +73,7 @@ class DefaultActivatorTest {
 
     @Test
     void GIVEN_endpoint_switch_with_DO_NOTHING_WHEN_activate_THEN_snapshot_taken() throws Exception {
-        Topic sourceEndpointTopic = mock(Topic.class);
-        when(sourceEndpointTopic.getOnce()).thenReturn("old-endpoint");
-        when(runtimeTopics.find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
-                .thenReturn(sourceEndpointTopic);
+        when(endpointSwitchState.isEndpointSwitchDeployment("testId")).thenReturn(true);
         Path snapshotPath = mock(Path.class);
         when(deploymentDirectoryManager.getSnapshotFilePath()).thenReturn(snapshotPath);
 
@@ -97,10 +89,7 @@ class DefaultActivatorTest {
     void GIVEN_endpoint_switch_with_DO_NOTHING_WHEN_failure_THEN_rollback_performed(
             ExtensionContext extContext) throws Exception {
         ignoreExceptionOfType(extContext, ServiceUpdateException.class);
-        Topic sourceEndpointTopic = mock(Topic.class);
-        when(sourceEndpointTopic.getOnce()).thenReturn("old-endpoint");
-        when(runtimeTopics.find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY))
-                .thenReturn(sourceEndpointTopic);
+        when(endpointSwitchState.isEndpointSwitchDeployment("testId")).thenReturn(true);
         Path snapshotPath = mock(Path.class);
         when(deploymentDirectoryManager.getSnapshotFilePath()).thenReturn(snapshotPath);
 
@@ -128,7 +117,7 @@ class DefaultActivatorTest {
     void GIVEN_non_endpoint_switch_with_DO_NOTHING_WHEN_failure_THEN_no_rollback(
             ExtensionContext extContext) throws Exception {
         ignoreExceptionOfType(extContext, ServiceUpdateException.class);
-        when(runtimeTopics.find(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY)).thenReturn(null);
+        when(endpointSwitchState.isEndpointSwitchDeployment("testId")).thenReturn(false);
 
         CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
 
@@ -157,6 +146,7 @@ class DefaultActivatorTest {
                 .build();
         Deployment deployment = mock(Deployment.class);
         when(deployment.getDeploymentDocumentObj()).thenReturn(doc);
+        when(deployment.getId()).thenReturn("testId");
         return deployment;
     }
 
