@@ -90,7 +90,7 @@ public class ShadowDeploymentListenerTest {
     @Test
     public void testCommunicationWithIotCore_successful() {
         when(mockKernel.getContext()).thenReturn(mockContext);
-        when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
+        lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
@@ -123,7 +123,7 @@ public class ShadowDeploymentListenerTest {
     @Test
     public void testCommunicationWithIotCore_unsuccessful_THEN_retry_on_update() throws DeviceConfigurationException {
         when(mockKernel.getContext()).thenReturn(mockContext);
-        when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
+        lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
         doThrow(new DeviceConfigurationException("Error")).doNothing().when(mockDeviceConfiguration).validate();
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
@@ -152,7 +152,7 @@ public class ShadowDeploymentListenerTest {
         EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
         when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
         when(mockKernel.getContext()).thenReturn(mockContext);
-        when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
+        lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
@@ -251,7 +251,7 @@ public class ShadowDeploymentListenerTest {
         EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
         when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
         when(mockKernel.getContext()).thenReturn(mockContext);
-        when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
+        lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
         lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
         lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
@@ -287,7 +287,7 @@ public class ShadowDeploymentListenerTest {
         EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
         when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
         when(mockKernel.getContext()).thenReturn(mockContext);
-        when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
+        lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
