@@ -15,7 +15,6 @@ import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
-import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -28,9 +27,6 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.mqttclient.StandaloneMqttConnector;
-import com.aws.greengrass.security.SecurityService;
-import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
 import com.aws.greengrass.util.Coerce;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -66,10 +62,7 @@ public class DeploymentConfigMerger {
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     public static final String SERVICE_NAME_LOG_KEY = "serviceName";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
-    static final long DEFAULT_PREFLIGHT_MQTT_TIMEOUT_MS = 60_000;
-    static final String STANDALONE_MQTT_TIMEOUT_KEY = "standaloneMqttTimeoutMs";
     private static final String ENDPOINT_LOG_KEY = "endpoint";
-    private static final String ENDPOINT_SWITCH_CLIENT_SUFFIX = "#endpoint-switch";
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
@@ -165,10 +158,22 @@ public class DeploymentConfigMerger {
 
         // Endpoint-switch deployments: pre-flight connectivity check, then persist source endpoint.
         // Pre-flight runs BEFORE persisting so that on failure, no device state has changed.
-        // Source endpoint is stored under services.DeploymentService.runtime (internal deployment state,
-        // not customer config). Persisted to config.tlog so it survives device crashes mid-endpoint-switch.
-        // Step 5 uses this value to report deployment status back to the source account.
-        // Cleared after status reporting; stale keys are harmless and overwritten by the next switch.
+        //
+        // Before switching the IoT endpoint, save two values to runtime config:
+        //
+        // 1. sourceIotDataEndpoint — the current IoT data endpoint (where the device is connected
+        //    now). After the switch, the status consumer uses this to publish the deployment result
+        //    back to the originating account via a standalone MQTT connection.
+        //
+        // 2. sourceDeploymentId — this deployment's ID (job ID, config ARN, or UUID depending on
+        //    type). The status consumer matches this against the persisted status entry to identify
+        //    which entry belongs to the endpoint-switch deployment.
+        //
+        // Both are stored under services.DeploymentService.runtime (internal deployment state, not
+        // customer config) and persisted to config.tlog (survives crashes). Removed by the status
+        // consumer after it successfully publishes the deployment result to the source endpoint.
+        EndpointSwitchPreflightValidator preflightValidator =
+                kernel.getContext().get(EndpointSwitchPreflightValidator.class);
         if (isEndpointSwitchDeployment(nucleusConfig, deviceConfiguration)) {
             String currentDataEndpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
             String newDataEndpoint = Coerce.toString(nucleusConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
@@ -181,15 +186,8 @@ public class DeploymentConfigMerger {
             logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY)
                     .kv(ENDPOINT_LOG_KEY, newDataEndpoint)
                     .log("Starting pre-flight MQTT connectivity check");
-            long preflightTimeout = Coerce.toLong(deviceConfiguration.getMQTTNamespace()
-                    .findOrDefault(DEFAULT_PREFLIGHT_MQTT_TIMEOUT_MS, STANDALONE_MQTT_TIMEOUT_KEY));
-            if (preflightTimeout <= 0) {
-                logger.atWarn().kv("configured", preflightTimeout)
-                        .kv("using", DEFAULT_PREFLIGHT_MQTT_TIMEOUT_MS)
-                        .log("Invalid standaloneMqttTimeoutMs, using default");
-                preflightTimeout = DEFAULT_PREFLIGHT_MQTT_TIMEOUT_MS;
-            }
-            if (!verifyMqttConnectivity(totallyCompleteFuture, newDataEndpoint, ENDPOINT_SWITCH_CLIENT_SUFFIX,
+            long preflightTimeout = deviceConfiguration.getStandaloneMqttTimeout();
+            if (!preflightValidator.verifyMqttConnectivity(totallyCompleteFuture, newDataEndpoint,
                     preflightTimeout)) {
                 return;
             }
@@ -198,8 +196,31 @@ public class DeploymentConfigMerger {
                     .log("Pre-flight MQTT connectivity check passed");
 
             // Persist source endpoint only after pre-flight succeeds — no state change on failure
-            kernel.getContext().get(DeploymentService.class).getRuntimeConfig()
-                    .lookup(DeploymentService.SOURCE_IOT_DATA_ENDPOINT_KEY).withValue(currentDataEndpoint);
+            kernel.getContext().get(EndpointSwitchState.class).persist(currentDataEndpoint, deployment.getId());
+        }
+
+        // Pre-flight credential endpoint check — uses the device certificate for mTLS authentication,
+        // which must be registered in the destination account/region for this check to succeed.
+        // Runs whenever iotCredEndpoint or iotRoleAlias changes.
+        if (nucleusConfig != null) {
+            String currentCredEndpoint = Coerce.toString(deviceConfiguration.getIotCredentialEndpoint());
+            String newCredEndpoint = nucleusConfig.containsKey(DEVICE_PARAM_IOT_CRED_ENDPOINT)
+                    ? Coerce.toString(nucleusConfig.get(DEVICE_PARAM_IOT_CRED_ENDPOINT)) : currentCredEndpoint;
+            String currentRoleAlias = Coerce.toString(deviceConfiguration.getIotRoleAlias());
+            String newRoleAlias = nucleusConfig.containsKey(DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC)
+                    ? Coerce.toString(nucleusConfig.get(DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC))
+                    : currentRoleAlias;
+            if (!Objects.equals(currentCredEndpoint, newCredEndpoint)
+                    || !Objects.equals(currentRoleAlias, newRoleAlias)) {
+                long credTimeout = Coerce.toLong(deviceConfiguration.getCredentialEndpointTimeoutMs());
+                if (credTimeout <= 0) {
+                    credTimeout = DeviceConfiguration.DEFAULT_CREDENTIAL_ENDPOINT_TIMEOUT_MS;
+                }
+                if (!preflightValidator.verifyCredentialEndpoint(totallyCompleteFuture, newCredEndpoint,
+                        newRoleAlias, credTimeout)) {
+                    return;
+                }
+            }
         }
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
@@ -223,55 +244,6 @@ public class DeploymentConfigMerger {
             }
         }
         return true;
-    }
-
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException"})
-    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "REC_CATCH_EXCEPTION",
-            justification = "Defensive catch for unexpected errors from CRT builder and proxy config")
-    boolean verifyMqttConnectivity(CompletableFuture<DeploymentResult> totallyCompleteFuture,
-                                   String endpoint, String clientIdSuffix, long timeoutMs) {
-        try (StandaloneMqttConnector conn = StandaloneMqttConnector.of(
-                kernel.getContext().get(SecurityService.class), deviceConfiguration,
-                endpoint, clientIdSuffix)) {
-            conn.connect(timeoutMs);
-            return true;
-        } catch (MqttConnectionProviderException e) {
-            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
-                    .kv(ENDPOINT_LOG_KEY, endpoint)
-                    .log("Pre-flight MQTT connectivity check failed: device identity configuration error");
-            totallyCompleteFuture.complete(
-                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                            new DeploymentException("Device identity configuration error", e,
-                                    DeploymentErrorCode.TLS_HANDSHAKE_FAILURE)));
-            return false;
-        } catch (DeploymentException e) {
-            if (e.getErrorCodes().contains(DeploymentErrorCode.MISSING_MQTT_CONNECT_POLICY)) {
-                String thingName = Coerce.toString(deviceConfiguration.getThingName());
-                logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
-                        .kv(ENDPOINT_LOG_KEY, endpoint)
-                        .log("Pre-flight MQTT connectivity check failed: MQTT CONNECT rejected. "
-                                + "Possible causes: (1) IoT policy does not allow client ID \""
-                                + thingName + clientIdSuffix + "\" — update iot:Connect resource to "
-                                + "\"arn:aws:iot:*:*:client/" + thingName + "*\", or "
-                                + "(2) device certificate is not authorized in the target account");
-            } else {
-                logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
-                        .kv(ENDPOINT_LOG_KEY, endpoint)
-                        .log("Pre-flight MQTT connectivity check failed");
-            }
-            totallyCompleteFuture.complete(
-                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
-            return false;
-        } catch (Exception e) {
-            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
-                    .kv(ENDPOINT_LOG_KEY, endpoint)
-                    .log("Pre-flight MQTT connectivity check failed");
-            totallyCompleteFuture.complete(
-                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                            new DeploymentException("MQTT pre-flight connection to " + endpoint + " failed",
-                                    e, DeploymentErrorCode.MQTT_CONNECTION_FAILED)));
-            return false;
-        }
     }
 
     /**

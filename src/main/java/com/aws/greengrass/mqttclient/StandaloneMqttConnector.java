@@ -18,6 +18,8 @@ import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.crt.mqtt.MqttMessage;
+import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
@@ -37,6 +39,7 @@ public class StandaloneMqttConnector implements Closeable {
     private static final Logger logger = LogManager.getLogger(StandaloneMqttConnector.class);
     private static final long DISCONNECT_TIMEOUT_MS = 5000;
     private static final long PER_ATTEMPT_TIMEOUT_MS = 10_000;
+    private static final String ENDPOINT_SWITCH_CLIENT_SUFFIX = "#endpoint-switch";
 
     private final AwsIotMqttConnectionBuilder builder;
     private final String clientId;
@@ -85,6 +88,24 @@ public class StandaloneMqttConnector implements Closeable {
                 .withCleanSession(true);
         configureProxy(mqttBuilder, deviceConfiguration, endpoint);
         return new StandaloneMqttConnector(mqttBuilder, clientId);
+    }
+
+    /**
+     * Create a StandaloneMqttConnector configured for endpoint-switch operations (pre-flight checks
+     * and source endpoint status reporting). Uses the standard endpoint-switch client ID suffix.
+     *
+     * @param securityService     provides the MQTT connection builder with device certs
+     * @param deviceConfiguration provides endpoint, proxy, port, and CA configuration
+     * @param endpoint            the IoT data endpoint to connect to
+     * @return a configured StandaloneMqttConnector ready to call {@link #connect(long)}
+     * @throws MqttConnectionProviderException if the device identity builder cannot be created
+     */
+    public static StandaloneMqttConnector forEndpointSwitch(SecurityService securityService,
+                                                            DeviceConfiguration deviceConfiguration,
+                                                            String endpoint)
+            throws MqttConnectionProviderException {
+        return of(securityService, deviceConfiguration, endpoint,
+                ENDPOINT_SWITCH_CLIENT_SUFFIX);
     }
 
     private static void configureProxy(AwsIotMqttConnectionBuilder mqttBuilder,
@@ -160,6 +181,59 @@ public class StandaloneMqttConnector implements Closeable {
             connectionCleanup();
             Throwable cause = e.getCause() == null ? e : e.getCause();
             throw new DeploymentException("MQTT connection failed", e,
+                    mapExceptionToErrorCode(cause));
+        }
+    }
+
+    /**
+     * Publish a message on the already-connected standalone connection with retries using exponential backoff.
+     * The timeout controls the number of attempts (timeoutMs / perAttemptTimeout), not a hard wall-clock
+     * deadline — actual elapsed time may exceed timeoutMs due to backoff sleep between attempts.
+     *
+     * <p>This method assumes the source IoT Thing and device certificate remain valid post-switch.
+     * If the source account deletes the Thing or deregisters the certificate after the endpoint switch,
+     * publish attempts will fail. This is non-fatal — the source IoT Job will eventually time out.</p>
+     *
+     * @param topic     MQTT topic to publish to
+     * @param payload   message payload bytes
+     * @param qos       quality of service level
+     * @param timeoutMs timeout budget in milliseconds used to derive the number of publish attempts
+     * @throws DeploymentException with appropriate error code if all attempts fail
+     */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public void publish(String topic, byte[] payload, QualityOfService qos, long timeoutMs)
+            throws DeploymentException {
+        if (connection == null) {
+            throw new DeploymentException("Cannot publish - not connected",
+                    DeploymentErrorCode.MQTT_CONNECTION_FAILED);
+        }
+        if (timeoutMs <= 0) {
+            throw new DeploymentException("MQTT publish timeout must be positive, got " + timeoutMs,
+                    DeploymentErrorCode.MQTT_CONNECTION_FAILED);
+        }
+        long perAttemptTimeout = Math.min(timeoutMs, PER_ATTEMPT_TIMEOUT_MS);
+        int maxAttempts = Math.max(1, (int) (timeoutMs / perAttemptTimeout));
+        RetryUtils.RetryConfig retryConfig = RetryUtils.RetryConfig.builder()
+                .initialRetryInterval(Duration.ofSeconds(1))
+                .maxRetryInterval(Duration.ofSeconds(10))
+                .maxAttempt(maxAttempts)
+                .retryableExceptions(Collections.singletonList(Exception.class))
+                .build();
+        try {
+            RetryUtils.runWithRetry(retryConfig, () -> {
+                MqttMessage message = new MqttMessage(topic, payload, qos, false);
+                connection.publish(message).get(perAttemptTimeout, TimeUnit.MILLISECONDS);
+                logger.atDebug().kv("topic", topic).kv("clientId", clientId)
+                        .log("Standalone MQTT publish succeeded");
+                return null;
+            }, "standalone-mqtt-publish", logger);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new DeploymentException("MQTT publish interrupted", e,
+                    DeploymentErrorCode.MQTT_CONNECTION_FAILED);
+        } catch (Exception e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            throw new DeploymentException("MQTT publish failed after retries", e,
                     mapExceptionToErrorCode(cause));
         }
     }

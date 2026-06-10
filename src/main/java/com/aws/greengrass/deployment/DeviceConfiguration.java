@@ -103,6 +103,8 @@ public class DeviceConfiguration {
     public static final String FLEET_STATUS_CONFIG_TOPICS = "fleetStatus";
 
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
+    public static final String CREDENTIAL_ENDPOINT_TIMEOUT_MS_TOPIC = "credentialEndpointTimeoutMs";
+    public static final long DEFAULT_CREDENTIAL_ENDPOINT_TIMEOUT_MS = 60_000L;
     public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
     public static final String DEPLOYMENT_POLLING_FREQUENCY_SECONDS = "deploymentPollingFrequencySeconds";
     public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
@@ -504,6 +506,25 @@ public class DeviceConfiguration {
         return getTopics(DEVICE_MQTT_NAMESPACE);
     }
 
+    /**
+     * Get the standalone MQTT timeout for endpoint-switch operations, falling back to the default
+     * if the configured value is invalid (≤ 0).
+     *
+     * @return timeout in milliseconds (always positive)
+     */
+    public long getStandaloneMqttTimeout() {
+        long timeout = Coerce.toLong(getMQTTNamespace()
+                .findOrDefault(EndpointSwitchState.DEFAULT_STANDALONE_MQTT_TIMEOUT_MS,
+                        EndpointSwitchState.STANDALONE_MQTT_TIMEOUT_KEY));
+        if (timeout <= 0) {
+            logger.atWarn().kv("configured", timeout)
+                    .kv("using", EndpointSwitchState.DEFAULT_STANDALONE_MQTT_TIMEOUT_MS)
+                    .log("Invalid standaloneMqttTimeoutMs, using default");
+            return EndpointSwitchState.DEFAULT_STANDALONE_MQTT_TIMEOUT_MS;
+        }
+        return timeout;
+    }
+
     public Topics getSpoolerNamespace() {
         return getMQTTNamespace().lookupTopics(DEVICE_SPOOLER_NAMESPACE);
     }
@@ -534,6 +555,10 @@ public class DeviceConfiguration {
 
     public Topic getIotRoleAlias() {
         return getTopic(IOT_ROLE_ALIAS_TOPIC).dflt("");
+    }
+
+    public Topic getCredentialEndpointTimeoutMs() {
+        return getTopic(CREDENTIAL_ENDPOINT_TIMEOUT_MS_TOPIC).dflt(DEFAULT_CREDENTIAL_ENDPOINT_TIMEOUT_MS);
     }
 
     public Topic getComponentStoreMaxSizeBytes() {
