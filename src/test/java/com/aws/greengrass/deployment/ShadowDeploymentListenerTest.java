@@ -251,7 +251,7 @@ public class ShadowDeploymentListenerTest {
         EndpointSwitchState mockEndpointSwitchState = mock(EndpointSwitchState.class);
         when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
         when(mockKernel.getContext()).thenReturn(mockContext);
-        when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
+        lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
         lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
         lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
