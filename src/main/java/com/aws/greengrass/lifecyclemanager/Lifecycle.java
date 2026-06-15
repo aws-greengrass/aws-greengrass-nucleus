@@ -505,6 +505,11 @@ public class Lifecycle {
         } else if (State.UNINSTALLED.equals(desiredState.get()) && getState() != State.UNINSTALLED) {
             // try uninstalling from broken state
             internalReportState(State.UNINSTALLING);
+        } else if (State.FINISHED.equals(desiredState.get()) && requestedUninstall.get()) {
+            // FINISHED is unreachable from BROKEN state. When close() calls requestStop(), it sets the
+            // desired state list to [FINISHED, UNINSTALLED]. Since BROKEN cannot transition to FINISHED,
+            // skip directly to UNINSTALLING so the uninstall flow can proceed.
+            internalReportState(State.UNINSTALLING);
         } else {
             logger.atError("service-broken").log("service is broken. Deployment is needed");
         }
