@@ -763,6 +763,8 @@ class LifecycleTest {
     }
 
     // Uninstall Lifecycle Tests - AC7: State transitions from BROKEN → UNINSTALLING → UNINSTALLED (direct)
+    // Tests the happy path: requestUninstall() sets desired state to [UNINSTALLED] and the lifecycle
+    // thread processes it directly without close() overwriting it.
     @Test
     void GIVEN_service_in_BROKEN_state_WHEN_requestUninstall_THEN_transitions_directly_to_UNINSTALLED() throws Exception {
         Configuration config = new Configuration(context);
@@ -787,6 +789,71 @@ class LifecycleTest {
         testService.requestUninstall();
         
         assertTrue(uninstallCalled.await(2, TimeUnit.SECONDS), "Uninstall should be called");
+        assertThat(testService::getState, eventuallyEval(is(State.UNINSTALLED)));
+    }
+
+    // Tests the race path: close() calls requestStop() after requestUninstall(), overwriting the
+    // desired state to [FINISHED, UNINSTALLED]. The lifecycle thread must handle FINISHED in BROKEN
+    // state when requestedUninstall is true by skipping to UNINSTALLING.
+    @Test
+    void GIVEN_service_in_BROKEN_state_WHEN_requestUninstall_then_requestStop_THEN_transitions_to_UNINSTALLED() throws Exception {
+        Configuration config = new Configuration(context);
+        Topics testServiceTopics = config.getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC)
+                .createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        CountDownLatch uninstallCalled = new CountDownLatch(1);
+        CountDownLatch shutdownBlocking = new CountDownLatch(1);
+        CountDownLatch shutdownEntered = new CountDownLatch(1);
+        AtomicBoolean reachedBroken = new AtomicBoolean(false);
+        AtomicInteger startupAttempts = new AtomicInteger(0);
+        testService.setStartupRunnable(() -> {
+            if (startupAttempts.incrementAndGet() <= 3) {
+                testService.reportState(State.ERRORED);
+            }
+        });
+        // Use a state listener to flag reachedBroken at the exact moment of transition,
+        // before handleCurrentStateBroken submits shutdown() to the executor.
+        context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (newState.equals(State.BROKEN)) {
+                reachedBroken.set(true);
+            }
+        });
+        testService.setShutdownRunnable(() -> {
+            // shutdown() is called during ERRORED→STARTING cycles (STOPPING state) and also by
+            // handleCurrentStateBroken once BROKEN is reached. Only block on the latter.
+            if (!reachedBroken.get()) {
+                return;
+            }
+            shutdownEntered.countDown();
+            try {
+                shutdownBlocking.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // test failure if interrupted
+            }
+        });
+        testService.setUninstallRunnable(() -> uninstallCalled.countDown());
+
+        testService.postInject();
+        testService.requestStart();
+        assertThat(testService::getState, eventuallyEval(is(State.BROKEN)));
+
+        // Wait for the lifecycle thread to enter shutdown() inside handleCurrentStateBroken.
+        // At this point the lifecycle thread is blocked and cannot process events.
+        assertTrue(shutdownEntered.await(5, TimeUnit.SECONDS), "Lifecycle thread should enter shutdown");
+
+        // Simulate the race: requestUninstall() sets requestedUninstall=true and desired=[UNINSTALLED],
+        // then requestStop() overwrites desired to [FINISHED, UNINSTALLED] (same as close() does).
+        testService.requestUninstall();
+        testService.requestStop();
+
+        // Release the lifecycle thread. It will finish handleCurrentStateBroken (desiredState was empty),
+        // enter the event loop, wake up from queued events, go back to the top of the loop, and peek
+        // the desired state — which is now deterministically [FINISHED, UNINSTALLED].
+        shutdownBlocking.countDown();
+
+        assertTrue(uninstallCalled.await(5, TimeUnit.SECONDS), "Uninstall should be called");
         assertThat(testService::getState, eventuallyEval(is(State.UNINSTALLED)));
     }
 
