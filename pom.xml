@@ -858,7 +858,7 @@
         <excludedGroups>E2E,E2E-INTRUSIVE</excludedGroups>
         <groups></groups>
         <greengrassjar.name>Greengrass</greengrassjar.name>
-        <lastVersion>2.17.0-SNAPSHOT</lastVersion>
+        <lastVersion>2.16.0-SNAPSHOT</lastVersion>
     </properties>
     <distributionManagement>
         <snapshotRepository>
