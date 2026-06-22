@@ -28,6 +28,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -210,8 +211,8 @@ public class DeploymentConfigMerger {
             String newRoleAlias = nucleusConfig.containsKey(DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC)
                     ? Coerce.toString(nucleusConfig.get(DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC))
                     : currentRoleAlias;
-            if (!Objects.equals(currentCredEndpoint, newCredEndpoint)
-                    || !Objects.equals(currentRoleAlias, newRoleAlias)) {
+            if (effectivelyChanged(currentCredEndpoint, newCredEndpoint)
+                    || effectivelyChanged(currentRoleAlias, newRoleAlias)) {
                 long credTimeout = Coerce.toLong(deviceConfiguration.getCredentialEndpointTimeoutMs());
                 if (credTimeout <= 0) {
                     credTimeout = DeviceConfiguration.DEFAULT_CREDENTIAL_ENDPOINT_TIMEOUT_MS;
@@ -322,6 +323,12 @@ public class DeploymentConfigMerger {
         return iotDataEndpoint;
     }
 
+    private static boolean effectivelyChanged(String current, String incoming) {
+        String normalizedCurrent = Utils.isEmpty(current) ? "" : current;
+        String normalizedIncoming = Utils.isEmpty(incoming) ? "" : incoming;
+        return !Objects.equals(normalizedCurrent, normalizedIncoming);
+    }
+
     /**
      * Detect whether a deployment changes the IoT data endpoint.
      *
@@ -336,7 +343,7 @@ public class DeploymentConfigMerger {
         }
         String current = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
         String incoming = Coerce.toString(nucleusConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
-        return !Objects.equals(current, incoming);
+        return effectivelyChanged(current, incoming);
     }
 
     @Getter
