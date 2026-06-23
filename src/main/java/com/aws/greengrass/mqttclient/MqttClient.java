@@ -1012,6 +1012,17 @@ public class MqttClient implements Closeable {
                 : "#" + (clientIdNum + 1));
         logger.atDebug().kv("clientId", clientId).log("Getting new MQTT connection");
 
+        if ("coremqtt".equalsIgnoreCase(getMqttVersion())) {
+            return new CoreMqttJniClient(
+                    this::getMessageHandlerForClient, clientId, clientIdNum, mqttTopics,
+                    callbackEventManager, executorService, ses,
+                    () -> Coerce.toString(deviceConfiguration.getCertificateFilePath()),
+                    () -> Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()),
+                    () -> Coerce.toString(deviceConfiguration.getRootCAFilePath()),
+                    () -> Coerce.toString(deviceConfiguration.getIotDataEndpoint()),
+                    () -> Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)));
+        }
+
         if (MQTT_VERSION_5.equalsIgnoreCase(getMqttVersion())) {
             return new AwsIotMqtt5Client(() -> {
                 try {
