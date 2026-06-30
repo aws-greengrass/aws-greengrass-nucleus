@@ -40,6 +40,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURA
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
@@ -129,6 +130,11 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(topics.subscribe(any())).thenReturn(topics);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
+
+        // TES subscribes to the credential endpoint topic in its constructor; back it with a real topic.
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "");
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_IOT_CRED_ENDPOINT)).thenReturn(credEndpointTopic);
     }
 
     @AfterEach
