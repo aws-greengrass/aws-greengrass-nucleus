@@ -252,7 +252,8 @@ public class MqttClient implements Closeable {
                     boolean useProxy = true;
                     // Only use the proxy when the endpoint we're connecting to is not in the NoProxyAddress list
                     if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)) {
-                        useProxy = Arrays.stream(noProxy.split(",")).noneMatch(endpoint::matches);
+                        useProxy = Arrays.stream(noProxy.split(","))
+                                .noneMatch(pattern -> ProxyUtils.noProxyMatches(endpoint, pattern));
                     }
                     if (useProxy) {
                         builder.withHttpProxyOptions(httpProxyOptions);
