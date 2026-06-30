@@ -72,6 +72,16 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
             iotRoleAlias = Coerce.toString(newv);
         });
 
+        deviceConfiguration.getIotCredentialEndpoint().subscribe((why, newv) -> {
+            if (!WhatHappened.changed.equals(why)) {
+                return;
+            }
+            logger.atInfo("tes-config-change").kv("new-value", Coerce.toString(newv))
+                    .log("Restarting TES due to credential endpoint config change");
+            credentialRequestHandler.clearCache();
+            requestRestart();
+        });
+
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;
 
