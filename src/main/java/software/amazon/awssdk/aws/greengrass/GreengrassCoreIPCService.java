@@ -58,6 +58,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String CREATE_DEBUG_PASSWORD = SERVICE_NAMESPACE + "#CreateDebugPassword";
 
+  public static final String SUBSCRIBE_TO_IOT_CORE_CONNECTION_STATUS = SERVICE_NAMESPACE + "#SubscribeToIoTCoreConnectionStatus";
+
   public static final String GET_THING_SHADOW = SERVICE_NAMESPACE + "#GetThingShadow";
 
   public static final String SEND_CONFIGURATION_VALIDITY_REPORT = SERVICE_NAMESPACE + "#SendConfigurationValidityReport";
@@ -110,6 +112,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(AUTHORIZE_CLIENT_DEVICE_ACTION);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
     SERVICE_OPERATION_SET.add(CREATE_DEBUG_PASSWORD);
+    SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_IOT_CORE_CONNECTION_STATUS);
     SERVICE_OPERATION_SET.add(GET_THING_SHADOW);
     SERVICE_OPERATION_SET.add(SEND_CONFIGURATION_VALIDITY_REPORT);
     SERVICE_OPERATION_SET.add(UPDATE_THING_SHADOW);
@@ -227,6 +230,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setCreateDebugPasswordHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractCreateDebugPasswordOperationHandler> handler) {
     operationSupplierMap.put(CREATE_DEBUG_PASSWORD, handler);
+  }
+
+  public void setSubscribeToIoTCoreConnectionStatusHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToIoTCoreConnectionStatusOperationHandler> handler) {
+    operationSupplierMap.put(SUBSCRIBE_TO_IOT_CORE_CONNECTION_STATUS, handler);
   }
 
   public void setGetThingShadowHandler(
