@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -93,7 +94,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THI
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 import static com.aws.greengrass.util.RetryUtils.RANDOM;
 
-@SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.ExcessiveClassLength"})
 public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
     static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
@@ -1031,6 +1032,34 @@ public class MqttClient implements Closeable {
 
     public boolean connected() {
         return !connections.isEmpty() && connections.stream().anyMatch(IndividualMqttClient::connected);
+    }
+
+    /**
+     * Wait for any pending MQTT reconnection task to complete. This blocks until the scheduled
+     * reconnect attempt finishes (success or failure). Used by endpoint-switch rollback to ensure
+     * the MQTT client is no longer pointing at the switched endpoint before deployment status
+     * is published.
+     *
+     * <p>If no reconnection is pending, returns immediately. Times out after the MQTT operation
+     * timeout (default 30s) plus the 1-second schedule delay to account for the reconnect
+     * being scheduled slightly in the future.</p>
+     */
+    public void waitForPendingReconnect() {
+        Future<?> pending = reconfigureFuture.get();
+        if (pending == null || pending.isDone() || pending.isCancelled()) {
+            return;
+        }
+        long timeoutMs = getMqttOperationTimeoutMillis() + Duration.ofSeconds(1).toMillis();
+        try {
+            pending.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (TimeoutException e) {
+            logger.atWarn().log("Timed out waiting for MQTT reconnect to complete");
+        } catch (ExecutionException | CancellationException e) {
+            // Reconnect failed or was cancelled — that's fine, we just needed to wait for the attempt
+            logger.atDebug().setCause(e).log("Pending MQTT reconnect completed with error");
+        }
     }
 
     @Override
