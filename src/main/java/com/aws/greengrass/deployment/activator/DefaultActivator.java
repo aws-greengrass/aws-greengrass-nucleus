@@ -14,6 +14,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.mqttclient.MqttClient;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -196,6 +197,17 @@ public class DefaultActivator extends DeploymentActivator {
             rollbackManager.removeObsoleteServices();
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
                     .log("All services rolled back");
+
+            // For endpoint-switch deployments, wait for the MQTT client's pending reconnect to
+            // complete before signaling deployment completion. Rollback restores the original
+            // endpoint config which triggers an async MQTT reconnect. If we complete the future
+            // immediately, DeploymentService may publish FAILED status while the MQTT client is
+            // still connected to the switched (wrong) endpoint. Waiting for the reconnect attempt
+            // (success or failure) ensures the client is no longer on the wrong endpoint.
+            if (isEndpointSwitch(deploymentId)) {
+                logger.atDebug(MERGE_CONFIG_EVENT_KEY).log("Waiting for MQTT reconnect after endpoint-switch rollback");
+                kernel.getContext().get(MqttClient.class).waitForPendingReconnect();
+            }
 
             totallyCompleteFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, failureCause));
