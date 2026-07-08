@@ -32,6 +32,14 @@ public class Subscribe {
     List<UserProperty> userProperties;
     Consumer<Publish> callback;
 
+    // When true, MqttClient records this subscription for local routing only and sends no cloud SUBSCRIBE;
+    // it still delivers matching inbound messages to the callback. A given (topic, callback) may be registered
+    // as either a cloud subscription OR local-only, never both -- MqttClient enforces this at subscribe time.
+    // This is a Nucleus routing flag, not an MQTT wire option, so it is deliberately absent from
+    // toCrtSubscribePacket().
+    @Builder.Default
+    boolean skipCloudSubscribe = false;
+
     /**
      * Convert a CRT SubscribePacket.
      *
