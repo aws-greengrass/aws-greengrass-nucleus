@@ -377,7 +377,7 @@
                     </rulesets>
                     <includeTests>true</includeTests>
                     <excludes>**/awssdk/**, **/eventstream/**, **/vendored/**</excludes>
-                    <skip>${skipTests}</skip>
+                    <skip>${pmd.skip}</skip>
                 </configuration>
                 <executions>
                     <execution>
@@ -428,7 +428,7 @@
                 <artifactId>spotbugs-maven-plugin</artifactId>
                 <version>4.0.0</version>
                 <configuration>
-                    <skip>${skipTests}</skip>
+                    <skip>${spotbugs.skip}</skip>
                     <effort>Max</effort>
                     <!-- Reports all bugs (other values are medium and max) -->
                     <threshold>Low</threshold>
@@ -461,7 +461,7 @@
                     <violationSeverity>warning</violationSeverity>
                     <maxAllowedViolations>0</maxAllowedViolations>
                     <excludes>**/awssdk/**, **/eventstream/**, **/vendored/**</excludes>
-                    <skip>${skipTests}</skip>
+                    <skip>${checkstyle.skip}</skip>
                 </configuration>
                 <executions>
                     <execution>
@@ -855,6 +855,9 @@
         <!-- Oddly, setting this to false actually makes it compile incrementally, making dev builds faster -->
         <maven.compiler.useIncrementalCompilation>false</maven.compiler.useIncrementalCompilation>
         <skipTests>false</skipTests>
+        <pmd.skip>false</pmd.skip>
+        <spotbugs.skip>false</spotbugs.skip>
+        <checkstyle.skip>false</checkstyle.skip>
         <excludedGroups>E2E,E2E-INTRUSIVE</excludedGroups>
         <groups></groups>
         <greengrassjar.name>Greengrass</greengrassjar.name>
