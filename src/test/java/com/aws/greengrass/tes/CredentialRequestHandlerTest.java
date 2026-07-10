@@ -54,6 +54,7 @@ import static com.aws.greengrass.tes.CredentialRequestHandler.DEFAULT_TIME_BEFOR
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Answers.RETURNS_DEEP_STUBS;
@@ -278,11 +279,39 @@ class CredentialRequestHandlerTest {
         final byte[] creds = handler.getCredentials();
         assertThat(new String(creds, StandardCharsets.UTF_8), is("Failed to get connection"));
 
-        // On a connection-level failure, the cached HTTP client must be discarded so that a subsequent retry
-        // (once the error-cache TTL below expires) does not keep reusing a client whose connection pool/DNS
-        // resolution may be stale for the current network state. Without this, TES can get permanently stuck
-        // in "Failed to get connection" after a transient network outage, requiring a manual restart.
+        // On a connection-level failure, the cached HTTP client must be discarded so that the immediate retry
+        // (and, if that also fails, any subsequent retry once the error-cache TTL expires) does not keep
+        // reusing a client whose connection pool/DNS resolution may be stale for the current network state.
+        // Without this, TES can get permanently stuck in "Failed to get connection" after a transient network
+        // outage, requiring a manual restart.
         verify(mockConnectionManager, times(1)).reset();
+        // Both the initial attempt and the immediate retry should have been made against the cloud helper.
+        verify(mockCloudHelper, times(2)).sendHttpRequest(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_credential_handler_WHEN_connection_error_then_recovers_THEN_immediate_retry_succeeds(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, AWSIotException.class);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any()))
+                .thenThrow(new AWSIotException("Unable to get response"))
+                .thenReturn(CLOUD_RESPONSE);
+        CredentialRequestHandler handler =
+                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
+                        mockAuthZHandler, mockDeviceConfig);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        handler.setThingName(THING_NAME);
+
+        final byte[] creds = handler.getCredentials();
+
+        // A connection error on the first attempt should not be surfaced to the caller as long as the
+        // immediate retry (after resetting the connection manager) succeeds -- this is what gets recovery
+        // time down from the multi-minute error-cache TTL to effectively zero for a transient/local network
+        // blip, without needing to detect or classify the underlying cause.
+        assertThat(new String(creds, StandardCharsets.UTF_8), not(is("Failed to get connection")));
+        verify(mockConnectionManager, times(1)).reset();
+        verify(mockCloudHelper, times(2)).sendHttpRequest(any(), any(), any(), any(), any());
     }
 
     @Test

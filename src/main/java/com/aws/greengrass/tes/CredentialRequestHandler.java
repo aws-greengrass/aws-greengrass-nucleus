@@ -270,9 +270,7 @@ public class CredentialRequestHandler implements HttpHandler {
         Instant newExpiry = tesCache.get(iotCredentialsPath).expiry;
 
         try {
-            final IotCloudResponse cloudResponse = iotCloudHelper
-                    .sendHttpRequest(iotConnectionManager, thingName,
-                            iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null);
+            final IotCloudResponse cloudResponse = sendRequestResettingOnceOnConnectionError();
             final String credentials = cloudResponse.toString();
             final int cloudResponseCode = cloudResponse.getStatusCode();
             LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).kv("statusCode", cloudResponseCode)
@@ -332,19 +330,16 @@ public class CredentialRequestHandler implements HttpHandler {
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
         } catch (AWSIotException | TLSAuthException e) {
-            // Http connection error should be cached to avoid excessive retries
+            // Reaching here means the request failed on both the initial attempt and the immediate
+            // retry (after resetting the connection manager) inside sendRequestResettingOnceOnConnectionError().
+            // That rules out a simple stale-client/local-network-change cause, so cache the failure for longer
+            // to avoid excessive retries against a cloud/network problem that a fresh client can't fix.
             String responseString = "Failed to get connection";
             response = responseString.getBytes(StandardCharsets.UTF_8);
-            // Use unknown error cache policy for SSL/TLS connection errors to prevent excessive retries
             newExpiry = Instant.now(clock).plus(Duration.ofSeconds(unknownErrorCacheInSec));
             tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
-            // Discard the cached HTTP client so the next retry (after the cache TTL above) builds a fresh one
-            // instead of reusing a client whose connection pool/DNS resolution may be stale for the current
-            // network state (e.g. after a transient outage causes an IPv4->IPv6 failover). Without this, TES
-            // can get stuck indefinitely reusing a poisoned client until the component is manually restarted.
-            iotConnectionManager.reset();
             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered error while fetching credentials", e);
         } finally {
@@ -360,6 +355,42 @@ public class CredentialRequestHandler implements HttpHandler {
         }
 
         return response;
+    }
+
+    /**
+     * Sends the TES credentials request, retrying once immediately if the first attempt fails with a
+     * connection-level error.
+     *
+     * <p>A connection error ({@link AWSIotException} or {@link TLSAuthException} from
+     * {@code sendHttpRequest}) discards the cached {@link IotConnectionManager} client and retries right away
+     * against a freshly-built client before falling back to the longer {@code unknownErrorCacheInSec} cache
+     * TTL. This is safe to do unconditionally because it is a single bounded retry, not an open-ended loop: if
+     * the network is still down the retry fails fast against the new client too, and behavior falls through to
+     * today's TTL-based backoff exactly as before. If the failure was actually caused by a stale client (e.g. a
+     * local network change such as an IPv4-&gt;IPv6 failover, where the old client's connection pool/DNS
+     * resolution no longer matches the current route), the retry succeeds immediately instead of waiting out the
+     * full {@code unknownErrorCacheInSec} window.</p>
+     *
+     * @return the cloud response from either the first attempt or the immediate retry
+     * @throws AWSIotException  if both the initial attempt and the retry fail with an IoT error
+     * @throws TLSAuthException if both the initial attempt and the retry fail with a TLS/connection error
+     */
+    private IotCloudResponse sendRequestResettingOnceOnConnectionError() throws AWSIotException, TLSAuthException {
+        try {
+            return iotCloudHelper.sendHttpRequest(iotConnectionManager, thingName, iotCredentialsPath,
+                    IOT_CREDENTIALS_HTTP_VERB, null);
+        } catch (AWSIotException | TLSAuthException e) {
+            // Discard the cached HTTP client and retry once immediately. This covers the case where the
+            // client's connection pool/DNS resolution is stale for the current network state (e.g. after a
+            // transient outage causes an IPv4->IPv6 failover) without needing to detect or classify the
+            // underlying network change.
+            LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                    .log("Encountered connection error while fetching credentials, resetting connection and "
+                            + "retrying once immediately", e);
+            iotConnectionManager.reset();
+            return iotCloudHelper.sendHttpRequest(iotConnectionManager, thingName, iotCredentialsPath,
+                    IOT_CREDENTIALS_HTTP_VERB, null);
+        }
     }
 
     /**
