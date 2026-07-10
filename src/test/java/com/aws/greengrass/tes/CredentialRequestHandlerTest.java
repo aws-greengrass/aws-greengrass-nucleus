@@ -58,7 +58,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Answers.RETURNS_DEEP_STUBS;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -270,6 +272,8 @@ class CredentialRequestHandlerTest {
         ignoreExceptionOfType(context, AWSIotException.class);
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any()))
                 .thenThrow(new AWSIotException("Unable to get response"));
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any(), anyInt()))
+                .thenThrow(new AWSIotException("Unable to get response"));
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
                         mockAuthZHandler, mockDeviceConfig);
@@ -285,8 +289,11 @@ class CredentialRequestHandlerTest {
         // Without this, TES can get permanently stuck in "Failed to get connection" after a transient network
         // outage, requiring a manual restart.
         verify(mockConnectionManager, times(1)).reset();
-        // Both the initial attempt and the immediate retry should have been made against the cloud helper.
-        verify(mockCloudHelper, times(2)).sendHttpRequest(any(), any(), any(), any(), any());
+        // The initial attempt uses the default (internally-retried) overload...
+        verify(mockCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any());
+        // ...and the immediate post-reset retry uses the maxAttempts=1 overload, to avoid compounding this
+        // method's own bounded retry with sendHttpRequest's own internal retry-with-backoff loop.
+        verify(mockCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any(), eq(1));
     }
 
     @Test
@@ -295,7 +302,8 @@ class CredentialRequestHandlerTest {
             ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, AWSIotException.class);
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any()))
-                .thenThrow(new AWSIotException("Unable to get response"))
+                .thenThrow(new AWSIotException("Unable to get response"));
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any(), anyInt()))
                 .thenReturn(CLOUD_RESPONSE);
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
@@ -311,7 +319,8 @@ class CredentialRequestHandlerTest {
         // blip, without needing to detect or classify the underlying cause.
         assertThat(new String(creds, StandardCharsets.UTF_8), not(is("Failed to get connection")));
         verify(mockConnectionManager, times(1)).reset();
-        verify(mockCloudHelper, times(2)).sendHttpRequest(any(), any(), any(), any(), any());
+        verify(mockCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any());
+        verify(mockCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any(), eq(1));
     }
 
     @Test
@@ -515,6 +524,8 @@ class CredentialRequestHandlerTest {
     void GIVEN_connection_error_WHEN_called_handle_THEN_expire_immediately(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, AWSIotException.class);
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenThrow(AWSIotException.class);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any(), anyInt()))
+                .thenThrow(AWSIotException.class);
         when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         when(mockAuthZHandler.isAuthorized(any(), any())).thenReturn(true);
         CredentialRequestHandler handler = setupHandler();
