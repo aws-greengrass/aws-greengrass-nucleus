@@ -340,6 +340,11 @@ public class CredentialRequestHandler implements HttpHandler {
             tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
+            // Discard the cached HTTP client so the next retry (after the cache TTL above) builds a fresh one
+            // instead of reusing a client whose connection pool/DNS resolution may be stale for the current
+            // network state (e.g. after a transient outage causes an IPv4->IPv6 failover). Without this, TES
+            // can get stuck indefinitely reusing a poisoned client until the component is manually restarted.
+            iotConnectionManager.reset();
             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered error while fetching credentials", e);
         } finally {

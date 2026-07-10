@@ -264,6 +264,29 @@ class CredentialRequestHandlerTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_credential_handler_WHEN_connection_error_THEN_resets_connection_manager(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, AWSIotException.class);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any()))
+                .thenThrow(new AWSIotException("Unable to get response"));
+        CredentialRequestHandler handler =
+                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
+                        mockAuthZHandler, mockDeviceConfig);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        handler.setThingName(THING_NAME);
+
+        final byte[] creds = handler.getCredentials();
+        assertThat(new String(creds, StandardCharsets.UTF_8), is("Failed to get connection"));
+
+        // On a connection-level failure, the cached HTTP client must be discarded so that a subsequent retry
+        // (once the error-cache TTL below expires) does not keep reusing a client whose connection pool/DNS
+        // resolution may be stale for the current network state. Without this, TES can get permanently stuck
+        // in "Failed to get connection" after a transient network outage, requiring a manual restart.
+        verify(mockConnectionManager, times(1)).reset();
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
     void GIVEN_credential_handler_WHEN_called_get_credentials_THEN_returns_success() throws Exception {
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
         CredentialRequestHandler handler =
