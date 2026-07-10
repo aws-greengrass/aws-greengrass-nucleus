@@ -73,13 +73,7 @@ public class CredentialRequestHandler implements HttpHandler {
     public static final int DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC = 120;
     public static final int DEFAULT_CLOUD_5XX_ERROR_CACHE_IN_SEC = 60;
     public static final int DEFAULT_UNKNOWN_ERROR_CACHE_IN_SEC = 300;
-    // Small jitter window applied before the single immediate retry in sendRequestResettingOnceOnConnectionError().
-    // A shared-endpoint failure (e.g. a regional connectivity blip, or a breaking change rolled out to the
-    // credentials endpoint) causes many devices to fail their *current* request at the same instant, independent
-    // of each device's own cache-expiry schedule (each device's cache expiry is anchored to when it individually
-    // last fetched, so cache-driven fetches are already staggered fleet-wide and are not the concern here).
-    // Without jitter, every affected device's immediate retry would also land in the same instant as every other
-    // device's retry, with no smoothing between the two waves of requests hitting the shared endpoint.
+    // Max jitter applied before the immediate retry; see sleepWithJitterBeforeRetry() for rationale.
     private static final int RETRY_JITTER_MAX_MILLIS = 200;
 
     private volatile int cloud4xxErrorCacheInSec = DEFAULT_CLOUD_4XX_ERROR_CACHE_IN_SEC;
@@ -339,10 +333,8 @@ public class CredentialRequestHandler implements HttpHandler {
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
         } catch (AWSIotException | TLSAuthException e) {
-            // Reaching here means the request failed on both the initial attempt and the immediate
-            // retry (after resetting the connection manager) inside sendRequestResettingOnceOnConnectionError().
-            // That rules out a simple stale-client/local-network-change cause, so cache the failure for longer
-            // to avoid excessive retries against a cloud/network problem that a fresh client can't fix.
+            // Both the initial attempt and the immediate post-reset retry failed (see
+            // sendRequestResettingOnceOnConnectionError), so cache the failure for the full TTL as before.
             String responseString = "Failed to get connection";
             response = responseString.getBytes(StandardCharsets.UTF_8);
             newExpiry = Instant.now(clock).plus(Duration.ofSeconds(unknownErrorCacheInSec));
@@ -373,24 +365,14 @@ public class CredentialRequestHandler implements HttpHandler {
      * Sends the TES credentials request, retrying once immediately if the first attempt fails with a
      * connection-level error.
      *
-     * <p>A connection error ({@link AWSIotException} or {@link TLSAuthException} from
-     * {@code sendHttpRequest}) discards the cached {@link IotConnectionManager} client and retries right away
-     * against a freshly-built client before falling back to the longer {@code unknownErrorCacheInSec} cache
-     * TTL. This is safe to do unconditionally because it is a single bounded retry, not an open-ended loop: if
-     * the network is still down the retry fails fast against the new client too, and behavior falls through to
-     * today's TTL-based backoff exactly as before. If the failure was actually caused by a stale client (e.g. a
-     * local network change such as an IPv4-&gt;IPv6 failover, where the old client's connection pool/DNS
-     * resolution no longer matches the current route), the retry succeeds immediately instead of waiting out the
-     * full {@code unknownErrorCacheInSec} window.</p>
-     *
-     * <p>The initial attempt uses {@code sendHttpRequest}'s default internal retry-with-backoff (up to 3
-     * attempts). The post-reset retry passes {@code maxAttempts=1} to skip that internal retry loop: a client
-     * that was just rebuilt and fails immediately is unlikely to succeed within a couple hundred more
-     * milliseconds of internal retries, so paying for those extra attempts would mostly just add latency. This
-     * keeps the worst-case added latency from this method bounded to roughly one extra connect/read attempt
-     * (plus jitter) rather than compounding a second full 3-attempt retry loop on top of the first — which
-     * matters because some callers of {@link #getCredentialsBypassCache()} (see {@link #getCredentials()}) block
-     * indefinitely on the result.</p>
+     * <p>On a connection error ({@link AWSIotException} or {@link TLSAuthException}), this discards the cached
+     * {@link IotConnectionManager} client (in case it's stale for the current network state, e.g. after an
+     * IPv4-&gt;IPv6 failover) and retries once immediately against a freshly-built client, using
+     * {@code maxAttempts=1} to skip {@code sendHttpRequest}'s own internal retry-with-backoff loop. This keeps
+     * the worst-case added latency bounded to roughly one extra connect/read attempt rather than compounding two
+     * retry loops — relevant because some callers of {@link #getCredentialsBypassCache()} (see
+     * {@link #getCredentials()}) block indefinitely on the result. If this retry also fails, the failure is
+     * surfaced to the caller exactly as before (no change to the existing TTL-based backoff).</p>
      *
      * @return the cloud response from either the first attempt or the immediate retry
      * @throws AWSIotException  if both the initial attempt and the retry fail with an IoT error
@@ -401,27 +383,17 @@ public class CredentialRequestHandler implements HttpHandler {
             return iotCloudHelper.sendHttpRequest(iotConnectionManager, thingName, iotCredentialsPath,
                     IOT_CREDENTIALS_HTTP_VERB, null);
         } catch (AWSIotException | TLSAuthException e) {
-            // Discard the cached HTTP client and retry once immediately. This covers the case where the
-            // client's connection pool/DNS resolution is stale for the current network state (e.g. after a
-            // transient outage causes an IPv4->IPv6 failover) without needing to detect or classify the
-            // underlying network change.
+            // Note: TLSAuthException can also come from client construction itself (bad cert/key/CA), in which
+            // case the reset+retry below is a no-op that fails the same way again; that's fine, it's bounded.
             //
-            // Note: TLSAuthException can also be thrown by client construction itself (bad cert/key/CA/trust
-            // manager - see ClientConfigurationUtils/SecurityService), not just by the network call. For that
-            // class of failure, rebuilding the client is a no-op and the retry below is expected to fail again
-            // with the same error; that's fine since it's a single bounded retry either way.
-            //
-            // Logged at DEBUG here (not WARN) because a connection error that self-heals on the immediate retry
-            // is not customer-impacting; only log at WARN if the retry below also fails, so log severity tracks
-            // actual impact.
+            // DEBUG here, not WARN: a self-healing connection error isn't customer-impacting. WARN below only
+            // fires if the retry also fails, so severity tracks actual impact.
             LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered connection error while fetching credentials, resetting connection and "
                             + "retrying once immediately", e);
             iotConnectionManager.reset();
             sleepWithJitterBeforeRetry();
             try {
-                // maxAttempts=1: skip sendHttpRequest's own internal retry-with-backoff for this post-reset
-                // attempt (see javadoc above) to keep this method's worst-case added latency bounded.
                 return iotCloudHelper.sendHttpRequest(iotConnectionManager, thingName, iotCredentialsPath,
                         IOT_CREDENTIALS_HTTP_VERB, null, 1);
             } catch (AWSIotException | TLSAuthException retryException) {
@@ -437,9 +409,10 @@ public class CredentialRequestHandler implements HttpHandler {
      * {@link #sendRequestResettingOnceOnConnectionError()}.
      *
      * <p>Without this, a shared-endpoint failure affecting many devices at once (e.g. a regional connectivity
-     * blip, or a breaking change rolled out to the credentials endpoint) would cause every affected device's
-     * retry to land at the exact same instant as every other device's retry, with no smoothing between the two
-     * waves of requests hitting the shared endpoint.</p>
+     * blip) would send every affected device's retry at the same instant, with no smoothing between the two
+     * waves of requests hitting the shared endpoint. (Cache-driven fetches are already staggered fleet-wide
+     * since each device's cache expiry is anchored to when it individually last fetched — this jitter is only
+     * about the immediate retry, which isn't staggered on its own.)</p>
      */
     private void sleepWithJitterBeforeRetry() {
         try {
