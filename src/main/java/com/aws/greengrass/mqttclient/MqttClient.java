@@ -140,6 +140,8 @@ public class MqttClient implements Closeable {
     private final Map<Subscribe, IndividualMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, IndividualMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final Map<Subscribe, AtomicBoolean> subscribeCancellations = new ConcurrentHashMap<>();
+    // Local-only (direct-message) subscriptions: routed on-device but never subscribed in the cloud.
+    private final Set<Subscribe> localOnlySubscriptions = ConcurrentHashMap.newKeySet();
     private final Set<Integer> activeClientIds = new HashSet<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
     @Getter
@@ -454,6 +456,32 @@ public class MqttClient implements Closeable {
             IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
                     IotCoreTopicValidator.Operation.SUBSCRIBE);
 
+            if (request.isSkipCloudSubscribe()) {
+                // A (topic, callback) may live in only ONE mode -- cloud OR local-only, never both -- otherwise
+                // the router's two delivery passes both fire the same callback. Reject this local-only subscribe
+                // when the same (topic, callback) is already a cloud subscription. The cloud path enforces the
+                // mirror case.
+                boolean alreadyCloudSubscribed = subscriptions.keySet().stream()
+                        .anyMatch(s -> isSameSubscription(s, request.getTopic(), request.getCallback()));
+                if (alreadyCloudSubscribed) {
+                    throw new MqttRequestException(
+                            "Topic already has a cloud subscription with this callback: " + request.getTopic());
+                }
+                // Record for on-device routing only; send no cloud SUBSCRIBE.
+                localOnlySubscriptions.add(request);
+                return CompletableFuture.completedFuture(null);
+            }
+
+            // A (topic, callback) may live in only ONE mode. Reject a cloud subscribe when the
+            // same (topic, callback) is already registered local-only, otherwise the router's
+            // two delivery passes would both fire this callback (double delivery).
+            boolean alreadyLocalOnlySubscribed = localOnlySubscriptions.stream()
+                    .anyMatch(s -> isSameSubscription(s, request.getTopic(), request.getCallback()));
+            if (alreadyLocalOnlySubscribed) {
+                throw new MqttRequestException(
+                        "Topic already has a local-only subscription with this callback: " + request.getTopic());
+            }
+
             IndividualMqttClient connection = null;
             // Use the write scope when identifying the subscriptionTopics that exist
             try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
@@ -588,11 +616,17 @@ public class MqttClient implements Closeable {
             if (isClosed.get()) {
                 throw new MqttRequestException("MQTT client is shut down");
             }
+            // Local-only registrations opened no cloud subscription. Match by (callback identity, topic) -- the
+            // same key the cloud loop uses below. subscribe() rejects registering the same (topic, callback) in
+            // both modes, so a hit here means it was local-only; a miss falls through to the cloud path.
+            if (localOnlySubscriptions.removeIf(
+                    s -> isSameSubscription(s, request.getTopic(), request.getSubscriptionCallback()))) {
+                return CompletableFuture.completedFuture(null);
+            }
             // Use the write lock because we're modifying the subscriptions and trying to consolidate them
             try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
                 for (Map.Entry<Subscribe, IndividualMqttClient> sub : subscriptions.entrySet()) {
-                    if (sub.getKey().getCallback() == request.getSubscriptionCallback() && sub.getKey().getTopic()
-                            .equals(request.getTopic())) {
+                    if (isSameSubscription(sub.getKey(), request.getTopic(), request.getSubscriptionCallback())) {
                         AtomicBoolean cancelled = subscribeCancellations.remove(sub.getKey());
                         if (cancelled != null) {
                             cancelled.set(true);
@@ -959,6 +993,10 @@ public class MqttClient implements Closeable {
                     .filter(subscriptionsMatchingTopic)
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
+
+            // True when this client owns a matching cloud subscription. When false, this client
+            // is the "odd"/sole receiver of the message, which drives local-only delivery below.
+            boolean clientOwnsMatchingCloudSub = !exactlyMatchingSubs.isEmpty();
             Set<Subscribe> subs = exactlyMatchingSubs;
             if (exactlyMatchingSubs.isEmpty()) {
                 // We found no exact matches which means that we received a message on the wrong client, or
@@ -972,12 +1010,7 @@ public class MqttClient implements Closeable {
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toSet());
 
-                if (subs.isEmpty()) {
-                    // We found no subscribers at all, so we'll log out an error and exit.
-                    logger.atError().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
-                            .log("Somehow got message from topic that no one subscribed to");
-                    return;
-                } else {
+                if (!subs.isEmpty()) {
                     // We did find at least one subscriber matching the topic, but it didn't match the client
                     // that we subscribed on. This is weird, but it can be expected for IoT Jobs as explained above.
                     logger.atWarn().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
@@ -985,6 +1018,33 @@ public class MqttClient implements Closeable {
                                     + " This is odd, but it isn't a problem");
                 }
             }
+
+            // Independent local-only (direct-message) delivery pass. A local-only subscription has no owning
+            // connection, so to match the cloud path's single-delivery guarantee it behaves exactly like a cloud
+            // sub owned by one designated connection: deliver here only if this client owns a covering cloud
+            // subscription AND is the designated owner, OR this client is the sole/odd receiver. This dedups the
+            // multi-connection fan-out case while still delivering messages that arrive on a client with no
+            // covering cloud subscription (a direct message, or the IoT Jobs case).
+            Set<Subscribe> matchedLocalSubs = new HashSet<>();
+            if (!localOnlySubscriptions.isEmpty()) {
+                // Deliver locally if this client is the sole/odd receiver (no matching cloud sub of its own),
+                // or it is the designated owner among the connections that do cover the topic.
+                boolean deliverLocalHere = !clientOwnsMatchingCloudSub
+                        || isDesignatedLocalDeliveryClient(client, message.getTopic());
+                if (deliverLocalHere) {
+                    localOnlySubscriptions.stream()
+                            .filter(s -> MqttTopic.topicIsSupersetOf(s.getTopic(), message.getTopic()))
+                            .forEach(matchedLocalSubs::add);
+                }
+            }
+
+            if (subs.isEmpty() && matchedLocalSubs.isEmpty()) {
+                // No cloud subscriber and no local-only registration matched, so we'll log an error and exit.
+                logger.atError().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
+                        .log("Somehow got message from topic that no one subscribed to");
+                return;
+            }
+
             subs.forEach((h) -> {
                 try {
                     h.getCallback().accept(message);
@@ -993,7 +1053,49 @@ public class MqttClient implements Closeable {
                             .log("Unhandled error in MQTT message callback", t);
                 }
             });
+            matchedLocalSubs.forEach((h) -> {
+                try {
+                    h.getCallback().accept(message);
+                } catch (Throwable t) {
+                    logger.atError().kv("message", message).kv(CLIENT_ID_KEY, client.getClientId())
+                            .log("Unhandled error in local-only MQTT message callback", t);
+                }
+            });
         };
+    }
+
+    // A (topic, callback) identifies a subscription. Callback compared by reference identity (the same
+    // convention the cloud unsubscribe loop uses); topic by value.
+    @SuppressWarnings("PMD.CompareObjectsWithEquals")
+    private static boolean isSameSubscription(Subscribe sub, String topic, Consumer<Publish> callback) {
+        return sub.getCallback() == callback && sub.getTopic().equals(topic);
+    }
+
+    /**
+     * Determine whether {@code client} is the single connection responsible for local-only delivery of a topic,
+     * when more than one cloud connection may receive the message. This mirrors the {@code == client} owner check
+     * that prevents duplicate cloud delivery: the designated owner is the first connection (in stable
+     * {@code connections} order) that holds a cloud subscription covering the topic. Iterating {@code connections}
+     * in order -- rather than {@code subscriptionTopics} (whose iteration order is undefined) -- makes every
+     * concurrent handler invocation agree on the same owner, so a matching local-only sub is delivered exactly once.
+     *
+     * @param client the client whose handler is running
+     * @param topic  the inbound message topic
+     * @return true if this client should run the local-only delivery pass
+     */
+    // Reference equality is intentional: connections are compared by identity here, exactly as the cloud
+    // delivery pass compares `subscriptions` values with `== client`.
+    @SuppressWarnings("PMD.CompareObjectsWithEquals")
+    private boolean isDesignatedLocalDeliveryClient(IndividualMqttClient client, String topic) {
+        MqttTopic messageTopic = new MqttTopic(topic);
+        for (IndividualMqttClient connection : connections) {
+            boolean covers = subscriptionTopics.entrySet().stream()
+                    .anyMatch(e -> e.getValue() == connection && e.getKey().isSupersetOf(messageTopic));
+            if (covers) {
+                return connection == client;
+            }
+        }
+        return false;
     }
 
     protected int getNextClientIdNumber() {
