@@ -108,4 +108,21 @@ class IotCloudHelperTest {
                 IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null));
     }
+
+    @Test
+    void GIVEN_error_code_once_WHEN_send_request_called_with_max_attempts_one_THEN_no_retry_and_throws()
+            throws Exception {
+        when(mockConnectionManager.getClient()).thenReturn(mockClient);
+        when(mockConnectionManager.getURI()).thenReturn(HOST);
+        ExecutableHttpRequest requestMock = mock(ExecutableHttpRequest.class);
+        // Would succeed on a second attempt, but maxAttempts=1 should mean that second attempt never happens.
+        when(requestMock.call()).thenThrow(IOException.class).thenReturn(
+                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(STATUS_CODE).build())
+                        .responseBody(AbortableInputStream.create(new ByteArrayInputStream(CLOUD_RESPONSE))).build());
+
+        doReturn(requestMock).when(mockClient).prepareRequest(any());
+        IotCloudHelper cloudHelper = new IotCloudHelper();
+        assertThrows(AWSIotException.class, () -> cloudHelper.sendHttpRequest(mockConnectionManager, null,
+                IOT_CREDENTIALS_PATH, CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null, 1));
+    }
 }
