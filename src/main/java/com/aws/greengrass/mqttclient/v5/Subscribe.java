@@ -32,6 +32,11 @@ public class Subscribe {
     List<UserProperty> userProperties;
     Consumer<Publish> callback;
 
+    // When true, MqttClient records this subscription for on-device (receive-only) routing and sends no
+    // cloud SUBSCRIBE; matching inbound messages are still delivered to the callback.
+    @Builder.Default
+    boolean skipCloudSubscribe = false;
+
     /**
      * Convert a CRT SubscribePacket.
      *

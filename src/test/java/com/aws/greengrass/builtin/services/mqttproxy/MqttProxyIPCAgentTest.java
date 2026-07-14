@@ -19,8 +19,10 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
@@ -32,6 +34,8 @@ import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreResponse;
+import software.amazon.awssdk.aws.greengrass.model.SubscriptionMode;
+import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
 import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
@@ -42,7 +46,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -50,6 +56,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,6 +67,8 @@ class MqttProxyIPCAgentTest {
     private static final String TEST_SERVICE = "TestService";
     private static final String TEST_TOPIC = "TestTopic";
     private static final byte[] TEST_PAYLOAD = "TestPayload".getBytes(StandardCharsets.UTF_8);
+    // Stands in for a subscriptionMode a later SDK adds to the model but this Nucleus does not implement.
+    private static final String FUTURE_SDK_MODE = "RECEIVE_AND_FORWARD";
 
     @Mock
     OperationContinuationHandlerContext mockContext;
@@ -177,6 +187,230 @@ class MqttProxyIPCAgentTest {
             Unsubscribe capturedUnsubscribedRequest = unsubscribeRequestArgumentCaptor.getValue();
             assertThat(capturedUnsubscribedRequest.getTopic(), is(TEST_TOPIC));
             assertThat(capturedUnsubscribedRequest.getSubscriptionCallback(), is(callback));
+            // Absent subscriptionMode must take the cloud path (skipCloudSubscribe defaults to false).
+            assertThat(capturedSubscribeRequest.isSkipCloudSubscribe(), is(false));
+        }
+    }
+
+    // ---- RECEIVE_ONLY subscribe ----
+
+    @Test
+    void GIVEN_receive_only_and_no_qos_WHEN_subscribe_THEN_receive_only_registered_and_no_error() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.RECEIVE_ONLY);
+        // No qos is set: RECEIVE_ONLY does not require it.
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
+        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+        ArgumentCaptor<Unsubscribe> unsubscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Unsubscribe.class);
+        ArgumentCaptor<IoTCoreMessage> ioTCoreMessageArgumentCaptor = ArgumentCaptor.forClass(IoTCoreMessage.class);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = spy(mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext))) {
+            SubscribeToIoTCoreResponse response =
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS);
+            subscribeToIoTCoreOperationHandler.afterHandleRequest();
+
+            assertNotNull(response);
+            // Authorization is checked for the requested topic.
+            verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME, Permission.builder()
+                    .principal(TEST_SERVICE).operation(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE)
+                    .resource(TEST_TOPIC).build(), ResourceLookupPolicy.MQTT_STYLE);
+
+            verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
+            Subscribe capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
+            assertThat(capturedSubscribeRequest.getTopic(), is(TEST_TOPIC));
+            assertThat(capturedSubscribeRequest.isSkipCloudSubscribe(), is(true));
+
+            // Inbound delivery streams to the component.
+            Consumer<Publish> callback = capturedSubscribeRequest.getCallback();
+            Publish message = Publish.builder().payload(TEST_PAYLOAD).topic(TEST_TOPIC).build();
+            doReturn(new CompletableFuture<>()).when(subscribeToIoTCoreOperationHandler).sendStreamEvent(any());
+            callback.accept(message);
+            verify(subscribeToIoTCoreOperationHandler).sendStreamEvent(ioTCoreMessageArgumentCaptor.capture());
+            MQTTMessage mqttMessage = ioTCoreMessageArgumentCaptor.getValue().getMessage();
+            assertThat(mqttMessage.getTopicName(), is(TEST_TOPIC));
+
+            // Stream close unsubscribes the registration.
+            subscribeToIoTCoreOperationHandler.onStreamClosed();
+            verify(mqttClient).unsubscribe(unsubscribeRequestArgumentCaptor.capture());
+            assertThat(unsubscribeRequestArgumentCaptor.getValue().getTopic(), is(TEST_TOPIC));
+            assertThat(unsubscribeRequestArgumentCaptor.getValue().getSubscriptionCallback(), is(callback));
+        }
+    }
+
+    @Test
+    void GIVEN_receive_only_with_qos_supplied_WHEN_subscribe_THEN_qos_ignored_and_receive_only_registered() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.RECEIVE_ONLY);
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
+        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = spy(mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext))) {
+            SubscribeToIoTCoreResponse response =
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
+            Subscribe capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
+            // The supplied qos is ignored; the request is registered receive-only.
+            assertThat(capturedSubscribeRequest.isSkipCloudSubscribe(), is(true));
+        }
+    }
+
+    @Test
+    void GIVEN_receive_only_with_invalid_qos_WHEN_subscribe_THEN_qos_validation_skipped() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        // "10" is not a valid qos; the request must still succeed in RECEIVE_ONLY mode.
+        subscribeToIoTCoreRequest.setQos("10");
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.RECEIVE_ONLY);
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
+        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            SubscribeToIoTCoreResponse response =
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
+            assertThat(subscribeRequestArgumentCaptor.getValue().isSkipCloudSubscribe(), is(true));
+        }
+    }
+
+    @Test
+    void GIVEN_explicit_subscribe_mode_WHEN_subscribe_THEN_cloud_path_taken() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.SUBSCRIBE_AND_RECEIVE);
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
+        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = spy(mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext))) {
+            subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest).get(1, TimeUnit.SECONDS);
+
+            verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
+            Subscribe capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
+            assertThat(capturedSubscribeRequest.isSkipCloudSubscribe(), is(false));
+            assertThat(capturedSubscribeRequest.getQos(), is(com.aws.greengrass.mqttclient.v5.QOS.AT_LEAST_ONCE));
+        }
+    }
+
+    @Test
+    void GIVEN_unknown_subscription_mode_WHEN_subscribe_THEN_error_thrown() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+        // An unrecognized mode is rejected rather than silently subscribed in the cloud.
+        subscribeToIoTCoreRequest.setSubscriptionMode("BOGUS");
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            InvalidArgumentsError e = assertThrows(InvalidArgumentsError.class, () ->
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS));
+            assertThat(e.getMessage(), containsString("BOGUS"));
+            verify(mqttClient, never()).subscribe(any(Subscribe.class));
+        }
+    }
+
+    @Test
+    void GIVEN_unknown_subscription_mode_and_no_qos_WHEN_subscribe_THEN_mode_error_not_qos_error() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        // No qos is set. The error must name the unrecognized mode, not the missing qos.
+        subscribeToIoTCoreRequest.setSubscriptionMode("BOGUS");
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            InvalidArgumentsError e = assertThrows(InvalidArgumentsError.class, () ->
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS));
+            assertThat(e.getMessage(), containsString("BOGUS"));
+            verify(mqttClient, never()).subscribe(any(Subscribe.class));
+        }
+    }
+
+    @Test
+    void GIVEN_mode_known_to_sdk_but_not_implemented_WHEN_subscribe_THEN_rejected_not_cloud_subscribed()
+            throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+        subscribeToIoTCoreRequest.setSubscriptionMode(FUTURE_SDK_MODE);
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
+
+        // Simulate a later SDK bump adding a third mode: the model resolves it, but this handler has no branch for
+        // it. Validating against the model's known set would accept it here and fall through to a cloud subscribe
+        // the component never asked for, so the handler must reject anything it does not itself implement.
+        try (MockedStatic<SubscriptionMode> modeMock = mockStatic(SubscriptionMode.class);
+             MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            modeMock.when(() -> SubscriptionMode.get(FUTURE_SDK_MODE))
+                    .thenReturn(SubscriptionMode.SUBSCRIBE_AND_RECEIVE);
+
+            InvalidArgumentsError e = assertThrows(InvalidArgumentsError.class, () ->
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS));
+            assertThat(e.getMessage(), containsString(FUTURE_SDK_MODE));
+            verify(mqttClient, never()).subscribe(any(Subscribe.class));
+        }
+    }
+
+    @Test
+    void GIVEN_receive_only_and_unauthorized_WHEN_subscribe_THEN_unauthorized_error() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.RECEIVE_ONLY);
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(false);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            // An unauthorized RECEIVE_ONLY subscribe fails with UnauthorizedError.
+            assertThrows(UnauthorizedError.class, () ->
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void GIVEN_receive_only_and_mqtt_client_rejects_WHEN_subscribe_THEN_service_error(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, MqttRequestException.class);
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.RECEIVE_ONLY);
+
+        when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
+        // MqttClient.subscribe throws MqttRequestException; the handler surfaces it as a ServiceError.
+        when(mqttClient.subscribe(any(Subscribe.class))).thenThrow(
+                new MqttRequestException("Unable to register subscription for topic: " + TEST_TOPIC));
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            ServiceError e = assertThrows(ServiceError.class, () ->
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS));
+            assertThat(e.getMessage(), containsString(TEST_TOPIC));
         }
     }
 
