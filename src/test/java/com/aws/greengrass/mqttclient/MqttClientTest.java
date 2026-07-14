@@ -71,6 +71,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -740,6 +741,235 @@ class MqttClientTest {
 
         handler.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
         abc.getLeft().get(0, TimeUnit.SECONDS);
+    }
+
+    // ---- Receive-only (direct-message) subscription tests ----
+
+    @Test
+    void GIVEN_receive_only_subscribe_WHEN_subscribe_THEN_no_cloud_subscribe_and_stored_locally()
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+
+        AtomicInteger received = new AtomicInteger(0);
+        client.subscribe(Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true)
+                .callback((m) -> received.incrementAndGet()).build());
+
+        // No cloud connection was created and no cloud SUBSCRIBE was issued.
+        verify(client, never()).getNewMqttClient();
+        verify(mockIndividual, never()).subscribe(any());
+
+        // A message on the receive-only topic is delivered to the callback via the router.
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
+        handler.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+        assertEquals(1, received.get());
+    }
+
+    @Test
+    void GIVEN_receive_only_subscription_WHEN_message_matches_filter_THEN_callback_receives_it()
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+
+        AtomicInteger received = new AtomicInteger(0);
+        client.subscribe(Subscribe.builder().topic("cmd/#").skipCloudSubscribe(true)
+                .callback((m) -> {
+                    assertThat(m.getTopic(), either(is("cmd/A")).or(is("cmd/A/B")));
+                    received.incrementAndGet();
+                }).build());
+
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
+        handler.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+        handler.accept(Publish.builder().topic("cmd/A/B").payload(new byte[0]).build());
+        handler.accept(Publish.builder().topic("other/X").payload(new byte[0]).build()); // no match
+
+        assertEquals(2, received.get());
+    }
+
+    @Test
+    void GIVEN_no_cloud_and_no_local_match_WHEN_message_received_THEN_dropped_without_error(ExtensionContext context)
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+
+        AtomicInteger received = new AtomicInteger(0);
+        client.subscribe(Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true)
+                .callback((m) -> received.incrementAndGet()).build());
+
+        // A message matching neither a cloud sub nor the receive-only filter is dropped: no delivery, no throw.
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
+        handler.accept(Publish.builder().topic("unmatched/topic").payload(new byte[0]).build());
+        assertEquals(0, received.get());
+    }
+
+    @Test
+    void GIVEN_receive_only_callback_throws_WHEN_message_received_THEN_other_receive_only_callbacks_still_called(
+            ExtensionContext context)
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        ignoreExceptionWithMessage(context, "Local uncaught!");
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+
+        client.subscribe(Subscribe.builder().topic("cmd/#").skipCloudSubscribe(true)
+                .callback((m) -> {
+                    throw new RuntimeException("Local uncaught!");
+                }).build());
+        AtomicInteger received = new AtomicInteger(0);
+        client.subscribe(Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true)
+                .callback((m) -> received.incrementAndGet()).build());
+
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
+        handler.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+
+        // The throwing callback must not prevent the healthy one from being invoked.
+        assertEquals(1, received.get());
+    }
+
+    @Test
+    void GIVEN_cloud_and_local_subs_on_same_topic_with_distinct_callbacks_WHEN_message_THEN_each_called_once()
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+        when(mockIndividual.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        when(mockIndividual.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(client.getNewMqttClient()).thenReturn(mockIndividual);
+
+        // Cloud subscription on cmd/A (distinct callback), owned by mockIndividual.
+        AtomicInteger cloudReceived = new AtomicInteger(0);
+        client.subscribe(Subscribe.builder().topic("cmd/A").callback((m) -> cloudReceived.incrementAndGet()).build());
+        // Receive-only subscription on the same topic, different callback.
+        AtomicInteger localReceived = new AtomicInteger(0);
+        client.subscribe(Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true)
+                .callback((m) -> localReceived.incrementAndGet()).build());
+
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
+        handler.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+
+        // Each callback fires exactly once for the message.
+        assertEquals(1, cloudReceived.get());
+        assertEquals(1, localReceived.get());
+    }
+
+    @Test
+    void GIVEN_receive_only_sub_covered_by_two_connections_WHEN_message_on_both_connections_THEN_delivered_on_each()
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
+        when(mockIndividual1.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        when(mockIndividual2.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        when(mockIndividual1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockIndividual2.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(client.getNewMqttClient()).thenReturn(mockIndividual1).thenReturn(mockIndividual2);
+        // conn1 reports it cannot take another subscription, so cmd/A lands on conn1 and cmd/# opens conn2.
+        when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
+
+        client.subscribe(SubscribeRequest.builder().topic("cmd/A").callback(cb).build());
+        client.subscribe(SubscribeRequest.builder().topic("cmd/#").callback(cb).build());
+
+        // Receive-only subscription on cmd/A, covered by both connections' cloud subscriptions.
+        AtomicInteger localReceived = new AtomicInteger(0);
+        client.subscribe(Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true)
+                .callback((m) -> localReceived.incrementAndGet()).build());
+
+        Consumer<Publish> handler1 = client.getMessageHandlerForClient(mockIndividual1);
+        Consumer<Publish> handler2 = client.getMessageHandlerForClient(mockIndividual2);
+
+        // The message arrives on both connections; the callback fires once per receiving connection.
+        handler1.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+        handler2.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+
+        assertEquals(2, localReceived.get());
+    }
+
+    @Test
+    void GIVEN_receive_only_subscription_WHEN_unsubscribe_THEN_removed_and_no_cloud_unsubscribe()
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+        lenient().when(mockIndividual.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        lenient().when(mockIndividual.unsubscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        lenient().when(client.getNewMqttClient()).thenReturn(mockIndividual);
+
+        AtomicInteger received = new AtomicInteger(0);
+        Consumer<Publish> callback = (m) -> received.incrementAndGet();
+        client.subscribe(Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true).callback(callback).build());
+
+        client.unsubscribe(Unsubscribe.builder().topic("cmd/A").subscriptionCallback(callback).build());
+
+        // After unsubscribe: no cloud UNSUBSCRIBE was issued, and the callback no longer receives messages.
+        verify(mockIndividual, never()).unsubscribe(any());
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
+        handler.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+        assertEquals(0, received.get());
+    }
+
+    @Test
+    void GIVEN_device_offline_WHEN_receive_only_subscribe_THEN_throws() {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
+
+        MqttRequestException e = assertThrows(MqttRequestException.class, () -> client.subscribe(
+                Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true).callback((m) -> {
+                }).build()));
+        assertThat(e.getMessage(), containsString("not configured to connect to AWS"));
+        // No cloud connection was created for the rejected subscribe.
+        verify(client, never()).getNewMqttClient();
+    }
+
+    @Test
+    void GIVEN_cloud_and_receive_only_on_same_topic_WHEN_receive_only_unsubscribed_THEN_cloud_sub_intact()
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+        when(mockIndividual.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        when(mockIndividual.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(client.getNewMqttClient()).thenReturn(mockIndividual);
+
+        // Cloud subscription on cmd/A (callback cloudCb), plus a receive-only registration on cmd/A
+        // (distinct callback).
+        AtomicInteger cloudReceived = new AtomicInteger(0);
+        Consumer<Publish> cloudCb = (m) -> cloudReceived.incrementAndGet();
+        client.subscribe(Subscribe.builder().topic("cmd/A").callback(cloudCb).build());
+        Consumer<Publish> localCb = (m) -> {
+        };
+        client.subscribe(Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true).callback(localCb).build());
+
+        client.unsubscribe(Unsubscribe.builder().topic("cmd/A").subscriptionCallback(localCb).build());
+
+        // No cloud UNSUBSCRIBE was issued, and the cloud subscription's callback still fires.
+        verify(mockIndividual, never()).unsubscribe(any());
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
+        handler.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+        assertEquals(1, cloudReceived.get());
+    }
+
+    @Test
+    void GIVEN_receive_only_covered_by_two_connections_WHEN_message_on_non_first_covering_connection_THEN_delivered()
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
+        when(mockIndividual1.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        when(mockIndividual2.connect()).thenReturn(CompletableFuture.completedFuture(true));
+        when(mockIndividual1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockIndividual2.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(client.getNewMqttClient()).thenReturn(mockIndividual1).thenReturn(mockIndividual2);
+        // cmd/A -> conn1 (first covering connection); cmd/# -> conn2 (also covers cmd/A).
+        when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
+
+        client.subscribe(SubscribeRequest.builder().topic("cmd/A").callback(cb).build());
+        client.subscribe(SubscribeRequest.builder().topic("cmd/#").callback(cb).build());
+
+        AtomicInteger localReceived = new AtomicInteger(0);
+        client.subscribe(Subscribe.builder().topic("cmd/A").skipCloudSubscribe(true)
+                .callback((m) -> localReceived.incrementAndGet()).build());
+
+        // Deliver only on conn2; conn1's handler never runs.
+        Consumer<Publish> handler2 = client.getMessageHandlerForClient(mockIndividual2);
+        handler2.accept(Publish.builder().topic("cmd/A").payload(new byte[0]).build());
+
+        assertEquals(1, localReceived.get());
     }
 
     @Test

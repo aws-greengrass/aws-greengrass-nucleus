@@ -140,6 +140,8 @@ public class MqttClient implements Closeable {
     private final Map<Subscribe, IndividualMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, IndividualMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final Map<Subscribe, AtomicBoolean> subscribeCancellations = new ConcurrentHashMap<>();
+    // Receive-only (direct-message) subscriptions: routed on-device but never subscribed in the cloud.
+    private final Set<Subscribe> receiveOnlySubscriptions = ConcurrentHashMap.newKeySet();
     private final Set<Integer> activeClientIds = new HashSet<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
     @Getter
@@ -454,6 +456,12 @@ public class MqttClient implements Closeable {
             IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
                     IotCoreTopicValidator.Operation.SUBSCRIBE);
 
+            if (request.isSkipCloudSubscribe()) {
+                // Record for on-device routing only; send no cloud SUBSCRIBE.
+                receiveOnlySubscriptions.add(request);
+                return CompletableFuture.completedFuture(null);
+            }
+
             IndividualMqttClient connection = null;
             // Use the write scope when identifying the subscriptionTopics that exist
             try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
@@ -588,11 +596,17 @@ public class MqttClient implements Closeable {
             if (isClosed.get()) {
                 throw new MqttRequestException("MQTT client is shut down");
             }
+            // Receive-only registrations opened no cloud subscription. Match by (callback identity, topic) -- the
+            // same key the cloud loop uses below. A hit removes the receive-only registration and returns without
+            // touching the cloud path; a miss falls through to it.
+            if (receiveOnlySubscriptions.removeIf(
+                    s -> isSameSubscription(s, request.getTopic(), request.getSubscriptionCallback()))) {
+                return CompletableFuture.completedFuture(null);
+            }
             // Use the write lock because we're modifying the subscriptions and trying to consolidate them
             try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
                 for (Map.Entry<Subscribe, IndividualMqttClient> sub : subscriptions.entrySet()) {
-                    if (sub.getKey().getCallback() == request.getSubscriptionCallback() && sub.getKey().getTopic()
-                            .equals(request.getTopic())) {
+                    if (isSameSubscription(sub.getKey(), request.getTopic(), request.getSubscriptionCallback())) {
                         AtomicBoolean cancelled = subscribeCancellations.remove(sub.getKey());
                         if (cancelled != null) {
                             cancelled.set(true);
@@ -972,12 +986,7 @@ public class MqttClient implements Closeable {
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toSet());
 
-                if (subs.isEmpty()) {
-                    // We found no subscribers at all, so we'll log out an error and exit.
-                    logger.atError().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
-                            .log("Somehow got message from topic that no one subscribed to");
-                    return;
-                } else {
+                if (!subs.isEmpty()) {
                     // We did find at least one subscriber matching the topic, but it didn't match the client
                     // that we subscribed on. This is weird, but it can be expected for IoT Jobs as explained above.
                     logger.atWarn().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
@@ -985,6 +994,24 @@ public class MqttClient implements Closeable {
                                     + " This is odd, but it isn't a problem");
                 }
             }
+
+            // Receive-only delivery pass, independent of the cloud pass above. Matches the inbound topic against
+            // receiveOnlySubscriptions and delivers on the connection that received the message. An arriving message
+            // is an ordinary PUBLISH, so a receive-only sub receives BOTH direct messages addressed to the device
+            // AND any normal message reaching the device on a matching topic. A message reaching covering connections
+            // may therefore deliver more than once.
+            Set<Subscribe> matchedReceiveOnlySubs = new HashSet<>();
+            receiveOnlySubscriptions.stream()
+                    .filter(s -> MqttTopic.topicIsSupersetOf(s.getTopic(), message.getTopic()))
+                    .forEach(matchedReceiveOnlySubs::add);
+
+            if (subs.isEmpty() && matchedReceiveOnlySubs.isEmpty()) {
+                // No cloud subscriber and no receive-only registration matched, so we'll log an error and exit.
+                logger.atError().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
+                        .log("Somehow got message from topic that no one subscribed to");
+                return;
+            }
+
             subs.forEach((h) -> {
                 try {
                     h.getCallback().accept(message);
@@ -993,7 +1020,20 @@ public class MqttClient implements Closeable {
                             .log("Unhandled error in MQTT message callback", t);
                 }
             });
+            matchedReceiveOnlySubs.forEach((h) -> {
+                try {
+                    h.getCallback().accept(message);
+                } catch (Throwable t) {
+                    logger.atError().kv("message", message).kv(CLIENT_ID_KEY, client.getClientId())
+                            .log("Unhandled error in receive-only MQTT message callback", t);
+                }
+            });
         };
+    }
+
+    @SuppressWarnings("PMD.CompareObjectsWithEquals")
+    private static boolean isSameSubscription(Subscribe sub, String topic, Consumer<Publish> callback) {
+        return sub.getCallback() == callback && sub.getTopic().equals(topic);
     }
 
     protected int getNextClientIdNumber() {
