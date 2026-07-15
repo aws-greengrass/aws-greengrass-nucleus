@@ -50,5 +50,7 @@ public class MqttProxyIPCService implements Startable, InjectionActions {
                 (context) -> mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(context));
         greengrassCoreIPCService.setSubscribeToIoTCoreHandler(
                 (context) -> mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(context));
+        greengrassCoreIPCService.setSubscribeToIoTCoreConnectionStatusHandler(
+                (context) -> mqttProxyIPCAgent.getSubscribeToIoTCoreConnectionStatusOperationHandler(context));
     }
 }

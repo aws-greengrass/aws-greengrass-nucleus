@@ -10,6 +10,7 @@ import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.CallbackEventManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.MqttRequestException;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
@@ -22,8 +23,12 @@ import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractPublishToIoTCoreOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToIoTCoreConnectionStatusOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToIoTCoreOperationHandler;
+import software.amazon.awssdk.aws.greengrass.model.ConnectionStatus;
+import software.amazon.awssdk.aws.greengrass.model.ConnectionStatusEvent;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
+import software.amazon.awssdk.aws.greengrass.model.IoTCoreConnectionStatusEvent;
 import software.amazon.awssdk.aws.greengrass.model.IoTCoreMessage;
 import software.amazon.awssdk.aws.greengrass.model.MQTTMessage;
 import software.amazon.awssdk.aws.greengrass.model.PayloadFormat;
@@ -31,15 +36,21 @@ import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreResponse;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreConnectionStatusRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreConnectionStatusResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreResponse;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -67,6 +78,29 @@ public class MqttProxyIPCAgent {
     @Setter(AccessLevel.PACKAGE)
     private AuthorizationHandler authorizationHandler;
 
+    private final Set<SubscribeToIoTCoreConnectionStatusOperationHandler> connectionStatusListeners =
+            new CopyOnWriteArraySet<>();
+
+    private final AtomicBoolean connectionStatusCallbacksRegistered = new AtomicBoolean(false);
+
+    // Broadcasts IoT Core connection status changes to all IPC subscribers. CallbackEventManager
+    // deduplicates events across the underlying connections, so these fire once per online/offline
+    // transition of the overall MQTT client.
+    private final MqttClientConnectionEvents connectionStatusCallbacks = new MqttClientConnectionEvents() {
+        @Override
+        public void onConnectionInterrupted(int errorCode) {
+            forwardConnectionStatusToListeners(ConnectionStatus.DISCONNECTED);
+        }
+
+        @Override
+        public void onConnectionResumed(boolean sessionPresent) {
+            forwardConnectionStatusToListeners(ConnectionStatus.CONNECTED);
+        }
+    };
+
+    private final CallbackEventManager.OnConnectCallback onInitialConnect =
+            connectionStatusCallbacks::onConnectionResumed;
+
     public PublishToIoTCoreOperationHandler getPublishToIoTCoreOperationHandler(
             OperationContinuationHandlerContext context) {
         return new PublishToIoTCoreOperationHandler(context);
@@ -75,6 +109,25 @@ public class MqttProxyIPCAgent {
     public SubscribeToIoTCoreOperationHandler getSubscribeToIoTCoreOperationHandler(
             OperationContinuationHandlerContext context) {
         return new SubscribeToIoTCoreOperationHandler(context);
+    }
+
+    // Handler lifecycle is managed by the eventstream RPC framework
+    // (closed via onStreamClosed/stream termination), not by the creator.
+    @SuppressWarnings("PMD.CloseResource")
+    public SubscribeToIoTCoreConnectionStatusOperationHandler getSubscribeToIoTCoreConnectionStatusOperationHandler(
+            OperationContinuationHandlerContext context) {
+        return new SubscribeToIoTCoreConnectionStatusOperationHandler(context);
+    }
+
+    // PMD false positive: iterating listeners does not transfer ownership of the closeable handlers;
+    // their lifecycle is managed by the eventstream RPC framework.
+    @SuppressWarnings("PMD.CloseResource")
+    private void forwardConnectionStatusToListeners(ConnectionStatus status) {
+        LOGGER.atDebug().kv("status", status).kv("subscribers", connectionStatusListeners.size())
+                .log("Forwarding IoT Core connection status to subscribers");
+        for (SubscribeToIoTCoreConnectionStatusOperationHandler listener : connectionStatusListeners) {
+            listener.forwardConnectionStatus(status);
+        }
     }
 
     class PublishToIoTCoreOperationHandler extends GeneratedAbstractPublishToIoTCoreOperationHandler {
@@ -272,6 +325,92 @@ public class MqttProxyIPCAgent {
                                 + "because subscription response is not yet sent",
                         m.getTopic(), serviceName);
             }
+        }
+    }
+
+    class SubscribeToIoTCoreConnectionStatusOperationHandler
+            extends GeneratedAbstractSubscribeToIoTCoreConnectionStatusOperationHandler {
+
+        // State machine constants for subscription lifecycle
+        private static final int STATE_PENDING = 0;
+        private static final int STATE_SENDING_INITIAL = 1;
+        private static final int STATE_ACTIVE = 2;
+
+        private final String serviceName;
+        private final AtomicInteger state = new AtomicInteger(STATE_PENDING);
+
+        protected SubscribeToIoTCoreConnectionStatusOperationHandler(OperationContinuationHandlerContext context) {
+            super(context);
+            serviceName = context.getAuthenticationData().getIdentityLabel();
+        }
+
+        @Override
+        protected void onStreamClosed() {
+            connectionStatusListeners.remove(this);
+        }
+
+        @Override
+        public SubscribeToIoTCoreConnectionStatusResponse handleRequest(
+                SubscribeToIoTCoreConnectionStatusRequest request) {
+            return translateExceptions(() -> {
+                // No authorization required: this is a local informational operation that
+                // exposes no MQTT topic data.
+
+                // Register the shared connection callbacks with the MQTT client only once,
+                // when the first subscriber shows up.
+                if (connectionStatusCallbacksRegistered.compareAndSet(false, true)) {
+                    mqttClient.addToCallbackEvents(onInitialConnect, connectionStatusCallbacks);
+                }
+                connectionStatusListeners.add(this);
+
+                return new SubscribeToIoTCoreConnectionStatusResponse();
+            });
+        }
+
+        @Override
+        public void afterHandleRequest() {
+            state.set(STATE_SENDING_INITIAL);
+            // Send the current connection status as the initial event so that subscribers
+            // learn the present state without waiting for the next transition.
+            sendStatusEvent(
+                    mqttClient.getMqttOnline().get() ? ConnectionStatus.CONNECTED
+                            : ConnectionStatus.DISCONNECTED);
+            // Note: a status change arriving during SENDING_INITIAL is dropped; the subscriber
+            // will catch up on the next transition.
+            state.set(STATE_ACTIVE);
+        }
+
+        @Override
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
+            // No client-to-server stream events are defined for this operation.
+        }
+
+        void forwardConnectionStatus(ConnectionStatus status) {
+            // Only allow forwarding events if our initial response has been sent already.
+            // If we don't do this, the callback may be invoked and send the streaming response
+            // before the non-streaming SubscribeToIoTCoreConnectionStatusResponse which will
+            // cause a client error.
+            if (state.get() != STATE_ACTIVE) {
+                LOGGER.atWarn().kv(COMPONENT_NAME, serviceName).kv("status", status)
+                        .log("Not forwarding connection status because subscription response "
+                                + "not yet sent or initial status in flight");
+                return;
+            }
+
+            sendStatusEvent(status);
+        }
+
+        private void sendStatusEvent(ConnectionStatus status) {
+            IoTCoreConnectionStatusEvent event = new IoTCoreConnectionStatusEvent()
+                    .withConnectionStatusEvent(new ConnectionStatusEvent().withStatus(status));
+            this.sendStreamEvent(event).exceptionally((t) -> {
+                LOGGER.atError().cause(t).kv(COMPONENT_NAME, serviceName).kv("status", status)
+                        .log("Unable to forward IoT Core connection status to subscriber");
+                // Self-heal: remove this handler to prevent listener leak on abnormal
+                // stream termination.
+                connectionStatusListeners.remove(this);
+                return null;
+            });
         }
     }
 

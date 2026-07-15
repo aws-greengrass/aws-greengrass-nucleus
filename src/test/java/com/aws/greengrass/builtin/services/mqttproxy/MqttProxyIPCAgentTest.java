@@ -8,6 +8,7 @@ package com.aws.greengrass.builtin.services.mqttproxy;
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.authorization.Permission;
+import com.aws.greengrass.mqttclient.CallbackEventManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.MqttRequestException;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
@@ -23,22 +24,28 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
+import software.amazon.awssdk.aws.greengrass.model.ConnectionStatus;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
+import software.amazon.awssdk.aws.greengrass.model.IoTCoreConnectionStatusEvent;
 import software.amazon.awssdk.aws.greengrass.model.IoTCoreMessage;
 import software.amazon.awssdk.aws.greengrass.model.MQTTMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreResponse;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreConnectionStatusRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreConnectionStatusResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreResponse;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
@@ -50,7 +57,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -286,4 +295,58 @@ class MqttProxyIPCAgentTest {
             });
         }
     }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_subscribe_to_connection_status_THEN_current_status_and_changes_forwarded()
+            throws Exception {
+        when(mqttClient.getMqttOnline()).thenReturn(new AtomicBoolean(true));
+
+        ArgumentCaptor<CallbackEventManager.OnConnectCallback> onConnectArgumentCaptor
+                = ArgumentCaptor.forClass(CallbackEventManager.OnConnectCallback.class);
+        ArgumentCaptor<MqttClientConnectionEvents> connectionEventsArgumentCaptor
+                = ArgumentCaptor.forClass(MqttClientConnectionEvents.class);
+        ArgumentCaptor<IoTCoreConnectionStatusEvent> statusEventArgumentCaptor
+                = ArgumentCaptor.forClass(IoTCoreConnectionStatusEvent.class);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreConnectionStatusOperationHandler handler
+                     = spy(mqttProxyIPCAgent.getSubscribeToIoTCoreConnectionStatusOperationHandler(mockContext))) {
+            doReturn(new CompletableFuture<>()).when(handler).sendStreamEvent(any());
+
+            SubscribeToIoTCoreConnectionStatusResponse response =
+                    handler.handleRequest(new SubscribeToIoTCoreConnectionStatusRequest());
+
+            assertNotNull(response);
+            verify(mqttClient).addToCallbackEvents(onConnectArgumentCaptor.capture(),
+                    connectionEventsArgumentCaptor.capture());
+            MqttClientConnectionEvents connectionEvents = connectionEventsArgumentCaptor.getValue();
+
+            // Events must not be forwarded before the subscription response is sent
+            connectionEvents.onConnectionInterrupted(0);
+            verify(handler, never()).sendStreamEvent(any());
+
+            // Current status (CONNECTED) is sent as the initial event after the response
+            handler.afterHandleRequest();
+            verify(handler).sendStreamEvent(statusEventArgumentCaptor.capture());
+            assertThat(statusEventArgumentCaptor.getValue().getConnectionStatusEvent().getStatus(),
+                    is(ConnectionStatus.CONNECTED));
+
+            // Connection interruption is forwarded as DISCONNECTED
+            connectionEvents.onConnectionInterrupted(0);
+            verify(handler, times(2)).sendStreamEvent(statusEventArgumentCaptor.capture());
+            assertThat(statusEventArgumentCaptor.getValue().getConnectionStatusEvent().getStatus(),
+                    is(ConnectionStatus.DISCONNECTED));
+
+            // Initial connect is forwarded as CONNECTED
+            onConnectArgumentCaptor.getValue().onConnect(true);
+            verify(handler, times(3)).sendStreamEvent(statusEventArgumentCaptor.capture());
+            assertThat(statusEventArgumentCaptor.getValue().getConnectionStatusEvent().getStatus(),
+                    is(ConnectionStatus.CONNECTED));
+
+            // After the stream is closed, no more events are forwarded
+            handler.onStreamClosed();
+            connectionEvents.onConnectionInterrupted(0);
+            verify(handler, times(3)).sendStreamEvent(any());
+        }
+    }
+
 }
