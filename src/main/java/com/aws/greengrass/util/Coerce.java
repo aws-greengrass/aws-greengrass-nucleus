@@ -8,6 +8,7 @@ package com.aws.greengrass.util;
 import com.aws.greengrass.config.Topic;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -23,7 +24,8 @@ import static com.aws.greengrass.util.Utils.isEmpty;
 public final class Coerce {
     private static final Pattern SEPARATORS = Pattern.compile(" *, *");
     private static final Pattern unwrap = Pattern.compile(" *\\[ *(.*) *\\] *");
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .enable(DeserializationFeature.USE_LONG_FOR_INTS);
 
     private Coerce() {
     }
