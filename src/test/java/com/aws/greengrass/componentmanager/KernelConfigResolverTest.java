@@ -23,6 +23,7 @@ import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.RunWith;
 import com.aws.greengrass.deployment.model.SystemResourceLimits;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
@@ -71,6 +72,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.lenient;
@@ -1621,5 +1623,50 @@ class KernelConfigResolverTest {
 
     private Map<String, Object> getServiceConfig(String serviceName, Map<String, Object> config) {
         return (Map<String, Object>) config.get(serviceName);
+    }
+
+    @Test
+    void GIVEN_builtins_missing_from_dependency_graph_WHEN_config_resolution_requested_THEN_builtins_carried_forward()
+            throws Exception {
+        // GIVEN: the dependency graph is damaged — main's dependencies contain no builtin services
+        // even though the builtin services are still running
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020,
+                TEST_INPUT_PACKAGE_A, rootComponentIdentifier.getVersion(), "", "", null,
+                new HashMap<String, Object>() {{
+                    put(LIFECYCLE_RUN_KEY, "java -jar test.jar");
+                }}, Collections.emptyList(), Collections.emptyMap(), null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2");
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        Map<String, Object> resolvedConfig = kernelConfigResolver.resolve(packagesToDeploy, document,
+                Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
+
+        // THEN: main's resolved dependencies must still contain every autostart builtin service, so
+        // that merging this config repairs the damaged dependency graph (the dependencies topic
+        // subscriber re-adds the missing builtins) instead of perpetuating the damage
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        for (String builtinName : KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES) {
+            assertTrue(dependencyListContains("main", builtinName + ":" + DependencyType.HARD, servicesConfig),
+                    builtinName + " must be carried forward in main dependencies");
+        }
+        assertTrue(dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig),
+                "root component must be in main dependencies");
     }
 }
