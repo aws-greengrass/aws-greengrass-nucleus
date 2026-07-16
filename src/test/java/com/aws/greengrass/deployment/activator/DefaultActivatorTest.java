@@ -6,6 +6,8 @@
 package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.ConfigurationReader;
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
@@ -17,6 +19,7 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,8 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,6 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -64,7 +71,7 @@ class DefaultActivatorTest {
     @BeforeEach
     void beforeEach() {
         doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
-        doReturn(endpointSwitchState).when(context).get(EndpointSwitchState.class);
+        lenient().doReturn(endpointSwitchState).when(context).get(EndpointSwitchState.class);
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();
         lenient().doReturn(Collections.emptyList()).when(kernel).orderedDependencies();
@@ -156,4 +163,72 @@ class DefaultActivatorTest {
         return newConfig;
     }
 
+    @Test
+    void GIVEN_builtins_missing_from_dependency_graph_WHEN_deployment_merge_runs_THEN_builtin_config_is_retained()
+            throws Exception {
+        // The dependency graph is damaged: orderedDependencies() contains no builtin services
+        // (beforeEach stubs it to an empty list) even though the builtin services are running.
+        UpdateBehaviorTree behavior = defaultActivator.createDeploymentMergeBehavior(
+                System.currentTimeMillis(), createNewConfig());
+
+        // Builtin merge protection must be present regardless of the dependency graph state
+        Map<String, UpdateBehaviorTree> servicesOverrides =
+                behavior.getChildOverride().get(SERVICES_NAMESPACE_TOPIC).getChildOverride();
+        for (String builtinName : KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES) {
+            UpdateBehaviorTree override = servicesOverrides.get(builtinName);
+            assertNotNull(override, builtinName + " must have a merge behavior override");
+            assertEquals(UpdateBehaviorTree.UpdateBehavior.MERGE, override.getBehavior(),
+                    builtinName + " must have a MERGE override");
+        }
+
+        // Applying a deployment merge which does not contain the builtin must retain its config subtree
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "DeploymentService", "GroupToRootComponents",
+                    "thinggroup/testGroup", "testComponent", "version").withValue("1.0.0");
+            realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "removedService", "version").withValue("1.0.0");
+            realContext.waitForPublishQueueToClear();
+
+            realConfig.updateMap(createNewConfig(), behavior);
+            realContext.waitForPublishQueueToClear();
+
+            assertNotNull(realConfig.findTopics(SERVICES_NAMESPACE_TOPIC, "DeploymentService",
+                            "GroupToRootComponents"),
+                    "builtin service config must survive a merge while missing from the dependency graph");
+            assertNull(realConfig.findTopics(SERVICES_NAMESPACE_TOPIC, "removedService"),
+                    "non-builtin service absent from the deployment must still be removed");
+        }
+    }
+
+    @Test
+    void GIVEN_builtin_config_missing_from_snapshot_WHEN_rollback_replays_THEN_builtin_config_is_retained()
+            throws Exception {
+        UpdateBehaviorTree behavior = defaultActivator.createRollbackMergeBehavior();
+
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "FleetStatusService", "sequenceNumber").withValue(34);
+            realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "removedService", "version").withValue("1.0.0");
+            realContext.waitForPublishQueueToClear();
+
+            // Snapshot tlog which contains neither the builtin nor the non-builtin service, as produced
+            // when the snapshot was dumped while the builtin's config subtree was detached from the tree
+            Path snapshot = Files.createTempFile("rollback_snapshot", ".tlog");
+            try {
+                Files.write(snapshot, Collections.singletonList(
+                        "{\"TS\":1,\"TP\":[\"system\",\"thingName\"],\"W\":\"changed\",\"V\":\"testThing\"}"),
+                        StandardCharsets.UTF_8);
+
+                ConfigurationReader.updateFromTLog(realConfig, snapshot, true, null, behavior);
+                realContext.waitForPublishQueueToClear();
+
+                assertNotNull(realConfig.find(SERVICES_NAMESPACE_TOPIC, "FleetStatusService", "sequenceNumber"),
+                        "builtin service config must survive a rollback whose snapshot lacks it");
+                assertNull(realConfig.findTopics(SERVICES_NAMESPACE_TOPIC, "removedService"),
+                        "non-builtin service absent from the snapshot must still be discarded");
+            } finally {
+                Files.deleteIfExists(snapshot);
+            }
+        }
+    }
 }
