@@ -729,7 +729,7 @@ public class GreengrassService implements InjectionActions {
     private void setupDependencies(Collection<String> dependencyList)
             throws ServiceLoadException, InputValidationException {
         try (LockScope ls = LockScope.lock(dependenciesLock)) {
-            Map<GreengrassService, DependencyType> oldDependencies = new HashMap<>(getDependencies());
+            Map<GreengrassService, DependencyInfo> oldDependencies = new HashMap<>(dependencies);
             Map<GreengrassService, DependencyType> keptDependencies = getDependencyTypeMap(dependencyList);
 
             Set<GreengrassService> removedDependencies = dependencies.entrySet().stream()
@@ -748,10 +748,19 @@ public class GreengrassService implements InjectionActions {
             AtomicBoolean hasNewService = new AtomicBoolean(false);
             keptDependencies.forEach((dependentService, dependencyType) -> {
                 try {
-                    if (!oldDependencies.containsKey(dependentService)) {
+                    DependencyInfo oldDependencyInfo = oldDependencies.get(dependentService);
+                    if (oldDependencyInfo == null) {
                         hasNewService.set(true);
                     }
-                    addOrUpdateDependency(dependentService, dependencyType, false);
+                    // Preserve the default flag of an existing default dependency (i.e. a builtin service
+                    // injected at launch). Without this, a dependency-topic update which lists the builtin
+                    // would downgrade it to a non-default dependency, and a subsequent update which omits it
+                    // (e.g. a deployment rollback to a config from before the device's first deployment)
+                    // would then remove the builtin from the dependency graph while its service keeps
+                    // running. Builtin services absent from the dependency graph are silently excluded from
+                    // deployment merge protection, so the next deployment would remove their config.
+                    addOrUpdateDependency(dependentService, dependencyType,
+                            oldDependencyInfo != null && oldDependencyInfo.isDefaultDependency);
                 } catch (InputValidationException e) {
                     logger.atWarn("add-dependency").log("Unable to add dependency {}", dependentService, e);
                 }

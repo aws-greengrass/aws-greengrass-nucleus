@@ -6,17 +6,26 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,7 +41,7 @@ class SetupDependencyTest extends GGServiceTestUtil {
         greengrassService = new GreengrassService(initializeMockedConfig());
         greengrassService.context = context;
         mockKernel = mock(Kernel.class);
-        when(context.get(Kernel.class)).thenReturn(mockKernel);
+        lenient().when(context.get(Kernel.class)).thenReturn(mockKernel);
     }
 
     @Test
@@ -89,5 +98,49 @@ class SetupDependencyTest extends GGServiceTestUtil {
         assertEquals(DependencyType.HARD, dependencyMap.get(svcA));
         assertEquals(DependencyType.HARD, dependencyMap.get(svcB));
         assertEquals(DependencyType.SOFT, dependencyMap.get(svcC));
+    }
+
+    @Test
+    void GIVEN_default_dependency_WHEN_dependency_topic_lists_then_omits_it_THEN_default_dependency_is_retained()
+            throws Exception {
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            Kernel kernel = mock(Kernel.class);
+            realContext.put(Kernel.class, kernel);
+
+            GreengrassService main = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "main"));
+            GreengrassService builtin = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "builtinService"));
+            GreengrassService explicitDep = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "explicitService"));
+            when(kernel.locateIgnoreError("builtinService")).thenReturn(builtin);
+            when(kernel.locateIgnoreError("explicitService")).thenReturn(explicitDep);
+
+            // Builtin autostart services are injected as default dependencies at launch
+            // (KernelLifecycle.launch); they exist only in the in-memory dependency map,
+            // not in the dependencies topic.
+            main.addOrUpdateDependency(builtin, DependencyType.HARD, true);
+
+            // A deployment writes the dependencies topic including the builtin. This must not
+            // downgrade the builtin to a non-default dependency.
+            Topic dependenciesTopic = realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "main",
+                    SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            dependenciesTopic.withValue(
+                    new ArrayList<>(Arrays.asList("builtinService:HARD", "explicitService")));
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Arrays.asList(builtin, explicitDep)),
+                    main.getDependencies().keySet());
+
+            // A later topic update omitting both (e.g. a deployment rollback to a snapshot taken
+            // before the device's first deployment, whose topic value never listed the builtins)
+            // must retain the default dependency while removing the explicitly declared one.
+            // Removing the builtin here would exclude it from deployment merge protection and
+            // cause its config to be deleted by the next deployment while it is still running.
+            dependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(builtin)),
+                    main.getDependencies().keySet());
+        }
     }
 }
