@@ -143,4 +143,52 @@ class SetupDependencyTest extends GGServiceTestUtil {
                     main.getDependencies().keySet());
         }
     }
+
+    @Test
+    void GIVEN_evicted_autostart_builtin_WHEN_main_readds_it_from_topic_THEN_it_gets_default_protection()
+            throws Exception {
+        // Pick a statically known autostart builtin name
+        String builtinName = KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES.iterator().next();
+
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            Kernel kernel = mock(Kernel.class);
+            realContext.put(Kernel.class, kernel);
+
+            GreengrassService main = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "main"));
+            GreengrassService builtin = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, builtinName));
+            when(kernel.locateIgnoreError(builtinName)).thenReturn(builtin);
+
+            // The builtin was previously evicted: main's dependency map does not contain it. A deployment
+            // resolution repairs the dependencies topic by listing the builtin again.
+            Topic mainDependenciesTopic = realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "main",
+                    SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            mainDependenciesTopic.withValue(new ArrayList<>(Collections.singletonList(builtinName + ":HARD")));
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(builtin)), main.getDependencies().keySet());
+
+            // The re-added builtin must have launch-equivalent default protection: a later topic update
+            // omitting it (e.g. another rollback) must not evict it again.
+            mainDependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(builtin)), main.getDependencies().keySet());
+
+            // A service other than main declaring the same builtin name keeps the existing behavior:
+            // the dependency is removable when the topic no longer lists it.
+            GreengrassService otherService = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "otherService"));
+            Topic otherDependenciesTopic = realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "otherService",
+                    SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            otherDependenciesTopic.withValue(new ArrayList<>(Collections.singletonList(builtinName + ":HARD")));
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(builtin)),
+                    otherService.getDependencies().keySet());
+
+            otherDependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(Collections.emptySet(), otherService.getDependencies().keySet());
+        }
+    }
 }
