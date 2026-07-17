@@ -201,4 +201,71 @@ class SetupDependencyTest extends GGServiceTestUtil {
             assertEquals(Collections.emptySet(), otherService.getDependencies().keySet());
         }
     }
+
+    @Test
+    void GIVEN_default_dependency_never_listed_in_topic_WHEN_topic_omits_it_THEN_it_is_retained()
+            throws Exception {
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            Kernel kernel = mock(Kernel.class);
+            realContext.put(Kernel.class, kernel);
+
+            GreengrassService main = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "main"));
+            GreengrassService builtin = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "builtinService"));
+            GreengrassService explicitDep = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "explicitService"));
+            when(kernel.locateIgnoreError("explicitService")).thenReturn(explicitDep);
+
+            // Launch-style injection; the builtin never appears in the dependencies topic
+            main.addOrUpdateDependency(builtin, DependencyType.HARD, true);
+
+            // A topic write which omits the default dependency must not remove it, and must not
+            // touch its default flag
+            realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "main", SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
+                    .withValue(new ArrayList<>(Collections.singletonList("explicitService")));
+            realContext.waitForPublishQueueToClear();
+
+            assertEquals(new HashSet<>(Arrays.asList(builtin, explicitDep)),
+                    main.getDependencies().keySet());
+            assertTrue(main.dependencies.get(builtin).isDefaultDependency,
+                    "never-listed default dependency must keep its default flag");
+        }
+    }
+
+    @Test
+    void GIVEN_evicted_dependency_WHEN_readded_as_default_THEN_protection_restored() throws Exception {
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            Kernel kernel = mock(Kernel.class);
+            realContext.put(Kernel.class, kernel);
+
+            GreengrassService main = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "main"));
+            GreengrassService dep = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "someService"));
+            when(kernel.locateIgnoreError("someService")).thenReturn(dep);
+
+            // A plain (non-default, non-builtin-named) dependency is added from the topic, then
+            // evicted by a topic update omitting it
+            Topic dependenciesTopic = realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "main",
+                    SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            dependenciesTopic.withValue(new ArrayList<>(Collections.singletonList("someService")));
+            realContext.waitForPublishQueueToClear();
+            dependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(Collections.emptySet(), main.getDependencies().keySet());
+
+            // Re-injection with isDefault=true (what launch() does at every boot) must restore the
+            // dependency with default protection, so a later topic omission no longer removes it
+            main.addOrUpdateDependency(dep, DependencyType.HARD, true);
+            assertTrue(main.dependencies.get(dep).isDefaultDependency,
+                    "re-injection must restore default protection");
+
+            dependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(dep)), main.getDependencies().keySet());
+        }
+    }
 }
