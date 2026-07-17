@@ -540,7 +540,7 @@ public class GenericExternalService extends GreengrassService {
 
             Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC,
                     Lifecycle.TIMEOUT_NAMESPACE_TOPIC);
-            Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
+            Integer timeout = timeoutTopic == null ? null : Coerce.toInt(timeoutTopic);
             if (timeout != null) {
                 Exec processToClose = runResult.getExec();
                 context.get(ScheduledExecutorService.class).schedule(() -> {

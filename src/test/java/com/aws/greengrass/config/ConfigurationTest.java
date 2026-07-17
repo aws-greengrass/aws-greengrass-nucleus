@@ -130,7 +130,7 @@ class ConfigurationTest {
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
         Configuration c2 = ConfigurationReader.createFromTLog(config.context, p);
-        assertEquals(44, c2.lookup("x", "z").getOnce());
+        assertEquals(44L, c2.lookup("x", "z").getOnce());
         assertEquals(config, c2);
         Topic nv = config.lookup("number");
     }

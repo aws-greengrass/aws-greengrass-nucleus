@@ -130,7 +130,7 @@ class CoerceTest {
         assertEquals("", toObject(null));
         assertEquals("", toObject(""));
         assertEquals(12.34, toObject("12.34"));
-        assertEquals(1234, toObject("1234"));
+        assertEquals(1234L, toObject("1234"));
         assertEquals(1234567890123L, toObject("1234567890123"));
     }
 
