@@ -767,7 +767,7 @@ public class GreengrassService implements InjectionActions {
                     // builtin names, which is exactly the set launch() injects as default at every boot.
                     if (!isDefault && KernelCommandLine.MAIN_SERVICE_NAME.equals(getName())
                             && KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES
-                                    .contains(dependentService.getName())) {
+                                    .contains(dependentService.getServiceName())) {
                         isDefault = true;
                     }
                     addOrUpdateDependency(dependentService, dependencyType, isDefault);

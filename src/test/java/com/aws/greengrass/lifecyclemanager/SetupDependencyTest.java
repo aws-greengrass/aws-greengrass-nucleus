@@ -24,6 +24,8 @@ import java.util.Map;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -131,6 +133,14 @@ class SetupDependencyTest extends GGServiceTestUtil {
             realContext.waitForPublishQueueToClear();
             assertEquals(new HashSet<>(Arrays.asList(builtin, explicitDep)),
                     main.getDependencies().keySet());
+            // The re-add from the topic must preserve the default flag itself, not merely leave the
+            // dependency present. "builtinService" is deliberately NOT a statically known autostart
+            // builtin name, so this pins the flag-preservation contract in isolation from the
+            // static-name default restoration for main.
+            assertTrue(main.dependencies.get(builtin).isDefaultDependency,
+                    "default flag must be preserved when the topic re-adds a default dependency");
+            assertFalse(main.dependencies.get(explicitDep).isDefaultDependency,
+                    "explicitly declared dependency must not become default");
 
             // A later topic update omitting both (e.g. a deployment rollback to a snapshot taken
             // before the device's first deployment, whose topic value never listed the builtins)

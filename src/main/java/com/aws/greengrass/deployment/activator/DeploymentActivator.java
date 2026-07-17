@@ -110,6 +110,12 @@ public abstract class DeploymentActivator {
      * statically known autostart builtin names unioned with the builtins currently present in the live
      * dependency graph (which covers autostart plugin builtins, whose names are not statically known).
      *
+     * <p>Note the residual asymmetry for annotation-discovered PLUGIN autostart builtins: because their
+     * names are not statically known, they are protected here only while present in the dependency
+     * graph, and the static builtin carry-forward in KernelConfigResolver.getMainConfig does not heal
+     * them. If such a builtin were ever evicted from the graph (despite the default-flag preservation
+     * in GreengrassService.setupDependencies), it stays evicted until the next launch re-injects it.
+     *
      * @return builtin service names to protect
      */
     protected Set<String> getBuiltinServiceNamesToProtect() {

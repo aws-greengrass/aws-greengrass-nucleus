@@ -674,7 +674,7 @@ public class KernelConfigResolver {
             // Add all autostart dependencies
             if (greengrassService.isBuiltin()) {
                 mainDependencies.add(greengrassService.getName() + ":" + dependencyType);
-                builtinsInDependencyGraph.add(greengrassService.getName());
+                builtinsInDependencyGraph.add(greengrassService.getServiceName());
             }
         });
 
