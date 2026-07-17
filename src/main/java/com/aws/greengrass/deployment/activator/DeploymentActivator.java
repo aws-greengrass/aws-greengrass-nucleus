@@ -104,6 +104,23 @@ public abstract class DeploymentActivator {
                 newConfig, createDeploymentMergeBehavior(timestamp, newConfig)));
     }
 
+
+    /**
+     * Names of the builtin services whose config must be protected from merge/rollback removal: the
+     * statically known autostart builtin names unioned with the builtins currently present in the live
+     * dependency graph (which covers autostart plugin builtins, whose names are not statically known).
+     *
+     * @return builtin service names to protect
+     */
+    protected Set<String> getBuiltinServiceNamesToProtect() {
+        Set<String> builtinServiceNames = new HashSet<>(KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES);
+        kernel.orderedDependencies().stream()
+                .filter(GreengrassService::isBuiltin)
+                .map(GreengrassService::getServiceName)
+                .forEach(builtinServiceNames::add);
+        return builtinServiceNames;
+    }
+
     protected UpdateBehaviorTree createDeploymentMergeBehavior(long deploymentTimestamp,
                                                                Map<String, Object> newConfig) {
         // root: MERGE
@@ -144,12 +161,7 @@ public abstract class DeploymentActivator {
         // protection would let this merge delete the builtin's entire config. Protecting a builtin that
         // is not currently in the graph is harmless — it only retains existing config. Autostart plugin
         // builtins, whose names are not statically known, are covered by the graph-derived set.
-        Set<String> builtinServiceNames = new HashSet<>(KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES);
-        kernel.orderedDependencies().stream()
-                .filter(GreengrassService::isBuiltin)
-                .map(GreengrassService::getServiceName)
-                .forEach(builtinServiceNames::add);
-        builtinServiceNames.stream()
+        getBuiltinServiceNamesToProtect().stream()
                 // If the builtin service is somehow in the new config, then keep the default behavior of
                 // replacing the existing values
                 .filter(name -> !((Map) newConfig.get(SERVICES_NAMESPACE_TOPIC)).containsKey(name))
@@ -203,12 +215,7 @@ public abstract class DeploymentActivator {
         // service is still running. Values present in the snapshot are still restored as before; the
         // only behavior change is that nodes newly created under a builtin during the failed deployment
         // are retained rather than discarded, which is harmless bookkeeping.
-        Set<String> builtinServiceNames = new HashSet<>(KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES);
-        kernel.orderedDependencies().stream()
-                .filter(GreengrassService::isBuiltin)
-                .map(GreengrassService::getServiceName)
-                .forEach(builtinServiceNames::add);
-        builtinServiceNames.forEach(name -> servicesMergeBehavior.getChildOverride()
+        getBuiltinServiceNamesToProtect().forEach(name -> servicesMergeBehavior.getChildOverride()
                 .put(name, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)));
 
         return rootMergeBehavior;

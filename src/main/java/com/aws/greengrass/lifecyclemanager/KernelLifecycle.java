@@ -109,6 +109,7 @@ public class KernelLifecycle {
     public static final Set<String> AUTOSTART_BUILTIN_SERVICE_NAMES = Collections.unmodifiableSet(
             BUILTIN_SERVICES.stream()
                     .map(cl -> cl.getAnnotation(ImplementsService.class))
+                    .filter(Objects::nonNull)
                     .filter(ImplementsService::autostart)
                     .map(ImplementsService::name)
                     .collect(Collectors.toSet()));
