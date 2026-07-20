@@ -1476,7 +1476,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class));
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class), kernel);
         return executorService.submit(deploymentTask);
     }
 }
