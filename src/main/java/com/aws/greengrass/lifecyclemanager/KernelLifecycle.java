@@ -100,6 +100,20 @@ public class KernelLifecycle {
                     DeploymentService.class, FleetStatusService.class, TelemetryAgent.class,
                     TokenExchangeService.class);
 
+    /**
+     * Names of the builtin services which are automatically started at launch and injected as default
+     * dependencies of main. Derived from static identity (the {@link ImplementsService} annotations of
+     * {@link #BUILTIN_SERVICES}) so that consumers which protect builtin service config do not depend on
+     * the live dependency graph, which can be missing builtins while their services are still running.
+     */
+    public static final Set<String> AUTOSTART_BUILTIN_SERVICE_NAMES = Collections.unmodifiableSet(
+            BUILTIN_SERVICES.stream()
+                    .map(cl -> cl.getAnnotation(ImplementsService.class))
+                    .filter(Objects::nonNull)
+                    .filter(ImplementsService::autostart)
+                    .map(ImplementsService::name)
+                    .collect(Collectors.toSet()));
+
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
     private final Map<String, Class<?>> serviceImplementors = new HashMap<>();

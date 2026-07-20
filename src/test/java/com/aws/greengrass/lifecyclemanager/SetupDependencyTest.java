@@ -6,17 +6,28 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,7 +43,7 @@ class SetupDependencyTest extends GGServiceTestUtil {
         greengrassService = new GreengrassService(initializeMockedConfig());
         greengrassService.context = context;
         mockKernel = mock(Kernel.class);
-        when(context.get(Kernel.class)).thenReturn(mockKernel);
+        lenient().when(context.get(Kernel.class)).thenReturn(mockKernel);
     }
 
     @Test
@@ -89,5 +100,172 @@ class SetupDependencyTest extends GGServiceTestUtil {
         assertEquals(DependencyType.HARD, dependencyMap.get(svcA));
         assertEquals(DependencyType.HARD, dependencyMap.get(svcB));
         assertEquals(DependencyType.SOFT, dependencyMap.get(svcC));
+    }
+
+    @Test
+    void GIVEN_default_dependency_WHEN_dependency_topic_lists_then_omits_it_THEN_default_dependency_is_retained()
+            throws Exception {
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            Kernel kernel = mock(Kernel.class);
+            realContext.put(Kernel.class, kernel);
+
+            GreengrassService main = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "main"));
+            GreengrassService builtin = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "builtinService"));
+            GreengrassService explicitDep = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "explicitService"));
+            when(kernel.locateIgnoreError("builtinService")).thenReturn(builtin);
+            when(kernel.locateIgnoreError("explicitService")).thenReturn(explicitDep);
+
+            // Builtin autostart services are injected as default dependencies at launch
+            // (KernelLifecycle.launch); they exist only in the in-memory dependency map,
+            // not in the dependencies topic.
+            main.addOrUpdateDependency(builtin, DependencyType.HARD, true);
+
+            // A deployment writes the dependencies topic including the builtin. This must not
+            // downgrade the builtin to a non-default dependency.
+            Topic dependenciesTopic = realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "main",
+                    SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            dependenciesTopic.withValue(
+                    new ArrayList<>(Arrays.asList("builtinService:HARD", "explicitService")));
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Arrays.asList(builtin, explicitDep)),
+                    main.getDependencies().keySet());
+            // The re-add from the topic must preserve the default flag itself, not merely leave the
+            // dependency present. "builtinService" is deliberately NOT a statically known autostart
+            // builtin name, so this pins the flag-preservation contract in isolation from the
+            // static-name default restoration for main.
+            assertTrue(main.dependencies.get(builtin).isDefaultDependency,
+                    "default flag must be preserved when the topic re-adds a default dependency");
+            assertFalse(main.dependencies.get(explicitDep).isDefaultDependency,
+                    "explicitly declared dependency must not become default");
+
+            // A later topic update omitting both (e.g. a deployment rollback to a snapshot taken
+            // before the device's first deployment, whose topic value never listed the builtins)
+            // must retain the default dependency while removing the explicitly declared one.
+            // Removing the builtin here would exclude it from deployment merge protection and
+            // cause its config to be deleted by the next deployment while it is still running.
+            dependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(builtin)),
+                    main.getDependencies().keySet());
+        }
+    }
+
+    @Test
+    void GIVEN_evicted_autostart_builtin_WHEN_main_readds_it_from_topic_THEN_it_gets_default_protection()
+            throws Exception {
+        // Pick a statically known autostart builtin name
+        String builtinName = KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES.iterator().next();
+
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            Kernel kernel = mock(Kernel.class);
+            realContext.put(Kernel.class, kernel);
+
+            GreengrassService main = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "main"));
+            GreengrassService builtin = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, builtinName));
+            when(kernel.locateIgnoreError(builtinName)).thenReturn(builtin);
+
+            // The builtin was previously evicted: main's dependency map does not contain it. A deployment
+            // resolution repairs the dependencies topic by listing the builtin again.
+            Topic mainDependenciesTopic = realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "main",
+                    SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            mainDependenciesTopic.withValue(new ArrayList<>(Collections.singletonList(builtinName + ":HARD")));
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(builtin)), main.getDependencies().keySet());
+
+            // The re-added builtin must have launch-equivalent default protection: a later topic update
+            // omitting it (e.g. another rollback) must not evict it again.
+            mainDependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(builtin)), main.getDependencies().keySet());
+
+            // A service other than main declaring the same builtin name keeps the existing behavior:
+            // the dependency is removable when the topic no longer lists it.
+            GreengrassService otherService = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "otherService"));
+            Topic otherDependenciesTopic = realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "otherService",
+                    SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            otherDependenciesTopic.withValue(new ArrayList<>(Collections.singletonList(builtinName + ":HARD")));
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(builtin)),
+                    otherService.getDependencies().keySet());
+
+            otherDependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(Collections.emptySet(), otherService.getDependencies().keySet());
+        }
+    }
+
+    @Test
+    void GIVEN_default_dependency_never_listed_in_topic_WHEN_topic_omits_it_THEN_it_is_retained()
+            throws Exception {
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            Kernel kernel = mock(Kernel.class);
+            realContext.put(Kernel.class, kernel);
+
+            GreengrassService main = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "main"));
+            GreengrassService builtin = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "builtinService"));
+            GreengrassService explicitDep = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "explicitService"));
+            when(kernel.locateIgnoreError("explicitService")).thenReturn(explicitDep);
+
+            // Launch-style injection; the builtin never appears in the dependencies topic
+            main.addOrUpdateDependency(builtin, DependencyType.HARD, true);
+
+            // A topic write which omits the default dependency must not remove it, and must not
+            // touch its default flag
+            realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "main", SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
+                    .withValue(new ArrayList<>(Collections.singletonList("explicitService")));
+            realContext.waitForPublishQueueToClear();
+
+            assertEquals(new HashSet<>(Arrays.asList(builtin, explicitDep)),
+                    main.getDependencies().keySet());
+            assertTrue(main.dependencies.get(builtin).isDefaultDependency,
+                    "never-listed default dependency must keep its default flag");
+        }
+    }
+
+    @Test
+    void GIVEN_evicted_dependency_WHEN_readded_as_default_THEN_protection_restored() throws Exception {
+        try (Context realContext = new Context()) {
+            Configuration realConfig = new Configuration(realContext);
+            Kernel kernel = mock(Kernel.class);
+            realContext.put(Kernel.class, kernel);
+
+            GreengrassService main = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "main"));
+            GreengrassService dep = new GreengrassService(
+                    realConfig.lookupTopics(SERVICES_NAMESPACE_TOPIC, "someService"));
+            when(kernel.locateIgnoreError("someService")).thenReturn(dep);
+
+            // A plain (non-default, non-builtin-named) dependency is added from the topic, then
+            // evicted by a topic update omitting it
+            Topic dependenciesTopic = realConfig.lookup(SERVICES_NAMESPACE_TOPIC, "main",
+                    SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            dependenciesTopic.withValue(new ArrayList<>(Collections.singletonList("someService")));
+            realContext.waitForPublishQueueToClear();
+            dependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(Collections.emptySet(), main.getDependencies().keySet());
+
+            // Re-injection with isDefault=true (what launch() does at every boot) must restore the
+            // dependency with default protection, so a later topic omission no longer removes it
+            main.addOrUpdateDependency(dep, DependencyType.HARD, true);
+            assertTrue(main.dependencies.get(dep).isDefaultDependency,
+                    "re-injection must restore default protection");
+
+            dependenciesTopic.withValue(new ArrayList<>());
+            realContext.waitForPublishQueueToClear();
+            assertEquals(new HashSet<>(Collections.singletonList(dep)), main.getDependencies().keySet());
+        }
     }
 }
