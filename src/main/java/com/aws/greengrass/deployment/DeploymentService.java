@@ -86,6 +86,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
+@SuppressWarnings("PMD.ExcessiveClassLength")
 public class DeploymentService extends GreengrassService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
@@ -340,9 +341,11 @@ public class DeploymentService extends GreengrassService {
                 DeploymentStatus deploymentStatus = result.getDeploymentStatus();
                 Map<String, Object> statusDetails = new HashMap<>();
                 statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
+                boolean afterRestart = currentDeploymentTaskMetadata
+                        .getDeploymentTask() instanceof KernelUpdateDeploymentTask;
                 if (DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
                     //Add the root packages of successful deployment to the configuration
-                    persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
+                    persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument(), afterRestart);
 
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
                             configurationArn, type, JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages);
@@ -383,7 +386,8 @@ public class DeploymentService extends GreengrassService {
                     if (FAILED_ROLLBACK_NOT_REQUESTED.equals(result.getDeploymentStatus())) {
                         // Update the groupToRootComponents mapping in config for the case where there is no rollback
                         // and now the components deployed for the current group are not the same as before deployment
-                        persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
+                        persistGroupToRootComponents(
+                                currentDeploymentTaskMetadata.getDeploymentDocument(), afterRestart);
                     }
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
                             configurationArn, type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
@@ -426,12 +430,15 @@ public class DeploymentService extends GreengrassService {
         currentDeploymentTaskMetadata = null;
     }
 
-    private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
+    void persistGroupToRootComponents(DeploymentDocument deploymentDocument, boolean afterRestart) {
         Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
         Topics groupLastDeploymentTopics = config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS);
 
-        // clean up group
-        cleanupGroupData(deploymentGroupTopics, groupLastDeploymentTopics);
+        // Skip cleanup after a restart (bootstrap deployment): the GroupMembership snapshot backing it may not
+        // have survived the restart, and its absence is not evidence the device left any group.
+        if (!afterRestart) {
+            cleanupGroupData(deploymentGroupTopics, groupLastDeploymentTopics);
+        }
 
         // persist group to root components
         Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
@@ -464,7 +471,7 @@ public class DeploymentService extends GreengrassService {
     /**
      * Group memberships for a device can change. If the device is no longer part of a group, then perform cleanup.
      */
-    private void cleanupGroupData(Topics deploymentGroupTopics, Topics groupLastDeploymentTopics) {
+    void cleanupGroupData(Topics deploymentGroupTopics, Topics groupLastDeploymentTopics) {
         Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
         deploymentGroupTopics.forEach(node -> {
             if (node instanceof Topics) {
@@ -889,7 +896,7 @@ public class DeploymentService extends GreengrassService {
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                 deploymentConfigMerger, logger.createChild(), deployment, config, executorService,
-                deploymentDocumentDownloader, thingGroupHelper, deviceConfiguration);
+                deploymentDocumentDownloader, thingGroupHelper, deviceConfiguration, kernel);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {

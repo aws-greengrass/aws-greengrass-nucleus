@@ -5,120 +5,198 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.DependencyResolver;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
+import com.aws.greengrass.deployment.model.DeploymentDocument;
+import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.concurrent.ExecutorService;
 
+import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 
 /**
- * Regression test for the active-deletion path in the Nucleus thing-group-membership bug:
- * {@code DeploymentService.cleanupGroupData()} actively removes a group's
- * {@code GroupToRootComponents} entry when that group is absent from the current deployment
- * run's freshly-rebuilt {@code GroupMembership} snapshot.
+ * Regression tests for the active-deletion half of the thing-group state "ratchet":
+ * {@code DeploymentService.cleanupGroupData()} deletes any group's {@code GroupToRootComponents} /
+ * {@code GroupToLastDeployment} records that are absent from the {@code GroupMembership} snapshot.
  *
- * <h2>Bug mechanism (active-deletion path)</h2>
- * <p>{@code GroupMembership} is wiped and rebuilt from scratch by EVERY deployment task run
- * (DefaultDeploymentTask.java ~244-247), using only that single run's resolved groupsForDevice.
- * After the deployment completes, {@code cleanupGroupData()} iterates
- * {@code GroupToRootComponents} and removes any entry whose group name is NOT in the
- * rebuilt {@code GroupMembership} topic AND is not a device/local group prefix.
+ * <p>That snapshot is rebuilt from a fresh cloud fetch by the deployment task's own run. A deployment that
+ * completes after a Nucleus restart (bootstrap deployment, e.g. a nucleus upgrade) finishes in a boot session
+ * where the snapshot may not have survived — running cleanup there deletes records for groups the device still
+ * belongs to, purely because the evidence is gone. Cleanup must only act on membership fetched in the same boot
+ * session; the next regular deployment performs the deferred hygiene with fresh data.
  *
- * <p>This means a single transient {@code listThingGroupsForDevice} failure (or any other reason
- * a group doesn't appear in THIS run's groupsForDevice) is sufficient for Nucleus to actively
- * delete that group's entire {@code GroupToRootComponents} entry — even if the device never
- * left the group. No tlog truncation or external corruption is required.
- *
- * <h2>Correct behavior this test encodes</h2>
- * <p>{@code cleanupGroupData()} should NOT delete a group's {@code GroupToRootComponents}
- * entry based solely on that group being absent from a single deployment run's membership
- * snapshot. At minimum, deletion should require positive confirmation that the device is no
- * longer a member (not just the absence of a confirmation that it IS), or should be gated
- * behind a durable ≥N-runs-absent threshold rather than acting on a single snapshot.
- *
- * <p>This test currently FAILS against Nucleus v2.10.2 and mainline (proving the bug exists)
- * and will PASS once the code is fixed.
- *
- * @see ThingGroupMembershipPreservationTest for the related passive-absence path
+ * @see ThingGroupMembershipPreservationTest for the resolution-time (passive-absence) half of the ratchet
  */
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-class GroupToRootComponentsCleanupPreservationTest {
+class GroupToRootComponentsCleanupPreservationTest extends GGServiceTestUtil {
 
-    private static Context context;
+    private static final String TARGET_GROUP = "thinggroup/targetGroup";
+    private static final String OTHER_GROUP = "thinggroup/otherGroup";
+    private static final String DEVICE_GROUP = "thing/myThing";
+    private static final String TARGET_COMPONENT = "componentA";
+    private static final String OTHER_COMPONENT = "componentB";
 
-    @BeforeAll
-    static void setupContext() {
-        context = new Context();
+    @Mock
+    private ExecutorService mockExecutorService;
+    @Mock
+    private DependencyResolver dependencyResolver;
+    @Mock
+    private ComponentManager componentManager;
+    @Mock
+    private KernelConfigResolver kernelConfigResolver;
+    @Mock
+    private DeploymentConfigMerger deploymentConfigMerger;
+    @Mock
+    private DeploymentStatusKeeper deploymentStatusKeeper;
+    @Mock
+    private DeploymentDirectoryManager deploymentDirectoryManager;
+    @Mock
+    private DeviceConfiguration deviceConfiguration;
+    @Mock
+    private ThingGroupHelper thingGroupHelper;
+    @Mock
+    private Kernel mockKernel;
+    @Mock
+    private GreengrassService mockRootService;
+
+    private DeploymentService deploymentService;
+    private Context realContext;
+    private Topics groupToRootTopics;
+    private Topics groupLastDeploymentTopics;
+    private Topics groupMembershipTopics;
+    private Topics componentsToGroupsTopics;
+
+    @BeforeEach
+    void setup() throws Exception {
+        serviceFullName = "DeploymentService";
+        initializeMockedConfig();
+        deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, componentManager,
+                kernelConfigResolver, deploymentConfigMerger, deploymentStatusKeeper, deploymentDirectoryManager,
+                context, mockKernel, deviceConfiguration, thingGroupHelper);
+
+        realContext = new Context();
+        groupToRootTopics = Topics.of(realContext, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        groupLastDeploymentTopics = Topics.of(realContext, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        groupMembershipTopics = Topics.of(realContext, DeploymentService.GROUP_MEMBERSHIP_TOPICS, null);
+        componentsToGroupsTopics = Topics.of(realContext, COMPONENTS_TO_GROUPS_TOPICS, null);
+
+        lenient().when(config.lookupTopics(eq(GROUP_TO_ROOT_COMPONENTS_TOPICS))).thenReturn(groupToRootTopics);
+        lenient().when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS))).thenReturn(groupLastDeploymentTopics);
+        lenient().when(config.lookupTopics(eq(DeploymentService.GROUP_MEMBERSHIP_TOPICS))).thenReturn(groupMembershipTopics);
+        lenient().when(config.lookupTopics(eq(COMPONENTS_TO_GROUPS_TOPICS))).thenReturn(componentsToGroupsTopics);
+
+        lenient().when(mockKernel.locate(any())).thenReturn(mockRootService);
+        lenient().when(mockRootService.getName()).thenReturn(TARGET_COMPONENT);
+        lenient().when(mockRootService.getDependencies()).thenReturn(Collections.emptyMap());
     }
 
-    @AfterAll
-    static void cleanContext() throws IOException {
-        context.close();
+    @AfterEach
+    void cleanup() throws IOException {
+        realContext.close();
+    }
+
+    private void addGroupRecord(String groupName, String componentName) {
+        groupToRootTopics.lookupTopics(groupName, componentName)
+                .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupLastDeploymentTopics.lookupTopics(groupName)
+                .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY, 1L));
+    }
+
+    private DeploymentDocument targetGroupDocument() {
+        return DeploymentDocument.builder().deploymentId("deployment1")
+                .configurationArn("arn:aws:greengrass:region:account:configuration:" + TARGET_GROUP + ":1")
+                .timestamp(System.currentTimeMillis())
+                .groupName(TARGET_GROUP)
+                .deploymentPackageConfigurationList(Collections.singletonList(
+                        new DeploymentPackageConfiguration(TARGET_COMPONENT, true, "1.0.0")))
+                .build();
     }
 
     /**
-     * REGRESSION TEST (currently FAILS — proving the bug exists).
+     * REGRESSION TEST (fails without the fix).
      *
-     * <p>Scenario: GroupToRootComponents has healthy entries for two groups. The current
-     * deployment run's GroupMembership snapshot contains only one group (the deployment's
-     * target), because the other group was not resolved in this run's groupsForDevice (e.g.
-     * due to a transient listThingGroupsForDevice failure).
-     *
-     * <p>Correct behavior: cleanupGroupData() must NOT delete the non-target group's entry
-     * based solely on its absence from a single run's snapshot. The group's entry should be
-     * preserved until there is positive evidence the device actually left the group.
+     * <p>A deployment that completes after a Nucleus restart (bootstrap, e.g. a nucleus upgrade) finishes in a
+     * boot session where the GroupMembership snapshot rebuilt by its pre-restart task run may not have survived.
+     * With the snapshot gone, cleanup has no evidence about membership and must not delete other groups'
+     * records; deleting them silently strips those groups' components at the next deployment's resolution.
      */
     @Test
-    void non_target_group_entry_preserved_when_absent_from_single_run_membership_snapshot() {
-        Topics deploymentGroupTopics = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+    void completion_after_restart_does_not_delete_group_records_when_membership_snapshot_is_gone() {
+        addGroupRecord(OTHER_GROUP, OTHER_COMPONENT);
+        // GroupMembership is empty: the snapshot did not survive the restart.
 
-        // "group1" has an existing, healthy entry from a prior successful deployment.
-        deploymentGroupTopics.lookupTopics("group1", "component1")
-                .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-        // "group2" is the current deployment's own target group.
-        deploymentGroupTopics.lookupTopics("group2", "component2")
-                .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        deploymentService.persistGroupToRootComponents(targetGroupDocument(), true);
 
-        // This deployment run's GroupMembership snapshot only contains "group2" — "group1" was not
-        // resolved in this run's groupsForDevice (transient API failure, throttle, etc.).
-        Topics groupMembershipTopics = Topics.of(context, DeploymentService.GROUP_MEMBERSHIP_TOPICS, null);
-        groupMembershipTopics.createLeafChild("group2");
+        assertNotNull(groupToRootTopics.findNode(OTHER_GROUP),
+                "REGRESSION: a deployment completing after a restart deleted another group's "
+                        + "GroupToRootComponents record based on an empty (lost) GroupMembership snapshot. "
+                        + "Cleanup must only act on membership fetched in the same boot session.");
+        assertNotNull(groupLastDeploymentTopics.findNode(OTHER_GROUP),
+                "GroupToLastDeployment record must also be preserved");
+        assertNotNull(groupToRootTopics.findNode(TARGET_GROUP, TARGET_COMPONENT),
+                "The target group's record must still be written on completion");
+    }
 
-        assertNotNull(deploymentGroupTopics.findNode("group1"),
-                "Precondition: group1 entry must exist before cleanup runs");
+    /**
+     * LEGITIMATE-FLOW TEST (must pass with and without the fix): a regular (non-bootstrap) completion whose
+     * task run fetched fresh membership still cleans up records of groups the device no longer belongs to.
+     */
+    @Test
+    void regular_completion_with_fresh_membership_still_cleans_up_departed_groups() {
+        addGroupRecord(OTHER_GROUP, OTHER_COMPONENT);
+        // Fresh membership from this run's task: device belongs only to the target group.
+        groupMembershipTopics.createLeafChild(TARGET_GROUP);
 
-        // Exercise cleanupGroupData()'s control flow (logic from DeploymentService.java:459-479).
-        deploymentGroupTopics.forEach(node -> {
-            if (node instanceof Topics) {
-                Topics groupTopics = (Topics) node;
-                if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
-                        .startsWith(DefaultDeploymentTask.DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics
-                        .getName().equals(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                    groupTopics.remove();
-                }
-            }
-        });
+        deploymentService.persistGroupToRootComponents(targetGroupDocument(), false);
 
-        // CORRECT BEHAVIOR: group1's entry must be preserved. A single run's snapshot absence is not
-        // sufficient evidence that the device left the group — the API might have failed, throttled,
-        // or simply not been called for this group. Active deletion should require positive confirmation
-        // of non-membership, not just absence of confirmation.
-        assertNotNull(deploymentGroupTopics.findNode("group1"),
-                "REGRESSION: cleanupGroupData() actively deleted group1's GroupToRootComponents entry "
-                        + "solely because it was absent from this single deployment run's GroupMembership "
-                        + "snapshot. This active deletion means a transient API failure on any deployment "
-                        + "is sufficient to permanently strip an unrelated group's components. The entry "
-                        + "should be preserved until there is positive evidence the device left the group.");
-        assertNotNull(deploymentGroupTopics.findNode("group2"),
-                "group2 should be untouched: it was present in this run's GroupMembership snapshot.");
+        assertNull(groupToRootTopics.findNode(OTHER_GROUP),
+                "Legitimate cleanup must keep working: the device is confirmed to no longer belong to the "
+                        + "group, so its records are removed");
+        assertNull(groupLastDeploymentTopics.findNode(OTHER_GROUP),
+                "GroupToLastDeployment record of the departed group must also be removed");
+        assertNotNull(groupToRootTopics.findNode(TARGET_GROUP, TARGET_COMPONENT),
+                "The target group's record must be written on completion");
+    }
+
+    /**
+     * LEGITIMATE-FLOW TEST (must pass with and without the fix): device-scoped and local-deployment records are
+     * never subject to membership-based cleanup.
+     */
+    @Test
+    void regular_completion_preserves_device_and_local_deployment_records() {
+        addGroupRecord(DEVICE_GROUP, OTHER_COMPONENT);
+        addGroupRecord(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, OTHER_COMPONENT);
+        groupMembershipTopics.createLeafChild(TARGET_GROUP);
+
+        deploymentService.persistGroupToRootComponents(targetGroupDocument(), false);
+
+        assertNotNull(groupToRootTopics.findNode(DEVICE_GROUP),
+                "Device-scoped records are not membership-governed and must be preserved");
+        assertNotNull(groupToRootTopics.findNode(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME),
+                "Local-deployment records are not membership-governed and must be preserved");
     }
 }
