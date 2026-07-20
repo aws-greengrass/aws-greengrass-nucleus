@@ -8,6 +8,7 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
@@ -21,6 +22,7 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.RunWith;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -666,18 +668,32 @@ public class KernelConfigResolver {
      * Compute the config for main service
      */
     private Map<String, Object> getMainConfig(List<String> rootPackages, String nucleusComponentName) {
-        Map<String, Object> mainServiceConfig = new HashMap<>();
         Set<String> mainDependencies = new HashSet<>(rootPackages);
+        Set<String> builtinsInDependencyGraph = new HashSet<>();
         kernel.getMain().getDependencies().forEach((greengrassService, dependencyType) -> {
             // Add all autostart dependencies
             if (greengrassService.isBuiltin()) {
                 mainDependencies.add(greengrassService.getName() + ":" + dependencyType);
+                builtinsInDependencyGraph.add(greengrassService.getServiceName());
             }
         });
+
+        // Also carry forward the autostart builtin services by static identity. On a healthy device the
+        // dependency graph already contains all of them, so this adds nothing. If a builtin is
+        // erroneously missing from the graph while its service is still running, carrying it forward
+        // here repairs the dependency graph when the resolved config is merged (the dependencies topic
+        // subscriber re-adds the missing builtins), instead of perpetuating the damage: without this,
+        // every subsequent deployment resolution would omit the missing builtins from main's
+        // dependencies, keeping them evicted until the next restart. Autostart builtins are compiled
+        // into the nucleus, so a name added here always resolves to a real service.
+        KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES.stream()
+                .filter(name -> !builtinsInDependencyGraph.contains(name))
+                .forEach(name -> mainDependencies.add(name + ":" + DependencyType.HARD));
 
         // Make Nucleus component sticky
         mainDependencies.add(nucleusComponentName);
 
+        Map<String, Object> mainServiceConfig = new HashMap<>();
         mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, new ArrayList<>(mainDependencies));
         return mainServiceConfig;
     }

@@ -729,7 +729,7 @@ public class GreengrassService implements InjectionActions {
     private void setupDependencies(Collection<String> dependencyList)
             throws ServiceLoadException, InputValidationException {
         try (LockScope ls = LockScope.lock(dependenciesLock)) {
-            Map<GreengrassService, DependencyType> oldDependencies = new HashMap<>(getDependencies());
+            Map<GreengrassService, DependencyInfo> oldDependencies = new HashMap<>(dependencies);
             Map<GreengrassService, DependencyType> keptDependencies = getDependencyTypeMap(dependencyList);
 
             Set<GreengrassService> removedDependencies = dependencies.entrySet().stream()
@@ -748,10 +748,29 @@ public class GreengrassService implements InjectionActions {
             AtomicBoolean hasNewService = new AtomicBoolean(false);
             keptDependencies.forEach((dependentService, dependencyType) -> {
                 try {
-                    if (!oldDependencies.containsKey(dependentService)) {
+                    DependencyInfo oldDependencyInfo = oldDependencies.get(dependentService);
+                    if (oldDependencyInfo == null) {
                         hasNewService.set(true);
                     }
-                    addOrUpdateDependency(dependentService, dependencyType, false);
+                    // Preserve the default flag of an existing default dependency (i.e. a builtin service
+                    // injected at launch). Without this, a dependency-topic update which lists the builtin
+                    // would downgrade it to a non-default dependency, and a subsequent update which omits it
+                    // (e.g. a deployment rollback to a config from before the device's first deployment)
+                    // would then remove the builtin from the dependency graph while its service keeps
+                    // running. Builtin services absent from the dependency graph are silently excluded from
+                    // deployment merge protection, so the next deployment would remove their config.
+                    boolean isDefault = oldDependencyInfo != null && oldDependencyInfo.isDefaultDependency;
+                    // When main re-adds an autostart builtin which is not currently in its dependency map
+                    // (i.e. the builtin was previously evicted and a deployment resolution is repairing the
+                    // graph), restore launch-equivalent default protection instead of adding it as a
+                    // removable dependency. This only applies to main and to the statically known autostart
+                    // builtin names, which is exactly the set launch() injects as default at every boot.
+                    if (!isDefault && KernelCommandLine.MAIN_SERVICE_NAME.equals(getName())
+                            && KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES
+                                    .contains(dependentService.getServiceName())) {
+                        isDefault = true;
+                    }
+                    addOrUpdateDependency(dependentService, dependencyType, isDefault);
                 } catch (InputValidationException e) {
                     logger.atWarn("add-dependency").log("Unable to add dependency {}", dependentService, e);
                 }

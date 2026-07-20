@@ -21,7 +21,9 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -102,6 +104,29 @@ public abstract class DeploymentActivator {
                 newConfig, createDeploymentMergeBehavior(timestamp, newConfig)));
     }
 
+
+    /**
+     * Names of the builtin services whose config must be protected from merge/rollback removal: the
+     * statically known autostart builtin names unioned with the builtins currently present in the live
+     * dependency graph (which covers autostart plugin builtins, whose names are not statically known).
+     *
+     * <p>Note the residual asymmetry for annotation-discovered PLUGIN autostart builtins: because their
+     * names are not statically known, they are protected here only while present in the dependency
+     * graph, and the static builtin carry-forward in KernelConfigResolver.getMainConfig does not heal
+     * them. If such a builtin were ever evicted from the graph (despite the default-flag preservation
+     * in GreengrassService.setupDependencies), it stays evicted until the next launch re-injects it.
+     *
+     * @return builtin service names to protect
+     */
+    protected Set<String> getBuiltinServiceNamesToProtect() {
+        Set<String> builtinServiceNames = new HashSet<>(KernelLifecycle.AUTOSTART_BUILTIN_SERVICE_NAMES);
+        kernel.orderedDependencies().stream()
+                .filter(GreengrassService::isBuiltin)
+                .map(GreengrassService::getServiceName)
+                .forEach(builtinServiceNames::add);
+        return builtinServiceNames;
+    }
+
     protected UpdateBehaviorTree createDeploymentMergeBehavior(long deploymentTimestamp,
                                                                Map<String, Object> newConfig) {
         // root: MERGE
@@ -127,15 +152,6 @@ public abstract class DeploymentActivator {
         servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
 
-        // Set merge mode for all builtin services
-        kernel.orderedDependencies().stream()
-                .filter(GreengrassService::isBuiltin)
-                // If the builtin service is somehow in the new config, then keep the default behavior of
-                // replacing the existing values
-                .filter(s -> !((Map) newConfig.get(SERVICES_NAMESPACE_TOPIC)).containsKey(s.getServiceName()))
-                .forEach(s -> servicesMergeBehavior.getChildOverride()
-                        .put(s.getServiceName(), new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)));
-
         insideServiceMergeBehavior.getChildOverride().put(
                 GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
         insideServiceMergeBehavior.getChildOverride().put(
@@ -145,18 +161,32 @@ public abstract class DeploymentActivator {
         insideServiceMergeBehavior.getChildOverride().put(
                 CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
 
+        // Set merge mode for all builtin services. Names are derived from static builtin identity and
+        // unioned with the live dependency graph: the graph alone is not a safe key, because a builtin
+        // service can be erroneously missing from it while still running, in which case a graph-keyed
+        // protection would let this merge delete the builtin's entire config. Protecting a builtin that
+        // is not currently in the graph is harmless — it only retains existing config. Autostart plugin
+        // builtins, whose names are not statically known, are covered by the graph-derived set.
+        getBuiltinServiceNamesToProtect().stream()
+                // If the builtin service is somehow in the new config, then keep the default behavior of
+                // replacing the existing values
+                .filter(name -> !((Map) newConfig.get(SERVICES_NAMESPACE_TOPIC)).containsKey(name))
+                .forEach(name -> servicesMergeBehavior.getChildOverride()
+                        .put(name, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)));
+
         logger.atDebug().kv("Root merge behavior", rootMergeBehavior)
                 .log("Created deployment configuration root merge behavior.");
         return rootMergeBehavior;
     }
 
-    private UpdateBehaviorTree createRollbackMergeBehavior() {
+    protected UpdateBehaviorTree createRollbackMergeBehavior() {
         // root: MERGE
         //   services: MERGE
         //     *: REPLACE
         //       runtime: MERGE
         //       _private: MERGE
         //       configuration: REPLACE
+        //     <builtin services>: MERGE
         //     AUTH_TOKEN: MERGE
 
         // For rollback the timestamp from the snapshot will be used and not this timestamp
@@ -183,6 +213,16 @@ public abstract class DeploymentActivator {
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
         insideServiceMergeBehavior.getChildOverride().put(
                 CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
+
+        // Set merge mode for all builtin services so that a rollback never discards a builtin service's
+        // config just because it is absent from the snapshot tlog. Without this, replaying a snapshot
+        // which predates a builtin's config (or a snapshot dumped while the builtin's config subtree was
+        // erroneously detached from the config tree) removes the builtin's entire config while its
+        // service is still running. Values present in the snapshot are still restored as before; the
+        // only behavior change is that nodes newly created under a builtin during the failed deployment
+        // are retained rather than discarded, which is harmless bookkeeping.
+        getBuiltinServiceNamesToProtect().forEach(name -> servicesMergeBehavior.getChildOverride()
+                .put(name, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)));
 
         return rootMergeBehavior;
     }
