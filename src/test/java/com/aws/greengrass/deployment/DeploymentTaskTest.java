@@ -17,6 +17,8 @@ import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -98,6 +100,10 @@ class DeploymentTaskTest {
     private ThingGroupHelper mockThingGroupHelper;
     @Mock
     private DeviceConfiguration mockDeviceConfiguration;
+    @Mock
+    private Kernel mockKernel;
+    @Mock
+    private GreengrassService mockMainService;
 
     @BeforeAll
     static void setupContext() {
@@ -111,6 +117,8 @@ class DeploymentTaskTest {
 
     @BeforeEach
     void setup() {
+        lenient().when(mockKernel.getMain()).thenReturn(mockMainService);
+        lenient().when(mockMainService.getDependencies()).thenReturn(Collections.emptyMap());
         mockGroupToRootConfig = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         mockGroupToRootConfig.lookupTopics("group1", COMPONENT_2_ROOT_PACKAGE_NAME)
                 .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
@@ -124,7 +132,7 @@ class DeploymentTaskTest {
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger,
                         new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper, mockDeviceConfiguration);
+                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper, mockDeviceConfiguration, mockKernel);
     }
 
     @Test

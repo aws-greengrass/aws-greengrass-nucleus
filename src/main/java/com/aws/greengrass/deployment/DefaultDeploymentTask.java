@@ -13,6 +13,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentRequirementIdentifier;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -20,8 +21,13 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
+import com.aws.greengrass.deployment.model.LocalOverrideRequest;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.SerializerFactory;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.vdurmont.semver4j.Requirement;
 import lombok.Getter;
 import software.amazon.awssdk.http.HttpStatusCode;
@@ -41,7 +47,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE;
@@ -55,6 +63,12 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
     public static final String DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX = "thing/";
+    /**
+     * Pseudo-group key under which running root components with no positive removal evidence are preserved in
+     * the resolution root set. Never persisted to config; only used in-memory for dependency resolution and in
+     * version-constraint diagnostics.
+     */
+    public static final String RUNNING_ROOTS_PRESERVATION_KEY = "currently-running-components";
 
     private final DependencyResolver dependencyResolver;
     private final ComponentManager componentManager;
@@ -63,6 +77,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
     private final ExecutorService executorService;
     private final Logger logger;
     private final DeviceConfiguration deviceConfiguration;
+    private final Kernel kernel;
     @Getter
     private final Deployment deployment;
     private final Topics deploymentServiceConfig;
@@ -84,6 +99,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
      * @param deploymentDocumentDownloader download large deployment document.
      * @param thingGroupHelper             Thing Group Helper / Retriever
      * @param deviceConfiguration          Device Configuration Information
+     * @param kernel                       Kernel instance, used to read the currently running root components
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
@@ -92,7 +108,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
                                  Topics deploymentServiceConfig, ExecutorService executorService,
                                  DeploymentDocumentDownloader deploymentDocumentDownloader,
                                  ThingGroupHelper thingGroupHelper,
-                                 DeviceConfiguration deviceConfiguration) {
+                                 DeviceConfiguration deviceConfiguration,
+                                 Kernel kernel) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -104,6 +121,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.deploymentDocumentDownloader = deploymentDocumentDownloader;
         this.thingGroupHelper = thingGroupHelper;
         this.deviceConfiguration = deviceConfiguration;
+        this.kernel = kernel;
     }
 
     @Override
@@ -274,9 +292,24 @@ public class DefaultDeploymentTask implements DeploymentTask {
         // SDK already retries with RetryMode.STANDARD. For local deployment we don't retry on top of that
         int maxAttemptCount = isLocalDeployment ? 1 : INFINITE_RETRY_COUNT;
 
+        // Whether the membership list below was freshly fetched from the cloud in this deployment run.
+        // Only a fresh, successful fetch is authoritative evidence of group membership; every fallback
+        // below produces a best-effort list that must not be used to justify removing anything.
+        boolean membershipFetchedFromCloud = false;
         Optional<Set<String>> groupsForDeviceOpt;
         try {
             groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(maxAttemptCount);
+            if (groupsForDeviceOpt.isPresent()) {
+                membershipFetchedFromCloud = true;
+            } else {
+                // Membership is unknown (e.g. the device is not configured to talk to the cloud). Unknown
+                // must not be treated as an authoritative "member of no thing groups" - that would drop all
+                // thing group components from the merge and allow their group records to be cleaned up.
+                // Fall back to the memberships implied by the persisted group records, as the failure
+                // paths below do.
+                logger.atDebug().log("Thing group membership is unknown, falling back to persisted membership");
+                groupsForDeviceOpt = getPersistedMembershipInfo();
+            }
         } catch (GreengrassV2DataException e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 // Getting group hierarchy requires permission to call the ListThingGroupsForCoreDevice API which
@@ -325,12 +358,152 @@ public class DefaultDeploymentTask implements DeploymentTask {
             }
         });
 
+        preserveUnaccountedRunningRootComponents(deploymentDocument, nonTargetGroupsToRootPackagesMap,
+                groupsForDevice, membershipFetchedFromCloud);
+
         deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
         Topics groupMembership =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
         groupsForDevice.forEach(groupMembership::createLeafChild);
 
         return nonTargetGroupsToRootPackagesMap;
+    }
+
+    /**
+     * Preserve currently-running root components that are not accounted for by the deployment document or the
+     * persisted group records, unless there is positive evidence that they should be removed.
+     *
+     * <p>A root component that is currently running was put there by a previous deployment. The local bookkeeping
+     * that normally preserves it across other deployments ({@code GroupToRootComponents}) can be lost or incomplete
+     * independently of the component itself, and its absence is not evidence that the component should go away.
+     * Without this preservation, any deployment processed while a group's record is missing silently removes that
+     * group's components in the merge, and the only recovery is a new cloud deployment targeting that group.
+     *
+     * <p>Positive evidence that a running root component should be removed is exactly one of:
+     * <ul>
+     * <li>a local deployment explicitly lists it in {@code rootComponentsToRemove};</li>
+     * <li>a cloud deployment targets a group the component is attributed to, and the (authoritative) deployment
+     * document no longer includes it;</li>
+     * <li>the thing group membership freshly fetched from the cloud in this run shows the device no longer belongs
+     * to any thing group the component is attributed to.</li>
+     * </ul>
+     * Components preserved here are pinned to their currently-running version and participate in dependency
+     * resolution only; no group bookkeeping is written for them, so the authoritative repair path (a cloud
+     * deployment for their group) is unaffected.
+     */
+    private void preserveUnaccountedRunningRootComponents(DeploymentDocument deploymentDocument,
+            Map<String, Set<ComponentRequirementIdentifier>> nonTargetGroupsToRootPackagesMap,
+            Set<String> groupsForDevice, boolean membershipFetchedFromCloud) {
+        Set<String> accountedFor = new HashSet<>(deploymentDocument.getRootPackages());
+        nonTargetGroupsToRootPackagesMap.values()
+                .forEach(packages -> packages.forEach(p -> accountedFor.add(p.getName())));
+        Set<String> explicitlyRemoved = getComponentsExplicitlyRemovedByLocalRequest();
+        boolean isLocalDeployment = Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType());
+
+        String nucleusComponentName = deviceConfiguration.getNucleusComponentName();
+        for (GreengrassService service : kernel.getMain().getDependencies().keySet()) {
+            String componentName = service.getServiceName();
+            // The nucleus component is a permanent dependency of main with its own lifecycle machinery;
+            // it is never group-managed and must not be pulled into resolution by preservation.
+            if (service.isBuiltin() || componentName.equals(nucleusComponentName)
+                    || accountedFor.contains(componentName) || explicitlyRemoved.contains(componentName)) {
+                continue;
+            }
+            Set<String> attributedGroups = getAttributedGroups(componentName);
+            if (hasPositiveRemovalEvidence(attributedGroups, membershipFetchedFromCloud, groupsForDevice,
+                    deploymentDocument.getGroupName(), isLocalDeployment)) {
+                continue;
+            }
+            String runningVersion = Coerce.toString(service.getServiceConfig().find(VERSION_CONFIG_KEY));
+            Requirement versionRequirement = Requirement.buildNPM(runningVersion == null ? "*" : runningVersion);
+            nonTargetGroupsToRootPackagesMap
+                    .computeIfAbsent(RUNNING_ROOTS_PRESERVATION_KEY, k -> new HashSet<>())
+                    .add(new ComponentRequirementIdentifier(componentName, versionRequirement));
+            logger.atWarn().kv("component", componentName).kv("version", runningVersion)
+                    .kv("attributedGroups", attributedGroups)
+                    .log("Preserving running root component that no local group record accounts for; local"
+                            + " deployment bookkeeping may have been lost. The component is kept at its running"
+                            + " version. To remove it, deploy the change through its thing group or remove it"
+                            + " explicitly with a local deployment");
+        }
+    }
+
+    /**
+     * Decide whether there is positive evidence that a running root component should be removed by this
+     * deployment. See {@link #preserveUnaccountedRunningRootComponents}.
+     *
+     * @param attributedGroups           groups the component is attributed to in local ComponentToGroups records
+     * @param membershipFetchedFromCloud whether the membership list is a fresh, authoritative cloud response
+     * @param groupsForDevice            the membership list for this run
+     * @param targetGroupName            the group targeted by this deployment
+     * @param isLocalDeployment          whether this is a local deployment (its document is derived from local
+     *                                   records plus an explicit delta, so it is not authoritative for implicit
+     *                                   removals the way a cloud deployment document is)
+     */
+    private boolean hasPositiveRemovalEvidence(Set<String> attributedGroups, boolean membershipFetchedFromCloud,
+            Set<String> groupsForDevice, String targetGroupName, boolean isLocalDeployment) {
+        if (attributedGroups.isEmpty()) {
+            // Unattributed: local bookkeeping knows nothing about this component. Absence of bookkeeping is
+            // not evidence of anything.
+            return false;
+        }
+        for (String group : attributedGroups) {
+            if (!isLocalDeployment && group.equals(targetGroupName)) {
+                // The incoming cloud document is the authoritative root set for the target group; the
+                // component no longer being in it dismisses this attribution.
+                continue;
+            }
+            boolean membershipGoverned = !group.startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
+                    && !group.equals(LOCAL_DEPLOYMENT_GROUP_NAME);
+            if (!membershipGoverned || !membershipFetchedFromCloud || groupsForDevice.contains(group)) {
+                // This attribution cannot be dismissed: it is device/local scoped, or we have no authoritative
+                // membership, or the device is still a member of the group.
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Groups a component is attributed to in the local ComponentToGroups bookkeeping.
+     */
+    private Set<String> getAttributedGroups(String componentName) {
+        Set<String> groups = new HashSet<>();
+        Node mappingNode = deploymentServiceConfig.findNode(COMPONENTS_TO_GROUPS_TOPICS, componentName);
+        if (mappingNode instanceof Topics) {
+            ((Topics) mappingNode).forEach(node -> {
+                if (node instanceof Topic) {
+                    String groupName = Coerce.toString((Topic) node);
+                    if (groupName != null) {
+                        groups.add(groupName);
+                    }
+                }
+            });
+        }
+        return groups;
+    }
+
+    /**
+     * Components a local deployment request explicitly asks to remove. Explicit removal is always honored,
+     * even when the local bookkeeping that would normally reflect it is missing.
+     */
+    private Set<String> getComponentsExplicitlyRemovedByLocalRequest() {
+        if (!Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType())
+                || deployment.getDeploymentDocument() == null) {
+            return Collections.emptySet();
+        }
+        try {
+            LocalOverrideRequest request = SerializerFactory.getFailSafeJsonObjectMapper()
+                    .readValue(deployment.getDeploymentDocument(), LocalOverrideRequest.class);
+            if (request.getComponentsToRemove() == null) {
+                return Collections.emptySet();
+            }
+            return new HashSet<>(request.getComponentsToRemove());
+        } catch (JsonProcessingException e) {
+            // The document was parsed successfully upstream; a failure here should not block the deployment.
+            logger.atWarn().setCause(e).log("Unable to re-read local override request for explicit removals");
+            return Collections.emptySet();
+        }
     }
 
     /*
