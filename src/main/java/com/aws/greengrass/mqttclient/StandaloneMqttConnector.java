@@ -126,7 +126,8 @@ public class StandaloneMqttConnector implements Closeable {
         }
         String noProxy = Coerce.toString(deviceConfiguration.getNoProxyAddresses());
         if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)
-                && Arrays.stream(noProxy.split(",")).anyMatch(endpoint::matches)) {
+                && Arrays.stream(noProxy.split(","))
+                        .anyMatch(pattern -> ProxyUtils.noProxyMatches(endpoint, pattern))) {
             return;
         }
         mqttBuilder.withHttpProxyOptions(httpProxyOptions);
