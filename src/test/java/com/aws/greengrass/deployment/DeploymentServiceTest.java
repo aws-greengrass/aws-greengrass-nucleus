@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -442,6 +443,86 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));
         assertThat((Map<String, Boolean>) groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME),
                 hasKey("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"));
+    }
+
+    @Test
+    void GIVEN_stale_group_no_longer_in_membership_WHEN_deployment_process_succeeds_THEN_cleanup_logged_at_info_with_deployment_id_and_group_name()
+            throws Exception {
+        String staleGroupName = "thinggroup/staleGroup";
+        String deploymentDocument = getTestDeploymentDocument();
+
+        deploymentQueue.offer(new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+
+        // GroupToRootComponents and GroupToLastDeployment both contain an entry for staleGroupName, but
+        // GroupMembership does not, so cleanupGroupData() must remove both entries for the new deployment's group.
+        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics staleDeploymentGroupTopics = Topics.of(context, staleGroupName, allGroupTopics);
+        allGroupTopics.children.put(new CaseInsensitiveString(staleGroupName), staleDeploymentGroupTopics);
+
+        Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
+        Topic pkgTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
+        Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
+                TEST_CONFIGURATION_ARN);
+        Topic groupNameTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME,
+                EXPECTED_GROUP_NAME);
+        Map<CaseInsensitiveString, Node> pkgDetails = new HashMap<>();
+        pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY), pkgTopic1);
+        pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
+                groupTopic1);
+        pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME),
+                groupNameTopic1);
+        Topics pkgTopics = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics);
+        pkgTopics.children.putAll(pkgDetails);
+        deploymentGroupTopics.children.put(new CaseInsensitiveString(EXPECTED_ROOT_PACKAGE_NAME), pkgTopics);
+        allGroupTopics.children.put(new CaseInsensitiveString(EXPECTED_GROUP_NAME), deploymentGroupTopics);
+
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        Topics staleLastDeploymentTopics = Topics.of(context, staleGroupName, groupToLastDeploymentTopics);
+        groupToLastDeploymentTopics.children.put(new CaseInsensitiveString(staleGroupName),
+                staleLastDeploymentTopics);
+
+        Topics groupMembershipTopics = Topics.of(context, GROUP_MEMBERSHIP_TOPICS, null);
+        groupMembershipTopics.lookup(EXPECTED_GROUP_NAME);
+
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
+        lenient().when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME))
+                .thenReturn(deploymentGroupTopics);
+        when(config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS)).thenReturn(groupToLastDeploymentTopics);
+        lenient().when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString()))
+                .thenReturn(groupToLastDeploymentTopics);
+        when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(groupMembershipTopics);
+        when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
+
+        when(mockKernel.locate(any())).thenReturn(mockGreengrassService);
+        when(mockGreengrassService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
+        mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
+        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+
+        List<GreengrassLogMessage> cleanupLogMessages = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getLoggerName() != null && m.getLoggerName().contains(DeploymentService.class.getSimpleName())
+                    && m.getMessage() != null && m.getMessage().contains("Removing")) {
+                cleanupLogMessages.add(m);
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+        try {
+            startDeploymentServiceInAnotherThread();
+            verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                    eq(JobStatus.SUCCEEDED.toString()), any(), any());
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
+
+        assertEquals(2, cleanupLogMessages.size(),
+                "Expected one INFO log for the GroupToRootComponents removal and one for the "
+                        + "GroupToLastDeployment removal");
+        for (GreengrassLogMessage m : cleanupLogMessages) {
+            assertEquals("INFO", m.getLevel());
+            assertThat(m.getContexts(), hasEntry("DeploymentId", TEST_UUID));
+            assertThat(m.getContexts(), hasEntry("ThingGroup", staleGroupName));
+        }
     }
 
     @Test
