@@ -35,6 +35,8 @@ import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscriptionMode;
+import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
@@ -62,6 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -215,6 +218,155 @@ class IPCMqttProxyTest {
             assertThat(capturedUnsubscribeRequest.getTopic(), is(subscribeTopic));
             assertThat(capturedUnsubscribeRequest.getSubscriptionCallback(), is(callback));
         }
+    }
+
+    @Test
+    void GIVEN_receive_only_WHEN_subscribe_THEN_receive_only_registered_and_message_received() throws Exception {
+        lenient().when(mqttClient.unsubscribe(any(Unsubscribe.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        String subscribeTopic = "A/A/C/D"; // matches the mqttproxy.yaml grant "A/+/C/D*"
+        CountDownLatch messageLatch = new CountDownLatch(1);
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(subscribeTopic);
+        // RECEIVE_ONLY mode with no qos.
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.RECEIVE_ONLY);
+
+        StreamResponseHandler<IoTCoreMessage> streamResponseHandler = new StreamResponseHandler<IoTCoreMessage>() {
+            @Override
+            public void onStreamEvent(IoTCoreMessage streamEvent) {
+                if (Arrays.equals(streamEvent.getMessage().getPayload(), TEST_PAYLOAD)
+                        && streamEvent.getMessage().getTopicName().equals(subscribeTopic)) {
+                    messageLatch.countDown();
+                }
+            }
+
+            @Override
+            public boolean onStreamError(Throwable error) {
+                logger.atError().cause(error).log("Subscribe stream errored");
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+            }
+        };
+
+        SubscribeToIoTCoreResponseHandler responseHandler = greengrassCoreIPCClient.subscribeToIoTCore(
+                subscribeToIoTCoreRequest, Optional.of(streamResponseHandler));
+        responseHandler.getResponse().get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
+
+        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+        verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
+        Subscribe capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
+        assertThat(capturedSubscribeRequest.getTopic(), is(subscribeTopic));
+        // The captured Subscribe carries the receive-only flag.
+        assertThat(capturedSubscribeRequest.isSkipCloudSubscribe(), is(true));
+
+        // A message delivered to the captured callback streams back to the component over IPC.
+        Consumer<Publish> callback = capturedSubscribeRequest.getCallback();
+        callback.accept(Publish.builder().topic(subscribeTopic).payload(TEST_PAYLOAD).build());
+        assertTrue(messageLatch.await(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS));
+
+        // Stream close unsubscribes the registration.
+        responseHandler.closeStream();
+        Thread.sleep(500);
+        ArgumentCaptor<Unsubscribe> unsubscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Unsubscribe.class);
+        verify(mqttClient).unsubscribe(unsubscribeRequestArgumentCaptor.capture());
+        Unsubscribe capturedUnsubscribeRequest = unsubscribeRequestArgumentCaptor.getValue();
+        assertThat(capturedUnsubscribeRequest.getTopic(), is(subscribeTopic));
+        assertThat(capturedUnsubscribeRequest.getSubscriptionCallback(), is(callback));
+    }
+
+    @Test
+    void GIVEN_receive_only_with_qos_WHEN_subscribe_THEN_qos_ignored_and_receive_only_registered() throws Exception {
+        lenient().when(mqttClient.unsubscribe(any(Unsubscribe.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        String subscribeTopic = "A/A/C/D";
+        CountDownLatch messageLatch = new CountDownLatch(1);
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(subscribeTopic);
+        // qos is set alongside RECEIVE_ONLY mode; it is ignored.
+        subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.RECEIVE_ONLY);
+
+        StreamResponseHandler<IoTCoreMessage> streamResponseHandler = new StreamResponseHandler<IoTCoreMessage>() {
+            @Override
+            public void onStreamEvent(IoTCoreMessage streamEvent) {
+                if (Arrays.equals(streamEvent.getMessage().getPayload(), TEST_PAYLOAD)
+                        && streamEvent.getMessage().getTopicName().equals(subscribeTopic)) {
+                    messageLatch.countDown();
+                }
+            }
+
+            @Override
+            public boolean onStreamError(Throwable error) {
+                logger.atError().cause(error).log("Subscribe stream errored");
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+            }
+        };
+
+        SubscribeToIoTCoreResponseHandler responseHandler = greengrassCoreIPCClient.subscribeToIoTCore(
+                subscribeToIoTCoreRequest, Optional.of(streamResponseHandler));
+        responseHandler.getResponse().get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
+
+        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor = ArgumentCaptor.forClass(Subscribe.class);
+        verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
+        Subscribe capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
+        assertThat(capturedSubscribeRequest.isSkipCloudSubscribe(), is(true));
+
+        Consumer<Publish> callback = capturedSubscribeRequest.getCallback();
+        callback.accept(Publish.builder().topic(subscribeTopic).payload(TEST_PAYLOAD).build());
+        assertTrue(messageLatch.await(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS));
+
+        responseHandler.closeStream();
+    }
+
+    @Test
+    void GIVEN_receive_only_on_unauthorized_topic_WHEN_subscribe_THEN_client_gets_unauthorized(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, ExecutionException.class);
+        ignoreExceptionOfType(context, UnauthorizedError.class);
+
+        // Topic outside the mqttproxy.yaml grant (only "A/+/C/D*" and "X/Y*Z/#" are allowed).
+        String unauthorizedTopic = "Z/unauthorized";
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(unauthorizedTopic);
+        subscribeToIoTCoreRequest.setSubscriptionMode(SubscriptionMode.RECEIVE_ONLY);
+
+        // Subscribe is a streaming operation, so the client requires a stream handler.
+        StreamResponseHandler<IoTCoreMessage> streamResponseHandler = new StreamResponseHandler<IoTCoreMessage>() {
+            @Override
+            public void onStreamEvent(IoTCoreMessage streamEvent) {
+            }
+
+            @Override
+            public boolean onStreamError(Throwable error) {
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+            }
+        };
+        SubscribeToIoTCoreResponseHandler responseHandler = greengrassCoreIPCClient.subscribeToIoTCore(
+                subscribeToIoTCoreRequest, Optional.of(streamResponseHandler));
+
+        boolean gotUnauthorized = false;
+        try {
+            responseHandler.getResponse().get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            gotUnauthorized = e.getCause() instanceof UnauthorizedError;
+        }
+        assertTrue(gotUnauthorized, "RECEIVE_ONLY on an unauthorized topic must surface UnauthorizedError");
+        // No subscription was attempted.
+        verify(mqttClient, never()).subscribe(any(Subscribe.class));
     }
 
     @Test
