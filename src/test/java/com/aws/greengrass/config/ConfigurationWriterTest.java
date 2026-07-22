@@ -55,7 +55,7 @@ class ConfigurationWriterTest {
             // Create a Topic somewhere in the hierarchy
             config.lookup("a.x", "b", "c", "d", "e").withValue("Some Val");
             // Create another Topic and use a different data type as the value (number)
-            config.lookup("a.x", "b", "c.f", "d", "e2").withValue(2);
+            config.lookup("a.x", "b", "c.f", "d", "e2").withValue(2L);
             context.waitForPublishQueueToClear(); // Block until publish queue is empty to ensure all changes have
             // been processed
 
