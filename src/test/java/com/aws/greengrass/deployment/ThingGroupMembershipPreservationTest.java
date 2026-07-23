@@ -219,4 +219,33 @@ class ThingGroupMembershipPreservationTest {
                 "An authoritative empty membership response must keep removing: the device genuinely belongs "
                         + "to no thing groups");
     }
+
+    /**
+     * SCOPE-PINNING TEST (must pass with and without the fix): the unknown-membership fallback implies
+     * membership only for thing-group records ({@code thinggroup/} prefix — the only names a real membership
+     * lookup can return). A record whose name is not a thing group (for example a raw configuration ARN that
+     * failed to parse) must not be resurrected as a membership: its components are not added to the merge's
+     * preserved root set, so it cannot impose stale version constraints on later deployments.
+     */
+    @Test
+    void GIVEN_membership_unknown_WHEN_non_thing_group_record_exists_THEN_it_is_not_treated_as_membership()
+            throws Exception {
+        String nonThingGroupName = "SomeRawConfigurationArn";
+        String nonThingGroupComponent = "component3";
+        groupToRootConfig.lookupTopics(nonThingGroupName, nonThingGroupComponent)
+                .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenReturn(Optional.empty());
+        DeploymentDocument document = localDeploymentDocument();
+        mockSuccessfulPipeline(document);
+
+        createLocalDeploymentTask(document).call();
+
+        List<String> rootPackages = rootPackagesCaptor.getValue();
+        assertNotNull(rootPackages);
+        assertTrue(rootPackages.contains(ROOT_COMPONENT_NAME),
+                "The thing-group record's component must still be preserved");
+        assertFalse(rootPackages.contains(nonThingGroupComponent),
+                "A non-thing-group record must not be treated as a thing group membership by the "
+                        + "unknown-membership fallback");
+    }
 }
