@@ -277,6 +277,15 @@ public class DefaultDeploymentTask implements DeploymentTask {
         Optional<Set<String>> groupsForDeviceOpt;
         try {
             groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(maxAttemptCount);
+            if (!groupsForDeviceOpt.isPresent()) {
+                // Membership is unknown (the device is not configured to talk to the cloud, so no lookup was
+                // attempted). Unknown must not be treated as an authoritative "member of no thing groups" -
+                // that would drop every recorded group's components from the merge and delete the groups'
+                // records in the post-deployment cleanup. Fall back to the memberships implied by the
+                // persisted group records, exactly as the fetch-failure paths below do.
+                logger.atDebug().log("Thing group membership is unknown, falling back to persisted membership");
+                groupsForDeviceOpt = getPersistedMembershipInfo();
+            }
         } catch (GreengrassV2DataException e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 // Getting group hierarchy requires permission to call the ListThingGroupsForCoreDevice API which
@@ -340,8 +349,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         Topics groupsToRootPackages =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
         return Optional.of(groupsToRootPackages.children.values().stream().map(Node::getName)
-                .filter(g -> !LOCAL_DEPLOYMENT_GROUP_NAME.equals(g))
-                .filter(g -> !g.startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX))
+                .filter(g -> g.startsWith(ThingGroupHelper.THING_GROUP_RESOURCE_TYPE_PREFIX))
                 .collect(Collectors.toSet()));
     }
 
