@@ -349,8 +349,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         Topics groupsToRootPackages =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
         return Optional.of(groupsToRootPackages.children.values().stream().map(Node::getName)
-                .filter(g -> !LOCAL_DEPLOYMENT_GROUP_NAME.equals(g))
-                .filter(g -> !g.startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX))
+                .filter(g -> g.startsWith(ThingGroupHelper.THING_GROUP_RESOURCE_TYPE_PREFIX))
                 .collect(Collectors.toSet()));
     }
 
