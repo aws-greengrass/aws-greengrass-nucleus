@@ -120,6 +120,12 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_PROXY_PASSWORD = "password";
     public static final long COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES = 10_000_000_000L;
     public static final long DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS = 15L;
+    // Boot-time config.tlog compaction: when config.tlog (or its config.tlog~ backup) exceeds this many
+    // bytes at startup, rewrite it from the in-memory effective config to collapse accumulated duplicate
+    // no-op entries that slow tlog replay on every boot. Enabled by default at 10 MB; set 0 to disable.
+    public static final String BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES =
+            "bootConfigTlogCompactionThresholdBytes";
+    public static final long DEFAULT_BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES = 10_000_000L;
     public static final String DEVICE_PARAM_GG_DATA_PLANE_PORT = "greengrassDataPlanePort";
     private static final int GG_DATA_PLANE_PORT_DEFAULT = 8443;
 
@@ -164,6 +170,7 @@ public class DeviceConfiguration {
         handleLoggingConfig();
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
+        getBootConfigTlogCompactionThresholdBytes().dflt(DEFAULT_BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES);
         handleExistingSystemProperty();
         // reset the cache when device configuration changes
         onAnyChange((what, node) -> deviceConfigValidateCachedResult.set(null));
@@ -563,6 +570,10 @@ public class DeviceConfiguration {
 
     public Topic getComponentStoreMaxSizeBytes() {
         return getTopic(COMPONENT_STORE_MAX_SIZE_BYTES);
+    }
+
+    public Topic getBootConfigTlogCompactionThresholdBytes() {
+        return getTopic(BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES);
     }
 
     public Topic getDeploymentPollingFrequencySeconds() {

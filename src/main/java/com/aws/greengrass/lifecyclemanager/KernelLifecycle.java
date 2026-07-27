@@ -9,6 +9,7 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.componentmanager.plugins.docker.DockerApplicationManagerService;
 import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.ConfigurationWriter;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.EZPlugins;
@@ -39,6 +40,7 @@ import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.telemetry.TelemetryAgent;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.tes.TokenExchangeService;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RetryUtils;
@@ -90,6 +92,7 @@ public class KernelLifecycle {
     // TODO:  Use the enum from common library when available
     private static final String DEFAULT_PROVISIONING_POLICY = "PROVISION_IF_NOT_PROVISIONED";
     private static final String SYSTEM_SHUTDOWN_EVENT = "system-shutdown";
+    private static final String PATH_LOG_KEY = "path";
     private static final int MAX_PROVISIONING_PLUGIN_RETRY_ATTEMPTS = 3;
 
     public static final String MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION = "Multiple provisioning plugins found "
@@ -345,6 +348,20 @@ public class KernelLifecycle {
             if (!readFromTlog) {
                 kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
             }
+
+            // On a normal reboot config.tlog is only appended to, never rewritten, so a device that reboots
+            // frequently (never crossing the runtime 15k-entry auto-truncate, whose counter resets each boot)
+            // accumulates duplicate no-op entries without bound, slowing every subsequent boot's tlog replay.
+            // Compact here when over threshold, reusing the same crash-safe CommitableFile dump path.
+            try {
+                compactConfigTlogIfNeeded(transactionLogPath, readFromTlog);
+            } catch (IOException e) {
+                // Compaction is an optimization; a bloated-but-valid tlog still boots. Never let a failed
+                // dump (e.g. disk full) abort launch — log and continue; the next boot retries.
+                logger.atError().setCause(e).kv(PATH_LOG_KEY, transactionLogPath)
+                        .log("Failed to compact config.tlog at boot; continuing with uncompacted tlog");
+            }
+
             kernel.writeEffectiveConfig();
 
             // hook tlog to config so that changes over time are persisted to the tlog
@@ -353,6 +370,84 @@ public class KernelLifecycle {
         } catch (IOException ioe) {
             logger.atError().setEventType("nucleus-read-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);
+        }
+    }
+
+    /**
+     * Compact config.tlog and its backup at boot when either exceeds the configured size threshold.
+     *
+     * <p>Both gates reuse the existing atomic {@link Kernel#writeEffectiveConfigAsTransactionLog}
+     * (CommitableFile) path, and run before the append writer is attached, so there is no open-writer
+     * contention and no concurrent service writes:
+     * <ol>
+     *     <li>ACTIVE: on a normal reboot ({@code readFromTlog == true}) a bloated config.tlog is rewritten
+     *     from the in-memory effective config, collapsing duplicate no-op entries. The {@code !readFromTlog}
+     *     paths (deployment/rollback/recovery) already rewrote config.tlog above, so they skip this gate.</li>
+     *     <li>BACKUP: the dump above demotes the old (possibly bloated) config.tlog to config.tlog~. If that
+     *     backup is still over threshold, dump once more so the now-small config.tlog cascades into
+     *     config.tlog~, atomically evicting the bloated backup while keeping a valid, current first-tier
+     *     recovery copy. This gate also self-heals a crash that occurred between the two dumps on a
+     *     subsequent boot (active is small but the backup is still large).</li>
+     * </ol>
+     *
+     * @param transactionLogPath path to config.tlog
+     * @param readFromTlog       whether config was loaded from the existing tlog (a normal reboot)
+     * @throws IOException on failure to stat or rewrite the tlog
+     */
+    private void compactConfigTlogIfNeeded(Path transactionLogPath, boolean readFromTlog) throws IOException {
+        // Read the threshold without mutating the config tree; DeviceConfiguration seeds the default later.
+        Topic thresholdTopic = kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC,
+                DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DeviceConfiguration.BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES);
+        long threshold = DeviceConfiguration.DEFAULT_BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES;
+        Object rawValue = thresholdTopic == null ? null : thresholdTopic.getOnce();
+        if (rawValue instanceof Number) {
+            // Preserve the lenient numeric handling (e.g. a value deserialized as a float).
+            threshold = Coerce.toLong(rawValue);
+        } else if (rawValue != null) {
+            // Parse the raw string ourselves: Coerce.toLong collapses unparseable input to 0, which would
+            // be indistinguishable from the intentional disable value, so a typo would silently disable.
+            try {
+                threshold = Long.parseLong(Coerce.toString(rawValue).trim());
+            } catch (NumberFormatException e) {
+                logger.atWarn().kv("value", Coerce.toString(rawValue))
+                        .kv("defaultBytes", threshold)
+                        .log("Invalid bootConfigTlogCompactionThresholdBytes; using default");
+            }
+        }
+        if (threshold < 0) {
+            logger.atWarn().kv("value", threshold)
+                    .log("Negative bootConfigTlogCompactionThresholdBytes; treating as disabled");
+        }
+        if (threshold <= 0) {
+            return;
+        }
+
+        // Gate 1: compact a bloated active tlog on a normal reboot (the !readFromTlog paths already dumped).
+        if (readFromTlog && Files.exists(transactionLogPath)
+                && Files.size(transactionLogPath) > threshold) {
+            logger.atInfo().kv(PATH_LOG_KEY, transactionLogPath).kv("thresholdBytes", threshold)
+                    .kv("sizeBytes", Files.size(transactionLogPath))
+                    .log("config.tlog exceeds boot compaction threshold; compacting");
+            kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
+        }
+
+        // Gate 2: reclaim a bloated backup (config.tlog~) left by the demote above or by a prior boot.
+        Path backupTlogPath = CommitableFile.getBackupFile(transactionLogPath);
+        if (Files.exists(backupTlogPath) && Files.size(backupTlogPath) > threshold) {
+            logger.atInfo().kv(PATH_LOG_KEY, backupTlogPath).kv("thresholdBytes", threshold)
+                    .kv("sizeBytes", Files.size(backupTlogPath))
+                    .log("config.tlog~ backup exceeds threshold; compacting to reclaim space");
+            kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
+        }
+
+        // If the effective config itself exceeds the threshold, compaction can't get below it and would
+        // re-fire every boot. Warn so the operator can raise the threshold.
+        if (Files.exists(transactionLogPath) && Files.size(transactionLogPath) > threshold) {
+            logger.atWarn().kv(PATH_LOG_KEY, transactionLogPath).kv("thresholdBytes", threshold)
+                    .kv("sizeBytes", Files.size(transactionLogPath))
+                    .log("config.tlog still exceeds threshold after compaction; effective config may be larger "
+                            + "than the threshold — consider raising bootConfigTlogCompactionThresholdBytes");
         }
     }
 
