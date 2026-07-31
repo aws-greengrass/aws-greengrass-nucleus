@@ -33,6 +33,7 @@ import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreResponse;
+import software.amazon.awssdk.aws.greengrass.model.SubscriptionMode;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
@@ -58,6 +59,7 @@ public class MqttProxyIPCAgent {
     private static final String NO_TOPIC_ERROR = "Topic is required";
     private static final String NO_QOS_ERROR = "QoS is required";
     private static final String INVALID_QOS_ERROR = "Invalid QoS value";
+    private static final String INVALID_SUBSCRIPTION_MODE_ERROR = "Invalid subscription mode value";
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -199,9 +201,21 @@ public class MqttProxyIPCAgent {
                 }
 
                 Consumer<Publish> callback = this::forwardToSubscriber;
-                com.aws.greengrass.mqttclient.v5.QOS qos = validateQoS(request.getQosAsString(), serviceName);
-                Subscribe subscribeRequest = Subscribe.builder().callback(callback).topic(topic)
-                        .qos(qos).build();
+                // RECEIVE_ONLY registers on-device only: no cloud subscribe, qos ignored. An absent mode keeps the
+                // cloud path for pre-subscriptionMode clients. Any other mode has no branch here, so it is rejected.
+                String subscriptionMode = request.getSubscriptionModeAsString();
+                Subscribe.SubscribeBuilder subscribeBuilder = Subscribe.builder().callback(callback).topic(topic);
+                if (SubscriptionMode.RECEIVE_ONLY.getValue().equals(subscriptionMode)) {
+                    subscribeBuilder.skipCloudSubscribe(true);
+                } else if (subscriptionMode == null
+                        || SubscriptionMode.SUBSCRIBE_AND_RECEIVE.getValue().equals(subscriptionMode)) {
+                    subscribeBuilder.qos(validateQoS(request.getQosAsString(), serviceName));
+                } else {
+                    LOGGER.atError().kv(COMPONENT_NAME, serviceName).kv("subscriptionMode", subscriptionMode)
+                            .log(INVALID_SUBSCRIPTION_MODE_ERROR);
+                    throw new InvalidArgumentsError(INVALID_SUBSCRIPTION_MODE_ERROR + ": " + subscriptionMode);
+                }
+                Subscribe subscribeRequest = subscribeBuilder.build();
 
                 try {
                     subscribedTopic = topic;
