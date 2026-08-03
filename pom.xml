@@ -403,9 +403,11 @@
                             <excludes>
                                 <exclude>*</exclude>
                                 <exclude>codestyle/**</exclude>
+                                <exclude>scripts/**</exclude>
                                 <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
                                 <exclude>src/*/resources/**</exclude>
                                 <exclude>src/**/vendored/**</exclude>
+                                <exclude>src/**/awssdk/**</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>

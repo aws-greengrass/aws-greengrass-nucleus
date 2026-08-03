@@ -134,6 +134,14 @@ public class Kernel {
     static final String DEFAULT_CONFIG_YAML_FILE_WRITE = "effectiveConfig.yaml";
     static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
     public static final String DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE = "bootstrap.tlog";
+    /**
+     * Name of the factory reset snapshot file.
+     * This file is saved once when the device is first fully provisioned (isDeviceConfiguredToTalkToCloud() = true).
+     * It captures the post-provisioning identity config (thingName, cert, endpoints, region + nucleus defaults).
+     * The factory-reset.sh script restores config.tlog from this file to return the device to its provisioned state.
+     * Factory reset keeps alts/current as-is — no nucleus version rollback is performed.
+     */
+    public static final String FACTORY_RESET_TLOG_FILE = "factory-reset.tlog";
     public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
     private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
     public static final String GGC_VERSION_ENV = "GGC_VERSION";
@@ -379,11 +387,13 @@ public class Kernel {
     /**
      * When a config file gets read, it gets woven together from fragments from multiple sources.  This writes a fresh
      * copy of the config file, as it is, after the weaving-together process.
+     * Also saves the factory reset snapshot the first time the device is fully provisioned.
      */
     public void writeEffectiveConfig() {
         Path p = context.get(NucleusPaths.class).configPath();
         if (p != null) {
             writeEffectiveConfig(p.resolve(DEFAULT_CONFIG_YAML_FILE_WRITE));
+            saveFactoryResetSnapshotIfNeeded(p);
         }
     }
 
@@ -400,6 +410,114 @@ public class Kernel {
             logger.atInfo().setEventType("effective-config-dump-complete").addKeyValue("file", p).log();
         } catch (IOException t) {
             logger.atInfo().setEventType("effective-config-dump-error").setCause(t).addKeyValue("file", p).log();
+        }
+    }
+
+    /**
+     * Save a factory reset snapshot (factory-reset.tlog) if:
+     * 1. The snapshot does not yet exist (only saved once — first provisioning wins)
+     * 2. The device is fully provisioned (all identity fields are set)
+     *
+     * <p>This snapshot captures the post-provisioning state (identity + nucleus defaults, no deployed components)
+     * and is used by factory reset to restore the device to a clean state.
+     *
+     * @param configPath the config directory path
+     */
+    void saveFactoryResetSnapshotIfNeeded(Path configPath) {
+        Path snapshotPath = configPath.resolve(FACTORY_RESET_TLOG_FILE);
+        if (Files.exists(snapshotPath)) {
+            return;  // Snapshot already exists — never overwrite
+        }
+        try {
+            if (context.get(DeviceConfiguration.class).isDeviceConfiguredToTalkToCloud()) {
+                // Save an identity-only config snapshot — only the system.* namespace (IoT identity fields).
+                // Deliberately excludes services.* so that nucleus version and deployed component entries
+                // are NOT baked into the snapshot. On factory reset, initializeNucleusVersion() will
+                // set the version from the currently-running binary (via dflt()), and no stale component
+                // configs will be restored.
+                writeIdentityOnlySnapshot(snapshotPath);
+                logger.atInfo().log("Saved factory reset identity snapshot at {}", snapshotPath);
+            }
+        } catch (Exception e) {
+            logger.atWarn().setCause(e).log("Unable to save factory reset snapshot");
+        }
+    }
+
+    /**
+     * Write an identity-only transaction log snapshot containing the IoT identity and nucleus connectivity config.
+     *
+     * <p>The snapshot captures:
+     * <ul>
+     *   <li>{@code system.*} — cert paths, thing name, root CA, root path</li>
+     *   <li>{@code services.aws.greengrass.Nucleus.configuration.*} — awsRegion, iotDataEndpoint,
+     *       iotCredEndpoint, iotRoleAlias, and any other nucleus configuration</li>
+     *   <li>{@code services.aws.greengrass.Nucleus.componentType} — "NUCLEUS" marker</li>
+     * </ul>
+     *
+     * <p>The nucleus {@code version} is intentionally excluded. On the next boot after factory reset,
+     * {@code initializeNucleusVersion()} uses {@code .dflt()} which reads the version from the running
+     * binary's build recipe — ensuring the version always matches the currently installed binary,
+     * regardless of when the snapshot was taken or whether the nucleus was upgraded since provisioning.
+     *
+     * <p>All {@code services.*} entries for deployed components are excluded — the device starts clean.
+     *
+     * @param snapshotPath path to write the tlog snapshot
+     * @throws IOException if writing fails
+     */
+    void writeIdentityOnlySnapshot(Path snapshotPath) throws IOException {
+        // Use a separate Context/Configuration to avoid mutating the running config.
+        Context tempContext = new Context();
+        try {
+            Configuration identityConfig = new Configuration(tempContext);
+            long ts = System.currentTimeMillis();
+
+            // 1. Capture system.* (cert paths, thing name, rootCA, rootpath)
+            identityConfig.mergeMap(ts,
+                    Collections.singletonMap(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
+                            config.lookupTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY).toPOJO()));
+
+            // 2. Capture services.aws.greengrass.Nucleus:
+            //    - Only the 4 connectivity fields needed to connect to the cloud.
+            //    - componentType — needed for nucleus service identification
+            //    - version is deliberately OMITTED: initializeNucleusVersion() will set it via .dflt()
+            //      from the running binary's recipe.yaml on next boot, matching the installed version.
+            DeviceConfiguration deviceConfig = context.get(DeviceConfiguration.class);
+            String nucleusName = deviceConfig.getNucleusComponentName();
+
+            Map<String, Object> nucleusEntry = new HashMap<>();
+            nucleusEntry.put("componentType", "NUCLEUS");
+
+            // Only capture the 4 fields required to reconnect to the cloud.
+            // All other Nucleus configuration (jvmOptions, logging, etc.) is intentionally excluded
+            // so that factory reset produces a clean minimal config identical to a fresh provisioning.
+            Map<String, Object> connectivityConfig = new HashMap<>();
+            String[] connectivityFields = {
+                DeviceConfiguration.DEVICE_PARAM_AWS_REGION,
+                DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT,
+                DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT,
+                DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC
+            };
+            Topics nucleusConfigTopics = config.findTopics(
+                    SERVICES_NAMESPACE_TOPIC, nucleusName, CONFIGURATION_CONFIG_KEY);
+            if (nucleusConfigTopics != null) {
+                for (String field : connectivityFields) {
+                    Topic t = nucleusConfigTopics.find(field);
+                    if (t != null && t.getOnce() != null) {
+                        connectivityConfig.put(field, t.getOnce());
+                    }
+                }
+            }
+            if (!connectivityConfig.isEmpty()) {
+                nucleusEntry.put(CONFIGURATION_CONFIG_KEY, connectivityConfig);
+            }
+
+            identityConfig.mergeMap(ts,
+                    Collections.singletonMap(SERVICES_NAMESPACE_TOPIC,
+                            Collections.singletonMap(nucleusName, nucleusEntry)));
+
+            ConfigurationWriter.dump(identityConfig, snapshotPath);
+        } finally {
+            tempContext.close();
         }
     }
 
@@ -879,7 +997,7 @@ public class Kernel {
         List<String> directories = Arrays.asList("bin", "lib", "conf");
         List<String> files = Arrays.asList("LICENSE", "NOTICE", "README.md", "THIRD-PARTY-LICENSES",
                 "greengrass.service.template", "greengrass.service.procd.template", "greengrass.xml.template",
-                "greengrass.exe", "loader", "loader.cmd", "Greengrass.jar", "recipe.yaml");
+                "greengrass.exe", "loader", "loader.cmd", "factory-reset.sh", "Greengrass.jar", "recipe.yaml");
 
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
             @Override

@@ -17,9 +17,11 @@
         <fileSet>
             <directory>${basedir}/scripts</directory>
             <outputDirectory>/bin</outputDirectory>
+            <fileMode>0755</fileMode>
             <includes>
                 <include>loader.cmd</include>
                 <include>loader</include>
+                <include>factory-reset.sh</include>
                 <include>greengrass.service.template</include>
                 <include>greengrass.service.procd.template</include>
                 <include>greengrass.xml.template</include>

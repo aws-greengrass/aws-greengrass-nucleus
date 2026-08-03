@@ -1,8 +1,3 @@
-/*
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
 package software.amazon.awssdk.aws.greengrass;
 
 import java.lang.Override;
@@ -45,6 +40,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public static final String GET_COMPONENT_DETAILS = SERVICE_NAMESPACE + "#GetComponentDetails";
 
   public static final String GET_CLIENT_DEVICE_AUTH_TOKEN = SERVICE_NAMESPACE + "#GetClientDeviceAuthToken";
+
+  public static final String FACTORY_RESET = SERVICE_NAMESPACE + "#FactoryReset";
 
   public static final String PUBLISH_TO_TOPIC = SERVICE_NAMESPACE + "#PublishToTopic";
 
@@ -104,6 +101,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_TOPIC);
     SERVICE_OPERATION_SET.add(GET_COMPONENT_DETAILS);
     SERVICE_OPERATION_SET.add(GET_CLIENT_DEVICE_AUTH_TOKEN);
+    SERVICE_OPERATION_SET.add(FACTORY_RESET);
     SERVICE_OPERATION_SET.add(PUBLISH_TO_TOPIC);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CERTIFICATE_UPDATES);
     SERVICE_OPERATION_SET.add(VERIFY_CLIENT_DEVICE_IDENTITY);
@@ -197,6 +195,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setGetClientDeviceAuthTokenHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractGetClientDeviceAuthTokenOperationHandler> handler) {
     operationSupplierMap.put(GET_CLIENT_DEVICE_AUTH_TOKEN, handler);
+  }
+
+  public void setFactoryResetHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractFactoryResetOperationHandler> handler) {
+    operationSupplierMap.put(FACTORY_RESET, handler);
   }
 
   public void setPublishToTopicHandler(

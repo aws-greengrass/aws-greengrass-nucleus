@@ -21,6 +21,7 @@ import com.aws.greengrass.ipc.Startable;
 import com.aws.greengrass.ipc.modules.AuthorizationService;
 import com.aws.greengrass.ipc.modules.ComponentMetricIPCService;
 import com.aws.greengrass.ipc.modules.ConfigStoreIPCService;
+import com.aws.greengrass.ipc.modules.FactoryResetIPCService;
 import com.aws.greengrass.ipc.modules.LifecycleIPCService;
 import com.aws.greengrass.ipc.modules.MqttProxyIPCService;
 import com.aws.greengrass.ipc.modules.PubSubIPCService;
@@ -112,7 +113,7 @@ public class KernelLifecycle {
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCEventStreamService.class,
             AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
-            PubSubIPCService.class, ComponentMetricIPCService.class);
+            PubSubIPCService.class, ComponentMetricIPCService.class, FactoryResetIPCService.class);
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> postPluginStartables =
             Collections.singletonList(MqttProxyIPCService.class);
@@ -238,6 +239,9 @@ public class KernelLifecycle {
                     .getNucleusConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
             logger.atDebug().kv("PluginName", pluginName)
                     .log(UPDATED_PROVISIONING_MESSAGE);
+            // Persist the effective config immediately after provisioning completes so that the
+            // factory-reset.tlog snapshot is captured at the post-provisioning state (before any deployment).
+            kernel.writeEffectiveConfig();
         });
     }
 
