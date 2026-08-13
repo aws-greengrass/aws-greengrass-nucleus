@@ -17,6 +17,7 @@ import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,6 +55,8 @@ class InMemorySpoolTest {
     DeviceConfiguration deviceConfiguration;
 
     private Spool spool;
+    // Runs tasks on the calling thread to keep tests deterministic.
+    private final ExecutorService executorService = TestUtils.synchronousExecutorService();
     Configuration config = new Configuration(new Context());
     private static final String GG_SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
     private static final String SPOOL_STORAGE_TYPE_KEY = "storageType";
@@ -65,7 +69,7 @@ class InMemorySpoolTest {
     void beforeEach() throws SpoolerStoreException {
         config.lookup("spooler", GG_SPOOL_MAX_SIZE_IN_BYTES_KEY).withValue(25L);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(config.lookupTopics("spooler"));
-        spool = spy(new Spool(deviceConfiguration, kernel));
+        spool = spy(new Spool(deviceConfiguration, kernel, executorService));
     }
 
     @AfterEach
@@ -219,7 +223,7 @@ class InMemorySpoolTest {
         lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
-        spool = new Spool(deviceConfiguration, kernel);
+        spool = new Spool(deviceConfiguration, kernel, executorService);
         assertEquals(3, spool.getCurrentMessageCount());
     }
 
@@ -235,7 +239,7 @@ class InMemorySpoolTest {
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
         lenient().when(persistenceSpool.getAllMessageIds()).thenThrow(new IOException("Get all message IDs failed for Disk Spooler"));
 
-        spool = new Spool(deviceConfiguration, kernel);
+        spool = new Spool(deviceConfiguration, kernel, executorService);
         spool.addMessage(request);
         assertEquals(1, spool.getCurrentMessageCount());
     }
@@ -263,7 +267,7 @@ class InMemorySpoolTest {
                 when(persistenceSpool).add(anyLong(), any(SpoolMessage.class));
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
-        spool = new Spool(deviceConfiguration, kernel);
+        spool = new Spool(deviceConfiguration, kernel, executorService);
 
         assertEquals(3, spool.getCurrentMessageCount());
 
