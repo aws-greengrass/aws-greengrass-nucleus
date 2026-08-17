@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLogin
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UnknownDockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UserNotAuthorizedForDockerException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -46,6 +47,16 @@ public class DefaultDockerClient {
     private static final String DOCKER_PULL_TIMEOUT = "timeout";
     private static final String NO_SUCH_HOST = "no such host";
     private static final String DIAL_TCP = "dial tcp";
+
+    /**
+     * Errors that a retry cannot recover from, so a docker pull failing with one of these should fail fast.
+     */
+    private static final String MANIFEST_UNKNOWN = "manifest unknown";
+    private static final String NO_MATCHING_MANIFEST = "no matching manifest for";
+    private static final String INVALID_REFERENCE_FORMAT = "invalid reference format";
+    private static final String NO_SPACE_LEFT_ON_DEVICE = "no space left on device";
+    private static final String AUTHENTICATION_REQUIRED = "authentication required";
+    private static final String ACCESS_DENIED = "requested access to the resource is denied";
 
     /**
      * Sanity check for installation.
@@ -110,7 +121,9 @@ public class DefaultDockerClient {
      *                                             the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
      * @throws ConnectionException                 network error
-     * @throws DockerPullException                 unexpected error
+     * @throws DockerPullException                 an error that a retry cannot recover from, or, as
+     *                                             {@link UnknownDockerPullException}, an unrecognized error that may
+     *                                             be transient
      */
     public void pullImage(Image image) throws DockerServiceUnavailableException, InvalidImageOrAccessDeniedException,
             UserNotAuthorizedForDockerException, DockerPullException, ConnectionException {
@@ -135,16 +148,18 @@ public class DefaultDockerClient {
                     throw new InvalidImageOrAccessDeniedException(
                             String.format("Invalid image or login - %s", response.err));
                 }
-                if (response.err.contains(READ_CONNECTION_TIME_OUT)
-                        || response.err.contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
-                        || response.err.toLowerCase().contains(NET_HTTP_TIMEOUT)
-                        || response.err.toLowerCase().contains(REQUEST_CANCELED)
-                        || response.err.toLowerCase().contains(DOCKER_PULL_TIMEOUT)
-                        || response.err.toLowerCase().contains(NO_SUCH_HOST)
-                        || response.err.toLowerCase().contains(DIAL_TCP)) {
+                if (isConnectionError(response.err)) {
                     throw new ConnectionException(String.format("Network issue when docker pull - %s", response.err));
                 }
-                throw new DockerPullException(
+                if (isNonRetryableError(response.err)) {
+                    throw new DockerPullException(
+                            String.format("Unexpected error while trying to perform docker pull - %s", response.err),
+                            response.failureCause);
+                }
+                // The error is not recognized as either a network error or a non-retryable one. Assume it may be
+                // transient and let the caller apply a small, bounded number of retries rather than failing the
+                // deployment on the first attempt.
+                throw new UnknownDockerPullException(
                         String.format("Unexpected error while trying to perform docker pull - %s", response.err),
                         response.failureCause);
             }
@@ -152,6 +167,40 @@ public class DefaultDockerClient {
             throw new DockerPullException("Unexpected error while trying to perform docker pull",
                     response.failureCause);
         }
+    }
+
+    /**
+     * Check if a docker CLI error indicates a network-level failure, which is recoverable once connectivity
+     * is restored and so is retried indefinitely.
+     *
+     * @param err stderr emitted by the docker CLI
+     * @return true if the error is a known network error
+     */
+    static boolean isConnectionError(String err) {
+        String lowerCaseErr = err.toLowerCase();
+        return err.contains(READ_CONNECTION_TIME_OUT)
+                || err.contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
+                || lowerCaseErr.contains(NET_HTTP_TIMEOUT)
+                || lowerCaseErr.contains(REQUEST_CANCELED)
+                || lowerCaseErr.contains(DOCKER_PULL_TIMEOUT)
+                || lowerCaseErr.contains(NO_SUCH_HOST)
+                || lowerCaseErr.contains(DIAL_TCP);
+    }
+
+    /**
+     * Check if a docker CLI error is one that a retry cannot recover from, such as a missing image or a full disk.
+     *
+     * @param err stderr emitted by the docker CLI
+     * @return true if the error is known to be non-retryable
+     */
+    static boolean isNonRetryableError(String err) {
+        String lowerCaseErr = err.toLowerCase();
+        return lowerCaseErr.contains(MANIFEST_UNKNOWN)
+                || lowerCaseErr.contains(NO_MATCHING_MANIFEST)
+                || lowerCaseErr.contains(INVALID_REFERENCE_FORMAT)
+                || lowerCaseErr.contains(NO_SPACE_LEFT_ON_DEVICE)
+                || lowerCaseErr.contains(AUTHENTICATION_REQUIRED)
+                || lowerCaseErr.contains(ACCESS_DENIED);
     }
 
     /**

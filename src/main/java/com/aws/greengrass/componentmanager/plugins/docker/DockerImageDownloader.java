@@ -17,6 +17,7 @@ import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionE
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UnknownDockerPullException;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.CrashableSupplier;
@@ -35,6 +36,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
@@ -65,6 +67,16 @@ public class DockerImageDownloader extends ArtifactDownloader {
                     .maxRetryInterval(Duration.ofMinutes(32L)).maxAttempt(30).retryableExceptions(
                             Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
                             SdkClientException.class, ServerException.class)).build();
+
+    // A docker pull error that is recognized as neither a network error nor a non-retryable error may still be
+    // transient, so allow a small number of retries. Deliberately much shorter than finiteAttemptsRetryConfig: the
+    // error is not known to be recoverable, so this only needs to be long enough to ride out a brief blip before
+    // reporting the failure.
+    @Setter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig unknownErrorRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(10L))
+                    .maxRetryInterval(Duration.ofMinutes(2L)).maxAttempt(5).retryableExceptions(
+                            Collections.singletonList(UnknownDockerPullException.class)).build();
 
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig finiteDeleteAttemptsRetryConfig =
@@ -285,8 +297,11 @@ public class DockerImageDownloader extends ArtifactDownloader {
             throws PackageDownloadException, InterruptedException {
         try {
             // Finite retry attempts for errors that are not due to connectivity issues and
-            // might need explicit intervention to recover from
-            RetryUtils.runWithRetry(finiteAttemptsRetryConfig, () -> RetryUtils
+            // might need explicit intervention to recover from, and a shorter finite retry for errors that could
+            // not be classified at all
+            RetryUtils.runWithRetry(RetryUtils.DifferentiatedRetryConfig.builder()
+                            .retryConfigList(Arrays.asList(finiteAttemptsRetryConfig, unknownErrorRetryConfig)).build(),
+                    () -> RetryUtils
                     // Indefinite retry for errors that are due to connectivity issues and can be
                     // resolved when connectivity comes back
                     .runWithRetry(infiniteAttemptsRetryConfig, () -> runWithConnectionErrorCheck(task), description,
