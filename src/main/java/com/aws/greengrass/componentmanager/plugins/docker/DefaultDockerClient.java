@@ -69,11 +69,25 @@ public class DefaultDockerClient {
             "i/o timeout",
             "unexpected eof",
             "\": eof",
+            // TLS transport failures. Only wire-level failures are listed. An error saying the peer rejected our
+            // certificate, or that we do not trust theirs, is a configuration problem a retry cannot fix, so
+            // "x509:", "bad certificate" and "handshake failure" are deliberately absent.
+            "tls: use of closed connection",
+            "bad record mac",
+            "tls: internal error",
+            // HTTP/2 transport failures, matched on the package prefix for the same reason "net/http" is. A stream
+            // error carries no such prefix, so it is matched separately.
+            "http2:",
+            "stream error: stream id",
+            // Transport failures that containerd surfaces while copying an image layer, having discarded the
+            // net.OpError that produced them
+            "file already closed",
             // Timeouts and cancellations, which all mean the request did not complete rather than that the registry
             // rejected it
             "net/http",
             "timeout",
             "request canceled",
+            "context canceled",
             "context deadline exceeded",
             // Name resolution failures
             "no such host",

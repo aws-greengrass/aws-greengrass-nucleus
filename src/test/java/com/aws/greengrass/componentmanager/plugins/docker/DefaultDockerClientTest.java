@@ -43,6 +43,18 @@ class DefaultDockerClientTest {
             "Error response from daemon: Get \"https://1234.dkr.ecr.us-east-1.amazonaws.com/v2/\": dial tcp 1.2.3"
                     + ".4:443: connect: network is unreachable",
             "read tcp 10.0.0.1:52044->1.2.3.4:443: read: no route to host",
+            // Wire-level TLS failures, which do not arrive as a net.OpError
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": remote error: tls: bad record MAC",
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": tls: use of closed connection",
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": remote error: tls: internal error",
+            // HTTP/2 transport failures
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": http2: server sent GOAWAY and "
+                    + "closed the connection",
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": http2: client connection lost",
+            "failed to copy: stream error: stream ID 5; INTERNAL_ERROR; received from peer",
+            // Transport failures containerd surfaces after discarding the net.OpError
+            "failed to copy: read |0: file already closed",
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": context canceled",
             // A cause at the TCP layer that docker has not been observed emitting before is still classified by its
             // op prefix
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": read tcp 10.0.0.1:52044->1.2.3"
