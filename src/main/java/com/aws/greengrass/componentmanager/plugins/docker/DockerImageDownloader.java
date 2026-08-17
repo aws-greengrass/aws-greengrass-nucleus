@@ -58,7 +58,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig infiniteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
-                    .maxRetryInterval(Duration.ofMinutes(64L)).maxAttempt(Integer.MAX_VALUE).retryableExceptions(
+                    .maxRetryInterval(Duration.ofMinutes(5L)).maxAttempt(Integer.MAX_VALUE).retryableExceptions(
                         Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class))
                     .build();
     @Setter(AccessLevel.PACKAGE)
