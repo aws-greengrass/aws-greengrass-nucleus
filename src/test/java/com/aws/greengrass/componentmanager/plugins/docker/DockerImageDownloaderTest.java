@@ -685,8 +685,35 @@ public class DockerImageDownloaderTest {
 
         assertThrows(PackageDownloadException.class, () -> downloader.download());
 
-        // Bounded by unknownErrorRetryConfig's maxAttempt rather than failing on the first attempt
+        // The device is online per the default setup, so the error is not attributable to connectivity and the
+        // bounded unknownErrorRetryConfig applies rather than failing on the first attempt
         verify(dockerClient, times(3)).pullImage(image);
+    }
+
+    @Test
+    void GIVEN_unrecognized_pull_error_and_device_offline_WHEN_connectivity_is_back_THEN_retry_and_succeed(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, UnknownDockerPullException.class);
+        ignoreExceptionOfType(extensionContext, ConnectionException.class);
+        URI artifactUri = new URI("docker:alpine");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(mqttClient.getMqttOnline()).thenReturn(new AtomicBoolean(false));
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+        // Four failures exceeds unknownErrorRetryConfig's bound of 3 attempts, so succeeding on the fifth is only
+        // reachable if the offline device caused the error to be treated as a connection error and retried by
+        // infiniteAttemptsRetryConfig instead
+        doThrow(new UnknownDockerPullException("some error docker has not emitted before"))
+                .doThrow(new UnknownDockerPullException("some error docker has not emitted before"))
+                .doThrow(new UnknownDockerPullException("some error docker has not emitted before"))
+                .doThrow(new UnknownDockerPullException("some error docker has not emitted before")).doNothing()
+                .when(dockerClient).pullImage(image);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        downloader.download();
+
+        verify(dockerClient, times(5)).pullImage(image);
+        verify(mqttClient, times(4)).getMqttOnline();
     }
 
     @Test

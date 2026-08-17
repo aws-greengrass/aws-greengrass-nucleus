@@ -321,7 +321,15 @@ public class DockerImageDownloader extends ArtifactDownloader {
             // can be fixed with retries, explicitly check if an error could be due to connectivity problem
             // we infer that based on Mqtt connection, even though not perfect, it should accurately represent if
             // device is having connectivity issues most of the times.
-            if (e instanceof DockerServiceUnavailableException && !mqttClient.getMqttOnline().get()) {
+            // The same inference applies to a pull error that could not be classified at all. Classification depends
+            // on docker's stderr text, which is not a stable contract and cannot cover every transport failure, so
+            // the device's own connectivity is used as independent evidence: if it is offline, an unrecognized
+            // failure is far more likely to be that outage than anything the registry reported, and should be
+            // retried until connectivity returns rather than given up on after a bounded number of attempts. When
+            // the device is online the bounded retry still applies, so an error that is genuinely permanent
+            // continues to surface promptly.
+            if ((e instanceof DockerServiceUnavailableException || e instanceof UnknownDockerPullException)
+                    && !mqttClient.getMqttOnline().get()) {
                 throw new ConnectionException("Device appears to be offline, should retry the task", e);
             }
             throw e;
