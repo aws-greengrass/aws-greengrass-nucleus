@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -38,25 +40,56 @@ public class DefaultDockerClient {
     public static final Logger logger = LogManager.getLogger(DefaultDockerClient.class);
 
     /**
-     * connect error messages.
+     * Errors indicating that a docker pull failed at the network transport layer rather than being rejected by the
+     * registry. Such a failure is recoverable once connectivity is restored, so it is retried indefinitely.
+     *
+     * <p>Two shapes are matched. Go renders a {@code net.OpError} as
+     * {@code "<op> <net> <source>-><addr>: <cause>"}, so matching on the op prefix classifies a failure at the TCP
+     * layer regardless of which cause follows, including causes not seen before. Only {@code dial tcp} was matched
+     * previously, which covers a connection that fails to be established; a connection that dies mid-transfer
+     * instead reports {@code read tcp} or {@code write tcp}. The remaining entries are transport-level causes,
+     * matched on their own because docker and containerd also surface them without an op prefix, for example when
+     * wrapping an error raised while copying an image layer.
      */
-    private static final String READ_CONNECTION_TIME_OUT = "read: connection timed out";
-    private static final String NET_HTTP_TIMEOUT = "net/http";
-    private static final String TEMPORARY_FAILURE_IN_NAME_RESOLUTION = "Temporary failure in name resolution";
-    private static final String REQUEST_CANCELED = "request canceled";
-    private static final String DOCKER_PULL_TIMEOUT = "timeout";
-    private static final String NO_SUCH_HOST = "no such host";
-    private static final String DIAL_TCP = "dial tcp";
+    private static final List<String> CONNECTION_ERRORS = Collections.unmodifiableList(Arrays.asList(
+            // Go net.OpError op prefixes for the transport operations
+            "dial tcp",
+            "read tcp",
+            "write tcp",
+            // Transport-level causes
+            "connection reset by peer",
+            "connection refused",
+            "connection aborted",
+            "broken pipe",
+            "network is unreachable",
+            "network is down",
+            "host is unreachable",
+            "no route to host",
+            "read: connection timed out",
+            "i/o timeout",
+            "unexpected eof",
+            "\": eof",
+            // Timeouts and cancellations, which all mean the request did not complete rather than that the registry
+            // rejected it
+            "net/http",
+            "timeout",
+            "request canceled",
+            "context deadline exceeded",
+            // Name resolution failures
+            "no such host",
+            "temporary failure in name resolution",
+            "server misbehaving"));
 
     /**
      * Errors that a retry cannot recover from, so a docker pull failing with one of these should fail fast.
      */
-    private static final String MANIFEST_UNKNOWN = "manifest unknown";
-    private static final String NO_MATCHING_MANIFEST = "no matching manifest for";
-    private static final String INVALID_REFERENCE_FORMAT = "invalid reference format";
-    private static final String NO_SPACE_LEFT_ON_DEVICE = "no space left on device";
-    private static final String AUTHENTICATION_REQUIRED = "authentication required";
-    private static final String ACCESS_DENIED = "requested access to the resource is denied";
+    private static final List<String> NON_RETRYABLE_ERRORS = Collections.unmodifiableList(Arrays.asList(
+            "manifest unknown",
+            "no matching manifest for",
+            "invalid reference format",
+            "no space left on device",
+            "authentication required",
+            "requested access to the resource is denied"));
 
     /**
      * Sanity check for installation.
@@ -177,14 +210,7 @@ public class DefaultDockerClient {
      * @return true if the error is a known network error
      */
     static boolean isConnectionError(String err) {
-        String lowerCaseErr = err.toLowerCase();
-        return err.contains(READ_CONNECTION_TIME_OUT)
-                || err.contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
-                || lowerCaseErr.contains(NET_HTTP_TIMEOUT)
-                || lowerCaseErr.contains(REQUEST_CANCELED)
-                || lowerCaseErr.contains(DOCKER_PULL_TIMEOUT)
-                || lowerCaseErr.contains(NO_SUCH_HOST)
-                || lowerCaseErr.contains(DIAL_TCP);
+        return containsAny(err, CONNECTION_ERRORS);
     }
 
     /**
@@ -194,13 +220,12 @@ public class DefaultDockerClient {
      * @return true if the error is known to be non-retryable
      */
     static boolean isNonRetryableError(String err) {
-        String lowerCaseErr = err.toLowerCase();
-        return lowerCaseErr.contains(MANIFEST_UNKNOWN)
-                || lowerCaseErr.contains(NO_MATCHING_MANIFEST)
-                || lowerCaseErr.contains(INVALID_REFERENCE_FORMAT)
-                || lowerCaseErr.contains(NO_SPACE_LEFT_ON_DEVICE)
-                || lowerCaseErr.contains(AUTHENTICATION_REQUIRED)
-                || lowerCaseErr.contains(ACCESS_DENIED);
+        return containsAny(err, NON_RETRYABLE_ERRORS);
+    }
+
+    private static boolean containsAny(String err, List<String> lowerCaseNeedles) {
+        String lowerCaseErr = err.toLowerCase(Locale.ROOT);
+        return lowerCaseNeedles.stream().anyMatch(lowerCaseErr::contains);
     }
 
     /**
