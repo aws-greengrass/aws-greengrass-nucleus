@@ -43,6 +43,13 @@ class DefaultDockerClientTest {
             "Error response from daemon: Get \"https://1234.dkr.ecr.us-east-1.amazonaws.com/v2/\": dial tcp 1.2.3"
                     + ".4:443: connect: network is unreachable",
             "read tcp 10.0.0.1:52044->1.2.3.4:443: read: no route to host",
+            "read tcp 10.0.0.1:52044->1.2.3.4:443: read: network is down",
+            "Error response from daemon: Get \"https://1234.dkr.ecr.us-east-1.amazonaws.com/v2/\": dial tcp 1.2.3"
+                    + ".4:443: connect: host is unreachable",
+            "read tcp 10.0.0.1:52044->1.2.3.4:443: read: software caused connection aborted",
+            // Cancellations and DNS server faults
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": context deadline exceeded",
+            "dial tcp: lookup 1234.dkr.ecr.us-east-1.amazonaws.com on 10.0.0.53:53: server misbehaving",
             // Wire-level TLS failures, which do not arrive as a net.OpError
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": remote error: tls: bad record MAC",
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": tls: use of closed connection",

@@ -679,7 +679,7 @@ public class DockerImageDownloaderTest {
         URI artifactUri = new URI("docker:alpine");
         Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        doThrow(new UnknownDockerPullException("connection reset by peer")).when(dockerClient).pullImage(image);
+        doThrow(new UnknownDockerPullException("some error docker has not emitted before")).when(dockerClient).pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -723,7 +723,7 @@ public class DockerImageDownloaderTest {
         URI artifactUri = new URI("docker:alpine");
         Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        doThrow(new UnknownDockerPullException("connection reset by peer")).doNothing().when(dockerClient)
+        doThrow(new UnknownDockerPullException("some error docker has not emitted before")).doNothing().when(dockerClient)
                 .pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
