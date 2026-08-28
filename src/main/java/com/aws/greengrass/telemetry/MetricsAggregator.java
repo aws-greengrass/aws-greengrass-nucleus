@@ -14,6 +14,7 @@ import com.aws.greengrass.telemetry.impl.MetricFactory;
 import com.aws.greengrass.telemetry.impl.TelemetryLoggerMessage;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,7 +35,7 @@ import static com.aws.greengrass.telemetry.SystemMetricsEmitter.NAMESPACE;
 public class MetricsAggregator {
     public static final Logger logger = LogManager.getLogger(MetricsAggregator.class);
     protected static final String AGGREGATE_METRICS_FILE = "AggregateMetrics";
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper objectMapper = SerializerFactory.getJsonObjectMapper();
     private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
 
     /**
@@ -269,7 +270,7 @@ public class MetricsAggregator {
         });
 
         try {
-            logger.atDebug().kv("metrics", new ObjectMapper().writeValueAsString(aggUploadMetrics))
+            logger.atDebug().kv("metrics", objectMapper.writeValueAsString(aggUploadMetrics))
                     .log("Preparing to upload metrics");
         } catch (JsonProcessingException e) {
             logger.atWarn().setCause(e).log("Could not convert aggregated metrics to json, continuing");

@@ -23,7 +23,7 @@ import static com.aws.greengrass.util.Utils.isEmpty;
 public final class Coerce {
     private static final Pattern SEPARATORS = Pattern.compile(" *, *");
     private static final Pattern unwrap = Pattern.compile(" *\\[ *(.*) *\\] *");
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = SerializerFactory.getJsonObjectMapper();
 
     private Coerce() {
     }
