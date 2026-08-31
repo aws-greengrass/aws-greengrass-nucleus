@@ -613,7 +613,11 @@ public class DeviceConfiguration {
         try {
             // Strict parsing: Utils.parseLong and Coerce both return 0 for a value that is not a number,
             // which is indistinguishable from an explicit 0 and would read as no limit.
-            return Integer.parseInt(Objects.toString(configured, "").trim());
+            long configuredLimit = Long.parseLong(Objects.toString(configured, "").trim());
+            // Clamp rather than reject a value too large for an int. Someone writing one means "effectively
+            // unlimited", and rejecting it would fall back to the default — the most restrictive setting,
+            // and the opposite of what they asked for. No device is interrupted MAX_VALUE times.
+            return (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, configuredLimit));
         } catch (NumberFormatException e) {
             logger.atWarn().kv("configured", configured)
                     .kv("using", DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS)

@@ -102,6 +102,11 @@ class DeviceConfigurationTest {
 
         limitTopic.withValue("5");
         assertEquals(5, deviceConfiguration.getEffectiveMaxInterruptedDeploymentAttempts());
+
+        // A value too large for an int means "effectively unlimited", so it is clamped rather than
+        // rejected: falling back to the default would be the most restrictive setting instead.
+        limitTopic.withValue("99999999999999");
+        assertEquals(Integer.MAX_VALUE, deviceConfiguration.getEffectiveMaxInterruptedDeploymentAttempts());
     }
 
     @Test
