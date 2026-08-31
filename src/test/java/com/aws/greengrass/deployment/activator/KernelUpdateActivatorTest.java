@@ -106,11 +106,11 @@ class KernelUpdateActivatorTest {
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_takeConfigSnapshot_fails_THEN_deployment_fails(ExtensionContext context) throws Exception{
+    void GIVEN_deployment_activate_WHEN_takeRollbackSnapshot_fails_THEN_deployment_fails(ExtensionContext context) throws Exception{
         ignoreExceptionOfType(context, IOException.class);
 
         IOException mockIOE = new IOException();
-        doThrow(mockIOE).when(deploymentDirectoryManager).takeConfigSnapshot(any());
+        doThrow(mockIOE).when(deploymentDirectoryManager).takeRollbackSnapshot();
         kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
         verify(totallyCompleteFuture).complete(captor.capture());

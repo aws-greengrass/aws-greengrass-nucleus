@@ -66,6 +66,7 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_MEMBERSHIP_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentDirectoryManager.MAX_PROCESSING_ATTEMPTS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
@@ -89,6 +90,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -507,6 +509,60 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_STACK_KEY));
         assertListEquals(Arrays.asList("DEVICE_ERROR"),
                 (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_TYPES_KEY));
+    }
+
+    @Test
+    void GIVEN_deployment_interrupted_repeatedly_WHEN_attempt_limit_exceeded_THEN_report_failed_job_status(
+            ExtensionContext extContext)
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessage(extContext,
+                "Deployment was interrupted before completing on " + MAX_PROCESSING_ATTEMPTS
+                        + " attempts, which is the maximum allowed. The device has been restored to the "
+                        + "configuration from before the deployment. Deploy a new revision to change it.");
+
+        when(deploymentDirectoryManager.hasExhaustedProcessingAttempts()).thenReturn(true);
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        verify(mockExecutorService, times(0)).submit(any(DefaultDeploymentTask.class));
+        // Attempts are counted when a deployment is applied, not when it is received: the same deployment
+        // can be delivered several times while only some deliveries reach the point of changing anything.
+        verify(deploymentDirectoryManager, never()).incrementAndGetProcessingAttempts();
+    }
+
+    @Test
+    void GIVEN_deployment_already_used_up_its_attempts_WHEN_redelivered_THEN_reject_it(ExtensionContext extContext)
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessage(extContext,
+                "Deployment was interrupted before completing on " + MAX_PROCESSING_ATTEMPTS
+                        + " attempts, which is the maximum allowed, and the device has been restored to the "
+                        + "configuration from before it. Deploy a new revision to change the device's "
+                        + "configuration.");
+
+        when(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(any())).thenReturn(true);
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.REJECTED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        // Nothing is applied and no new deployment directory is created, so the record of the refusal
+        // survives for any further re-delivery.
+        verify(mockExecutorService, times(0)).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentDirectoryManager, never()).createNewDeploymentDirectory(any());
     }
 
     @Test

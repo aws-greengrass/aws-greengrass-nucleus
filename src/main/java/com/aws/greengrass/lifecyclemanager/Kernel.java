@@ -107,6 +107,7 @@ import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -159,7 +160,7 @@ public class Kernel {
     private final NucleusPaths nucleusPaths;
 
     private Collection<GreengrassService> cachedOD = null;
-    private DeploymentStage deploymentStageAtLaunch = DeploymentStage.DEFAULT;
+    private DeploymentStage deploymentStageAtLaunch = DEFAULT;
     private final Lock odLock = LockFactory.newReentrantLock("ODLock");
 
     /**
@@ -302,10 +303,43 @@ public class Kernel {
                 }
                 // fall through to launch kernel
             default:
+                if (DEFAULT.equals(deploymentStageAtLaunch)) {
+                    requeueAbandonedDeployment(deploymentDirectoryManager);
+                }
                 kernelLifecycle.launch();
                 break;
         }
         return this;
+    }
+
+    /**
+     * Re-queue a deployment that was interrupted before it reported a terminal status. A deployment
+     * requiring no nucleus restart leaves no resumable state behind, unlike the bootstrap and
+     * kernel-update stages, so without this it is silently abandoned while its merged, never verified
+     * configuration survives as the durable current state. Re-processing drives it to a terminal status
+     * instead, and the rollback snapshot that
+     * {@link DeploymentDirectoryManager#createNewDeploymentDirectory} carries forward keeps the
+     * pre-deployment configuration as the rollback target.
+     */
+    private void requeueAbandonedDeployment(DeploymentDirectoryManager deploymentDirectoryManager) {
+        if (!deploymentDirectoryManager.hasUnfinishedDeployment()) {
+            return;
+        }
+        try {
+            Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+            if (!DEFAULT.equals(deployment.getDeploymentStage())) {
+                return;
+            }
+            DeploymentQueue deploymentQueue = context.get(DeploymentQueue.class);
+            deploymentQueue.offer(deployment);
+            logger.atInfo().kv("deploymentId", deployment.getGreengrassDeploymentId())
+                    .log("Found a deployment that was interrupted before it completed. Re-processing it");
+        } catch (IOException | RuntimeException e) {
+            // Re-processing an interrupted deployment is a recovery step, so it must never keep the device
+            // from starting. A corrupt or unreadable metadata file would otherwise fail every launch.
+            logger.atError().setCause(e)
+                    .log("Failed to load information for the interrupted deployment. Proceed as default");
+        }
     }
 
     /**
@@ -733,6 +767,38 @@ public class Kernel {
                 }
                 break;
             default:
+                if (deploymentDirectoryManager.hasUnfinishedDeployment()
+                        && deploymentDirectoryManager.hasExhaustedProcessingAttempts()) {
+                    // Interrupted mid-activation on every allowed attempt, so this deployment's merged
+                    // configuration is durable but was never verified. Boot from its rollback snapshot
+                    // instead, which is the same config override the kernel-rollback stage uses. Doing it
+                    // before any service starts is what makes it safe: nothing has to be reconciled
+                    // afterwards. DeploymentService then reports the deployment failed.
+                    try {
+                        Path configPath = deploymentDirectoryManager.getSnapshotFilePath();
+                        if (Files.exists(configPath)) {
+                            configFileName = configPath.toString();
+                            logger.atWarn().kv(DEPLOYMENT_STAGE_LOG_KEY, stage).kv("rollbackConfigFile", configPath)
+                                    .log("Deployment was interrupted on every allowed attempt. Restoring the "
+                                            + "configuration from before it was applied");
+                            break;
+                        }
+                        logger.atError().kv("rollbackConfigFile", configPath)
+                                .log("Deployment was interrupted on every allowed attempt, but its rollback "
+                                        + "configuration is missing. Proceed as default");
+                    } catch (IOException | RuntimeException e) {
+                        // Restoring is a recovery step; never let it keep the device from starting.
+                        logger.atError().setCause(e).log("Deployment was interrupted on every allowed attempt, but "
+                                + "its rollback configuration could not be loaded. Proceed as default");
+                    }
+                }
+                if (deploymentDirectoryManager.hasUnfinishedDeployment()) {
+                    // The deployment is not resumable, but it is on disk and this launch will re-process
+                    // it, so reporting no ongoing deployment would mislead anyone reading the log.
+                    logger.atInfo().log("Found a deployment that did not complete. It is not resumable, so it "
+                            + "will be re-processed from the start");
+                    break;
+                }
                 logger.atInfo().log("No ongoing deployment detected. Proceed as default");
         }
         if (Utils.isEmpty(configFileName)) {

@@ -50,7 +50,7 @@ public abstract class DeploymentActivator {
             return false;
         }
         try {
-            deploymentDirectoryManager.takeConfigSnapshot(deploymentDirectoryManager.getSnapshotFilePath());
+            deploymentDirectoryManager.takeRollbackSnapshot();
             return true;
         } catch (IOException e) {
             // Failed to record snapshot hence did not execute merge, no rollback needed

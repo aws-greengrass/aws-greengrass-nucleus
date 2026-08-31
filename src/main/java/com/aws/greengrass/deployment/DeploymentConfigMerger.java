@@ -34,6 +34,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -226,7 +227,22 @@ public class DeploymentConfigMerger {
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes");
+        countProcessingAttempt(deploymentId);
         activator.activate(newConfig, deployment, configMergeTimestamp, totallyCompleteFuture);
+    }
+
+    /**
+     * Record that this deployment is being applied. Counting here rather than on receipt makes the count
+     * reflect attempts actually made, since only some deliveries of a deployment get this far.
+     */
+    private void countProcessingAttempt(String deploymentId) {
+        try {
+            kernel.getContext().get(DeploymentDirectoryManager.class).incrementAndGetProcessingAttempts();
+        } catch (IOException e) {
+            // Losing count is better than failing a deployment that is otherwise ready to apply.
+            logger.atWarn().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).setCause(e)
+                    .log("Unable to record this deployment attempt");
+        }
     }
 
     private boolean validateNucleusConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture,

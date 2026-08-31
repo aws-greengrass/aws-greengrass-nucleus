@@ -79,17 +79,13 @@ class DefaultActivatorTest {
     }
 
     @Test
-    void GIVEN_endpoint_switch_with_DO_NOTHING_WHEN_activate_THEN_snapshot_taken() throws Exception {
-        when(endpointSwitchState.isEndpointSwitchDeployment("testId")).thenReturn(true);
-        Path snapshotPath = mock(Path.class);
-        when(deploymentDirectoryManager.getSnapshotFilePath()).thenReturn(snapshotPath);
-
+    void GIVEN_rollback_not_requested_WHEN_activate_THEN_snapshot_taken() throws Exception {
         CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
 
         defaultActivator.activate(createNewConfig(), createDeployment(FailureHandlingPolicy.DO_NOTHING),
                 System.currentTimeMillis(), future);
 
-        verify(deploymentDirectoryManager).takeConfigSnapshot(snapshotPath);
+        verify(deploymentDirectoryManager).takeRollbackSnapshot();
     }
 
     @Test
@@ -97,8 +93,6 @@ class DefaultActivatorTest {
             ExtensionContext extContext) throws Exception {
         ignoreExceptionOfType(extContext, ServiceUpdateException.class);
         when(endpointSwitchState.isEndpointSwitchDeployment("testId")).thenReturn(true);
-        Path snapshotPath = mock(Path.class);
-        when(deploymentDirectoryManager.getSnapshotFilePath()).thenReturn(snapshotPath);
 
         CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
 
@@ -142,7 +136,9 @@ class DefaultActivatorTest {
 
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED,
                 future.get().getDeploymentStatus());
-        verify(deploymentDirectoryManager, never()).takeConfigSnapshot(any());
+        // The snapshot is taken regardless of policy so an interrupted deployment stays undoable; the
+        // policy governs only whether a failed deployment rolls back.
+        verify(deploymentDirectoryManager).takeRollbackSnapshot();
     }
 
     private Deployment createDeployment(FailureHandlingPolicy policy) {
@@ -155,6 +151,32 @@ class DefaultActivatorTest {
         when(deployment.getDeploymentDocumentObj()).thenReturn(doc);
         when(deployment.getId()).thenReturn("testId");
         return deployment;
+    }
+
+    @Test
+    void GIVEN_deployment_cancelled_after_merge_WHEN_services_wait_returns_THEN_deployment_stops() throws Exception {
+        lenient().doReturn(Collections.emptySet()).when(kernel).findAutoStartableServicesToTrack();
+
+        CompletableFuture<DeploymentResult> future = spy(new CompletableFuture<>());
+
+        // Cancel while the merge's listeners are running, i.e. after the configuration has been applied
+        // but before the services have been waited on — the window a superseding deployment lands in.
+        AtomicInteger callCount = new AtomicInteger();
+        doAnswer(i -> {
+            ((Crashable) i.getArgument(0)).run();
+            if (callCount.getAndIncrement() == 1) {
+                future.cancel(true);
+            }
+            return null;
+        }).when(context).runOnPublishQueueAndWait(any(Crashable.class));
+
+        defaultActivator.activate(createNewConfig(), createDeployment(FailureHandlingPolicy.ROLLBACK),
+                System.currentTimeMillis(), future);
+
+        // Neither completed as successful nor rolled back: a cancelled deployment stops where it is rather
+        // than removing services alongside the deployment that replaced it.
+        verify(future, never()).complete(any());
+        verify(defaultActivator, never()).rollback(any(), any(), any(), any());
     }
 
     private Map<String, Object> createNewConfig() {
