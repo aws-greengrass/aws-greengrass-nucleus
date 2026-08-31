@@ -71,6 +71,9 @@ class DefaultActivatorTest {
     @BeforeEach
     void beforeEach() {
         doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
+        // A deployment directory exists for every deployment DeploymentService submits.
+        lenient().doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
+
         lenient().doReturn(endpointSwitchState).when(context).get(EndpointSwitchState.class);
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();

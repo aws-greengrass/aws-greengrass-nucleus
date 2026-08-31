@@ -417,7 +417,7 @@ class KernelTest {
     void GIVEN_kernel_launch_WHEN_deployment_was_interrupted_without_completing_THEN_reprocess_it()
             throws Exception {
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
-        doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
         doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
                 .when(deploymentDirectoryManager).readDeploymentMetadata();
 
@@ -429,7 +429,7 @@ class KernelTest {
     @Test
     void GIVEN_kernel_launch_WHEN_no_deployment_in_progress_THEN_nothing_reprocessed() throws Exception {
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
-        doReturn(false).when(deploymentDirectoryManager).hasUnfinishedDeployment();
+        doReturn(false).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
 
         launchWithDefaultStage(deploymentDirectoryManager);
 
@@ -445,6 +445,7 @@ class KernelTest {
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
         doReturn(true).when(deploymentDirectoryManager).hasExhaustedProcessingAttempts();
         doReturn(snapshotPath).when(deploymentDirectoryManager).getSnapshotFilePath();
         doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
@@ -464,7 +465,7 @@ class KernelTest {
         ignoreExceptionOfType(context, RuntimeException.class);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
-        doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
         doThrow(new RuntimeException("corrupt metadata")).when(deploymentDirectoryManager).readDeploymentMetadata();
 
         KernelLifecycle kernelLifecycle = launchWithDefaultStage(deploymentDirectoryManager, false);

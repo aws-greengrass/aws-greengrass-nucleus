@@ -93,6 +93,8 @@ class KernelUpdateActivatorTest {
 
     @BeforeEach
     void beforeEach() {
+        // A deployment directory exists for every deployment DeploymentService submits.
+        lenient().doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
         doReturn(deploymentDirectoryManager).when(context).get(eq(DeploymentDirectoryManager.class));
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
         doReturn(nucleusPaths).when(kernel).getNucleusPaths();
