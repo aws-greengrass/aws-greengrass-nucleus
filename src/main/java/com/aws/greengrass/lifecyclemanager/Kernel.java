@@ -359,7 +359,7 @@ public class Kernel {
     // Catching RuntimeException is deliberate: see the catch block.
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void requeueAbandonedDeployment(DeploymentDirectoryManager deploymentDirectoryManager) {
-        if (!deploymentDirectoryManager.hasUnfinishedDeployment()) {
+        if (!deploymentDirectoryManager.hasReadableDeploymentMetadata()) {
             return;
         }
         try {

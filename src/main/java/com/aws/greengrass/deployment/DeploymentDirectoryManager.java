@@ -227,6 +227,21 @@ public class DeploymentDirectoryManager {
     }
 
     /**
+     * Whether an unfinished deployment's metadata is on disk and so can be re-processed. A deployment
+     * whose directory exists without metadata cannot be recovered, which is an ordinary state rather than
+     * a failure worth reporting.
+     *
+     * @return true if metadata for an unfinished deployment can be read
+     */
+    public boolean hasReadableDeploymentMetadata() {
+        try {
+            return hasUnfinishedDeployment() && Files.exists(getDeploymentMetadataFilePath());
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
      * Resolve snapshot file path.
      *
      * @return Path to snapshot file
@@ -384,6 +399,10 @@ public class DeploymentDirectoryManager {
      * @throws IOException on I/O errors
      */
     public int recordProcessingAttempt(int attemptLimit) throws IOException {
+        if (!hasUnfinishedDeployment()) {
+            // Nothing is tracking this deployment, so there is nowhere to keep a count.
+            return 0;
+        }
         Path deploymentDir = getDeploymentDirectoryPath();
         Files.write(deploymentDir.resolve(ATTEMPT_LIMIT_FILE),
                 String.valueOf(attemptLimit).getBytes(StandardCharsets.UTF_8));
@@ -399,6 +418,9 @@ public class DeploymentDirectoryManager {
      * @return the attempt count, or 0 if none is recorded
      */
     public int getProcessingAttempts() {
+        if (!hasUnfinishedDeployment()) {
+            return 0;
+        }
         try {
             return readNumber(getDeploymentDirectoryPath().resolve(PROCESSING_ATTEMPTS_FILE), 0);
         } catch (IOException e) {
@@ -415,6 +437,9 @@ public class DeploymentDirectoryManager {
      * @return true if the deployment has reached its attempt limit, false if it has not or has no limit
      */
     public boolean hasExhaustedProcessingAttempts() {
+        if (!hasUnfinishedDeployment()) {
+            return false;
+        }
         try {
             return hasExhaustedAttempts(getDeploymentDirectoryPath());
         } catch (IOException e) {

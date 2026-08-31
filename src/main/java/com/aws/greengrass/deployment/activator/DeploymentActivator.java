@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
 import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -48,6 +49,14 @@ public abstract class DeploymentActivator {
     protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture) {
          if (totallyCompleteFuture.isCancelled()) {
             return false;
+        }
+        if (!deploymentDirectoryManager.hasUnfinishedDeployment()) {
+            // No deployment directory, so there is nowhere to put a snapshot and nothing tracking this
+            // deployment that could use one. Proceed rather than failing: requiring a snapshot here would
+            // fail deployments that are applied without a directory having been created for them.
+            logger.atDebug().setEventType(MERGE_CONFIG_EVENT_KEY)
+                    .log("No deployment directory; skipping rollback snapshot");
+            return true;
         }
         try {
             deploymentDirectoryManager.takeRollbackSnapshot();
