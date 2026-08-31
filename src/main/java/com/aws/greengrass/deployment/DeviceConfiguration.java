@@ -599,6 +599,30 @@ public class DeviceConfiguration {
     }
 
     /**
+     * Get the interrupted-deployment attempt limit, falling back to the default if the configured value is
+     * not a number. Coercing the topic to a number would turn any such value into 0, which reads as no
+     * limit, so a typo would silently disable the protection rather than being noticed.
+     *
+     * @return the configured limit, or the default if it is not a number
+     */
+    public int getEffectiveMaxInterruptedDeploymentAttempts() {
+        Object configured = getMaxInterruptedDeploymentAttempts().getOnce();
+        if (configured instanceof Number) {
+            return ((Number) configured).intValue();
+        }
+        try {
+            // Strict parsing: Utils.parseLong and Coerce both return 0 for a value that is not a number,
+            // which is indistinguishable from an explicit 0 and would read as no limit.
+            return Integer.parseInt(Objects.toString(configured, "").trim());
+        } catch (NumberFormatException e) {
+            logger.atWarn().kv("configured", configured)
+                    .kv("using", DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS)
+                    .log("Invalid " + MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS + ", using default");
+            return DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS;
+        }
+    }
+
+    /**
      * Get s3 endpoint topic.
      *
      * @return s3 endpoint topic
