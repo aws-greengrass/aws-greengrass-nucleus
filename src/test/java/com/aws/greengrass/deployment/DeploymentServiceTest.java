@@ -66,7 +66,6 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_MEMBERSHIP_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentDirectoryManager.MAX_PROCESSING_ATTEMPTS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
@@ -82,6 +81,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -519,9 +519,9 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
                 groupToLastDeploymentTopics);
         ignoreExceptionUltimateCauseWithMessage(extContext,
-                "Deployment was interrupted before completing on " + MAX_PROCESSING_ATTEMPTS
-                        + " attempts, which is the maximum allowed. The device has been restored to the "
-                        + "configuration from before the deployment. Deploy a new revision to change it.");
+                "Deployment was interrupted before completing on every allowed attempt. The device has been "
+                        + "restored to the configuration from before the deployment. Deploy a new revision to "
+                        + "change it.");
 
         when(deploymentDirectoryManager.hasExhaustedProcessingAttempts()).thenReturn(true);
 
@@ -535,7 +535,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockExecutorService, times(0)).submit(any(DefaultDeploymentTask.class));
         // Attempts are counted when a deployment is applied, not when it is received: the same deployment
         // can be delivered several times while only some deliveries reach the point of changing anything.
-        verify(deploymentDirectoryManager, never()).incrementAndGetProcessingAttempts();
+        verify(deploymentDirectoryManager, never()).recordProcessingAttempt(anyInt());
     }
 
     @Test
@@ -545,10 +545,9 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
                 groupToLastDeploymentTopics);
         ignoreExceptionUltimateCauseWithMessage(extContext,
-                "Deployment was interrupted before completing on " + MAX_PROCESSING_ATTEMPTS
-                        + " attempts, which is the maximum allowed, and the device has been restored to the "
-                        + "configuration from before it. Deploy a new revision to change the device's "
-                        + "configuration.");
+                "Deployment was interrupted before completing on every allowed attempt, and the device has "
+                        + "been restored to the configuration from before it. Deploy a new revision to change the "
+                        + "device's configuration.");
 
         when(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(any())).thenReturn(true);
 

@@ -237,7 +237,8 @@ public class DeploymentConfigMerger {
      */
     private void countProcessingAttempt(String deploymentId) {
         try {
-            kernel.getContext().get(DeploymentDirectoryManager.class).incrementAndGetProcessingAttempts();
+            kernel.getContext().get(DeploymentDirectoryManager.class).recordProcessingAttempt(
+                    Coerce.toInt(deviceConfiguration.getMaxInterruptedDeploymentAttempts()));
         } catch (IOException e) {
             // Losing count is better than failing a deployment that is otherwise ready to apply.
             logger.atWarn().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).setCause(e)

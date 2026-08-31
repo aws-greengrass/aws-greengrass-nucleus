@@ -82,7 +82,6 @@ import static com.aws.greengrass.deployment.DefaultDeploymentTask.DEVICE_DEPLOYM
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.THING_GROUP_RESOURCE_NAME_PREFIX;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
-import static com.aws.greengrass.deployment.DeploymentDirectoryManager.MAX_PROCESSING_ATTEMPTS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
@@ -598,10 +597,9 @@ public class DeploymentService extends GreengrassService {
             logger.atWarn().kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
                     .log("Rejecting a deployment that already used up its processing attempts");
             updateDeploymentResultAsRejected(deployment, deploymentTask, new DeploymentRejectedException(
-                    "Deployment was interrupted before completing on " + MAX_PROCESSING_ATTEMPTS
-                            + " attempts, which is the maximum allowed, and the device has been restored to the "
-                            + "configuration from before it. Deploy a new revision to change the device's "
-                            + "configuration.", DeploymentErrorCode.DEPLOYMENT_INTERRUPTED));
+                    "Deployment was interrupted before completing on every allowed attempt, and the device has "
+                            + "been restored to the configuration from before it. Deploy a new revision to change "
+                            + "the device's configuration.", DeploymentErrorCode.DEPLOYMENT_INTERRUPTED));
             return;
         }
 
@@ -640,14 +638,13 @@ public class DeploymentService extends GreengrassService {
                 // terminal status stops the cloud re-delivering the deployment and releases the device to
                 // accept a newer one.
                 logger.atError().kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
-                        .kv("attempts", MAX_PROCESSING_ATTEMPTS)
+                        .kv("attempts", deploymentDirectoryManager.getProcessingAttempts())
                         .log("Deployment was interrupted before completing on every allowed attempt. Failing it "
                                 + "so the device can accept a newer deployment");
                 updateDeploymentResultAsFailed(deployment, deploymentTask, false, new DeploymentException(
-                        "Deployment was interrupted before completing on " + MAX_PROCESSING_ATTEMPTS
-                                + " attempts, which is the maximum allowed. The device has been restored to the "
-                                + "configuration from before the deployment. Deploy a new revision to change it.",
-                        DeploymentErrorCode.DEPLOYMENT_INTERRUPTED));
+                        "Deployment was interrupted before completing on every allowed attempt. The device has "
+                                + "been restored to the configuration from before the deployment. Deploy a new "
+                                + "revision to change it.", DeploymentErrorCode.DEPLOYMENT_INTERRUPTED));
                 return;
             }
 

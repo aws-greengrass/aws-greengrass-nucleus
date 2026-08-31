@@ -41,11 +41,11 @@ public class DeploymentDirectoryManager {
     static final String PROCESSING_ATTEMPTS_FILE = "processing_attempts";
 
     /**
-     * A deployment that never reaches a terminal status gets processed again, either by this device on
-     * the next launch or by the cloud re-delivering it after a reconnect. Cap those attempts so a
-     * deployment that reliably takes the device down cannot keep the device from accepting a newer one.
+     * The attempt limit is recorded next to the count rather than read when it is needed, because the
+     * launch consults the count before it has loaded any configuration. A deployment is therefore judged
+     * by the limit in force when it was applied, which is also the limit its operator chose.
      */
-    static final int MAX_PROCESSING_ATTEMPTS = 3;
+    static final String ATTEMPT_LIMIT_FILE = "processing_attempt_limit";
 
     // Files preserved from an unfinished deployment are parked here while its directory is cleaned up.
     private static final String PRESERVED_FILE_PREFIX = ".preserved-";
@@ -298,6 +298,8 @@ public class DeploymentDirectoryManager {
         final Path preservedSnapshot = stashFileFromUnfinishedDeployment(ROLLBACK_SNAPSHOT_FILE, null);
         final Path preservedAttempts =
                 stashFileFromUnfinishedDeployment(PROCESSING_ATTEMPTS_FILE, getSafeFileName(deploymentId));
+        final Path preservedLimit =
+                stashFileFromUnfinishedDeployment(ATTEMPT_LIMIT_FILE, getSafeFileName(deploymentId));
 
         cleanupPreviousDeployments(ongoingDir);
         Path path = deploymentsDir.resolve(getSafeFileName(deploymentId));
@@ -318,6 +320,7 @@ public class DeploymentDirectoryManager {
         Utils.createPaths(path);
         restorePreservedFile(preservedSnapshot, path.resolve(ROLLBACK_SNAPSHOT_FILE));
         restorePreservedFile(preservedAttempts, path.resolve(PROCESSING_ATTEMPTS_FILE));
+        restorePreservedFile(preservedLimit, path.resolve(ATTEMPT_LIMIT_FILE));
         Files.createSymbolicLink(ongoingDir, path);
 
         return path;
@@ -371,47 +374,69 @@ public class DeploymentDirectoryManager {
     }
 
     /**
-     * Increment and return the number of times the ongoing deployment has started processing. The
-     * counter follows the deployment across re-processing (see {@link #createNewDeploymentDirectory}),
-     * so it counts attempts that never reached a terminal state — for example because the nucleus was
-     * interrupted mid-activation.
+     * Record that the ongoing deployment has been applied, and return how many times that has now
+     * happened. The count follows the deployment across re-processing (see
+     * {@link #createNewDeploymentDirectory}), so it counts attempts that never reached a terminal state —
+     * for example because the nucleus was interrupted mid-activation.
      *
-     * @return the processing attempt number, starting at 1
+     * @param attemptLimit how many attempts this deployment is allowed, or below 1 for no limit
+     * @return the attempt number, starting at 1
      * @throws IOException on I/O errors
      */
-    public int incrementAndGetProcessingAttempts() throws IOException {
-        Path attemptsFile = getDeploymentDirectoryPath().resolve(PROCESSING_ATTEMPTS_FILE);
-        int attempts = readProcessingAttempts(attemptsFile) + 1;
+    public int recordProcessingAttempt(int attemptLimit) throws IOException {
+        Path deploymentDir = getDeploymentDirectoryPath();
+        Files.write(deploymentDir.resolve(ATTEMPT_LIMIT_FILE),
+                String.valueOf(attemptLimit).getBytes(StandardCharsets.UTF_8));
+        Path attemptsFile = deploymentDir.resolve(PROCESSING_ATTEMPTS_FILE);
+        int attempts = readNumber(attemptsFile, 0) + 1;
         Files.write(attemptsFile, String.valueOf(attempts).getBytes(StandardCharsets.UTF_8));
         return attempts;
     }
 
     /**
-     * Whether the ongoing deployment has used up its processing attempts. Once it has, processing it
-     * again would only repeat an attempt that never completes, so the caller should restore the device to
-     * the deployment's rollback snapshot and report it failed instead.
+     * How many times the ongoing deployment has been applied.
      *
-     * @return true if the deployment has been processed at least {@link #MAX_PROCESSING_ATTEMPTS} times
+     * @return the attempt count, or 0 if none is recorded
+     */
+    public int getProcessingAttempts() {
+        try {
+            return readNumber(getDeploymentDirectoryPath().resolve(PROCESSING_ATTEMPTS_FILE), 0);
+        } catch (IOException e) {
+            logger.atError().log("Unable to read the processing attempt count", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Whether the ongoing deployment has used up its attempts. Once it has, applying it again would only
+     * repeat an attempt that never completes, so the caller should restore the device to the deployment's
+     * rollback snapshot and report it failed instead.
+     *
+     * @return true if the deployment has reached its attempt limit, false if it has not or has no limit
      */
     public boolean hasExhaustedProcessingAttempts() {
         try {
-            return readProcessingAttempts(getDeploymentDirectoryPath().resolve(PROCESSING_ATTEMPTS_FILE))
-                    >= MAX_PROCESSING_ATTEMPTS;
+            return hasExhaustedAttempts(getDeploymentDirectoryPath());
         } catch (IOException e) {
             logger.atError().log("Unable to read the processing attempt count", e);
             return false;
         }
     }
 
-    private int readProcessingAttempts(Path attemptsFile) throws IOException {
-        if (!Files.exists(attemptsFile)) {
-            return 0;
+    private boolean hasExhaustedAttempts(Path deploymentDir) throws IOException {
+        int limit = readNumber(deploymentDir.resolve(ATTEMPT_LIMIT_FILE), 0);
+        return limit >= 1 && readNumber(deploymentDir.resolve(PROCESSING_ATTEMPTS_FILE), 0) >= limit;
+    }
+
+    private int readNumber(Path file, int fallback) throws IOException {
+        if (!Files.exists(file)) {
+            return fallback;
         }
         try {
-            return Integer.parseInt(new String(Files.readAllBytes(attemptsFile), StandardCharsets.UTF_8).trim());
+            return Integer.parseInt(new String(Files.readAllBytes(file), StandardCharsets.UTF_8).trim());
         } catch (NumberFormatException e) {
-            logger.atWarn().kv(FILE_LOG_KEY, attemptsFile).log("Unreadable processing attempt count. Resetting", e);
-            return 0;
+            logger.atWarn().kv(FILE_LOG_KEY, file).log("Unreadable number. Treating as absent", e);
+            return fallback;
         }
     }
 
@@ -432,8 +457,7 @@ public class DeploymentDirectoryManager {
             }
             Path failedDir = Files.readSymbolicLink(previousFailureDir).toAbsolutePath();
             return getSafeFileName(deploymentId).equals(failedDir.getFileName().toString())
-                    && readProcessingAttempts(failedDir.resolve(PROCESSING_ATTEMPTS_FILE))
-                            >= MAX_PROCESSING_ATTEMPTS;
+                    && hasExhaustedAttempts(failedDir);
         } catch (IOException e) {
             logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
                     .log("Unable to tell whether this deployment already used up its attempts", e);
