@@ -342,7 +342,7 @@ public class DeploymentDirectoryManager {
                 return null;
             }
             Path unfinishedDir = Files.readSymbolicLink(ongoingDir).toAbsolutePath();
-            if (requiredDirName != null && !requiredDirName.equals(unfinishedDir.getFileName().toString())) {
+            if (requiredDirName != null && !isDirectoryNamed(unfinishedDir, requiredDirName)) {
                 return null;
             }
             Path file = unfinishedDir.resolve(fileName);
@@ -456,13 +456,22 @@ public class DeploymentDirectoryManager {
                 return false;
             }
             Path failedDir = Files.readSymbolicLink(previousFailureDir).toAbsolutePath();
-            return getSafeFileName(deploymentId).equals(failedDir.getFileName().toString())
+            return isDirectoryNamed(failedDir, getSafeFileName(deploymentId))
                     && hasExhaustedAttempts(failedDir);
         } catch (IOException e) {
             logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
                     .log("Unable to tell whether this deployment already used up its attempts", e);
             return false;
         }
+    }
+
+    /**
+     * Whether a directory has the given name. A path has no file name when it is a root, so the name has
+     * to be null-checked before it is compared.
+     */
+    private static boolean isDirectoryNamed(Path directory, String name) {
+        Path fileName = directory.getFileName();
+        return fileName != null && name.equals(fileName.toString());
     }
 
     public static String getSafeFileName(String fleetConfigArn) {
