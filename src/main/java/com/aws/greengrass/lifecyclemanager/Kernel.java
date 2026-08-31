@@ -313,6 +313,41 @@ public class Kernel {
     }
 
     /**
+     * The configuration to launch from when a deployment has used up its attempts, or null when there is
+     * none. Interrupted mid-activation on every allowed attempt, such a deployment's merged configuration
+     * is durable but was never verified, so the device launches from its rollback snapshot instead — the
+     * same config override the kernel-rollback stage uses. Doing it before any service starts is what
+     * makes it safe: nothing has to be reconciled afterwards. DeploymentService then reports the
+     * deployment failed.
+     */
+    // Catching RuntimeException is deliberate: see the catch block.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private String configToRestoreAbandonedDeploymentFrom(DeploymentDirectoryManager deploymentDirectoryManager,
+                                                          DeploymentStage stage) {
+        if (!deploymentDirectoryManager.hasUnfinishedDeployment()
+                || !deploymentDirectoryManager.hasExhaustedProcessingAttempts()) {
+            return null;
+        }
+        try {
+            Path configPath = deploymentDirectoryManager.getSnapshotFilePath();
+            if (Files.exists(configPath)) {
+                logger.atWarn().kv(DEPLOYMENT_STAGE_LOG_KEY, stage).kv("rollbackConfigFile", configPath)
+                        .log("Deployment was interrupted on every allowed attempt. Restoring the configuration "
+                                + "from before it was applied");
+                return configPath.toString();
+            }
+            logger.atError().kv("rollbackConfigFile", configPath)
+                    .log("Deployment was interrupted on every allowed attempt, but its rollback configuration is "
+                            + "missing. Proceed as default");
+        } catch (IOException | RuntimeException e) {
+            // Restoring is a recovery step; never let it keep the device from starting.
+            logger.atError().setCause(e).log("Deployment was interrupted on every allowed attempt, but its "
+                    + "rollback configuration could not be loaded. Proceed as default");
+        }
+        return null;
+    }
+
+    /**
      * Re-queue a deployment that was interrupted before it reported a terminal status. A deployment
      * requiring no nucleus restart leaves no resumable state behind, unlike the bootstrap and
      * kernel-update stages, so without this it is silently abandoned while its merged, never verified
@@ -321,6 +356,8 @@ public class Kernel {
      * {@link DeploymentDirectoryManager#createNewDeploymentDirectory} carries forward keeps the
      * pre-deployment configuration as the rollback target.
      */
+    // Catching RuntimeException is deliberate: see the catch block.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void requeueAbandonedDeployment(DeploymentDirectoryManager deploymentDirectoryManager) {
         if (!deploymentDirectoryManager.hasUnfinishedDeployment()) {
             return;
@@ -767,30 +804,10 @@ public class Kernel {
                 }
                 break;
             default:
-                if (deploymentDirectoryManager.hasUnfinishedDeployment()
-                        && deploymentDirectoryManager.hasExhaustedProcessingAttempts()) {
-                    // Interrupted mid-activation on every allowed attempt, so this deployment's merged
-                    // configuration is durable but was never verified. Boot from its rollback snapshot
-                    // instead, which is the same config override the kernel-rollback stage uses. Doing it
-                    // before any service starts is what makes it safe: nothing has to be reconciled
-                    // afterwards. DeploymentService then reports the deployment failed.
-                    try {
-                        Path configPath = deploymentDirectoryManager.getSnapshotFilePath();
-                        if (Files.exists(configPath)) {
-                            configFileName = configPath.toString();
-                            logger.atWarn().kv(DEPLOYMENT_STAGE_LOG_KEY, stage).kv("rollbackConfigFile", configPath)
-                                    .log("Deployment was interrupted on every allowed attempt. Restoring the "
-                                            + "configuration from before it was applied");
-                            break;
-                        }
-                        logger.atError().kv("rollbackConfigFile", configPath)
-                                .log("Deployment was interrupted on every allowed attempt, but its rollback "
-                                        + "configuration is missing. Proceed as default");
-                    } catch (IOException | RuntimeException e) {
-                        // Restoring is a recovery step; never let it keep the device from starting.
-                        logger.atError().setCause(e).log("Deployment was interrupted on every allowed attempt, but "
-                                + "its rollback configuration could not be loaded. Proceed as default");
-                    }
+                String restoreFrom = configToRestoreAbandonedDeploymentFrom(deploymentDirectoryManager, stage);
+                if (!Utils.isEmpty(restoreFrom)) {
+                    configFileName = restoreFrom;
+                    break;
                 }
                 if (deploymentDirectoryManager.hasUnfinishedDeployment()) {
                     // The deployment is not resumable, but it is on disk and this launch will re-process

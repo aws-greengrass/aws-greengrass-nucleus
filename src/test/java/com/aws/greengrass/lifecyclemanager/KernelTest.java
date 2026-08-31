@@ -22,7 +22,6 @@ import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.spool.CloudMessageSpool;
@@ -98,6 +97,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
+// This test class was already at PMD's object-coupling limit before the interrupted-deployment
+// cases were added. Splitting it up is worth doing on its own, not as part of a bug fix.
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
             "  main:\n"
@@ -416,7 +418,7 @@ class KernelTest {
             throws Exception {
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
-        doReturn(new Deployment(mock(DeploymentDocument.class), Deployment.DeploymentType.IOT_JOBS, "mockId", DEFAULT))
+        doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
                 .when(deploymentDirectoryManager).readDeploymentMetadata();
 
         launchWithDefaultStage(deploymentDirectoryManager);
@@ -445,7 +447,7 @@ class KernelTest {
         doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
         doReturn(true).when(deploymentDirectoryManager).hasExhaustedProcessingAttempts();
         doReturn(snapshotPath).when(deploymentDirectoryManager).getSnapshotFilePath();
-        doReturn(new Deployment(mock(DeploymentDocument.class), Deployment.DeploymentType.IOT_JOBS, "mockId", DEFAULT))
+        doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
                 .when(deploymentDirectoryManager).readDeploymentMetadata();
 
         KernelLifecycle kernelLifecycle = launchWithDefaultStage(deploymentDirectoryManager, true);
