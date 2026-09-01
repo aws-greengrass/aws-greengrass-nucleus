@@ -605,6 +605,68 @@ class BootstrapManagerTest {
     }
 
     @Test
+    void GIVEN_invalid_noProxyAddresses_WHEN_isBootstrapRequired_THEN_deployment_rejected() {
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(kernel.getContext()).thenReturn(context);
+
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
+        Map<String, Object> config = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE, new HashMap<String, Object>() {{
+                            put(DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES, "*.sts.amazon.com");
+                        }});
+                    }});
+                }});
+            }});
+        }};
+
+        ComponentConfigurationValidationException e = assertThrows(ComponentConfigurationValidationException.class,
+                () -> bootstrapManager.isBootstrapRequired(config));
+        assertThat(e.getMessage(), stringContainsInOrder("Invalid noProxyAddresses", "*.sts.amazon.com"));
+    }
+
+    @Test
+    void GIVEN_valid_noProxyAddresses_with_stray_commas_WHEN_isBootstrapRequired_THEN_validation_passes()
+            throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(kernel.getContext()).thenReturn(context);
+
+        GenericExternalService service = mock(GenericExternalService.class);
+        doReturn(false).when(service).isBootstrapRequired(anyMap());
+        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
+        when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any()))
+                .thenReturn(SpoolerStorageType.Memory);
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+        Map<String, Object> runWith = mockRunWith;
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
+
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
+        Map<String, Object> config = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE, new HashMap<String, Object>() {{
+                            // stray commas are benign and must not fail the deployment
+                            put(DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES,
+                                    "sts.amazon.com,,data.iot.us-west-2.amazonaws.com,");
+                        }});
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+            }});
+        }};
+
+        // noProxyAddresses changed vs current config -> restart required, but no validation exception
+        assertTrue(bootstrapManager.isBootstrapRequired(config));
+    }
+
+    @Test
     void GIVEN_spooler_storage_type_changes_WHEN_isBootstrapRequired_THEN_return_true()
             throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
