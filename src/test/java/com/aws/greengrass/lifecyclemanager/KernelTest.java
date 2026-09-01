@@ -97,9 +97,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-// This test class was already at PMD's object-coupling limit before the interrupted-deployment
-// cases were added. Splitting it up is worth doing on its own, not as part of a bug fix.
-@SuppressWarnings("PMD.CouplingBetweenObjects")
+// This test class was already at PMD's object-coupling and class-length limits before the
+// interrupted-deployment cases were added. Splitting it up is worth doing on its own, not as part of a
+// bug fix.
+@SuppressWarnings({"PMD.CouplingBetweenObjects", "PMD.ExcessiveClassLength"})
 class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
             "  main:\n"
