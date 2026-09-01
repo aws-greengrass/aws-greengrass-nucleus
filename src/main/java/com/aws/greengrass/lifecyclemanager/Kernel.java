@@ -367,6 +367,16 @@ public class Kernel {
             if (!DEFAULT.equals(deployment.getDeploymentStage())) {
                 return;
             }
+            if (!Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
+                // A cloud deployment that never reported a terminal status is re-delivered by the cloud,
+                // with the document the cloud holds. Re-processing it from disk would only race that, and
+                // resolution from disk can fail where the cloud succeeds — turning a deployment that would
+                // have completed into a failed one. Local deployments get no re-delivery, so they are the
+                // case that needs re-processing here.
+                logger.atDebug().kv("deploymentId", deployment.getGreengrassDeploymentId())
+                        .log("Interrupted cloud deployment will be re-delivered; not re-processing it locally");
+                return;
+            }
             DeploymentQueue deploymentQueue = context.get(DeploymentQueue.class);
             deploymentQueue.offer(deployment);
             logger.atInfo().kv("deploymentId", deployment.getGreengrassDeploymentId())

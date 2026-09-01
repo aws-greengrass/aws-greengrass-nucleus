@@ -418,12 +418,27 @@ class KernelTest {
             throws Exception {
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
-        doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
+        doReturn(new Deployment("{}", Deployment.DeploymentType.LOCAL, "mockId"))
                 .when(deploymentDirectoryManager).readDeploymentMetadata();
 
         launchWithDefaultStage(deploymentDirectoryManager);
 
         assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(1));
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_interrupted_cloud_deployment_THEN_left_for_the_cloud_to_redeliver()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+        doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
+                .when(deploymentDirectoryManager).readDeploymentMetadata();
+
+        launchWithDefaultStage(deploymentDirectoryManager);
+
+        // Re-processing it from disk would race the cloud's own re-delivery, which carries the document
+        // the cloud holds and can resolve components this device cannot.
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
     }
 
     @Test
@@ -448,7 +463,7 @@ class KernelTest {
         doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
         doReturn(true).when(deploymentDirectoryManager).hasExhaustedProcessingAttempts();
         doReturn(snapshotPath).when(deploymentDirectoryManager).getSnapshotFilePath();
-        doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
+        doReturn(new Deployment("{}", Deployment.DeploymentType.LOCAL, "mockId"))
                 .when(deploymentDirectoryManager).readDeploymentMetadata();
 
         KernelLifecycle kernelLifecycle = launchWithDefaultStage(deploymentDirectoryManager, true);
