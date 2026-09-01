@@ -1,0 +1,6 @@
+target/
+coremqtt-jni/build/
+.git/
+test-config/
+Dockerfile
+.dockerignore

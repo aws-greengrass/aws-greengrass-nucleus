@@ -1,0 +1,34 @@
+{
+  "RecipeFormatVersion": "2020-01-25",
+  "ComponentName": "com.example.CoreMQTTPublisher",
+  "ComponentVersion": "1.1.0",
+  "ComponentDescription": "Publishes Hello World to IoT Core via coreMQTT PoC",
+  "ComponentPublisher": "PoC Test",
+  "ComponentConfiguration": {
+    "DefaultConfiguration": {
+      "accessControl": {
+        "aws.greengrass.ipc.mqttproxy": {
+          "com.example.CoreMQTTPublisher:mqttproxy:1": {
+            "policyDescription": "Allows publish to gg/coremqtt topic",
+            "operations": ["aws.greengrass#PublishToIoTCore"],
+            "resources": ["gg/coremqtt/*"]
+          }
+        }
+      }
+    }
+  },
+  "Manifests": [
+    {
+      "Platform": {
+        "os": "linux"
+      },
+      "Lifecycle": {
+        "install": "pip3 install 'awsiotsdk==1.19.0' 2>/dev/null || true",
+        "run": {
+          "script": "python3 -c \"\nimport json, time, signal, sys\ntry:\n    from awsiot.greengrasscoreipc.clientv2 import GreengrassCoreIPCClientV2\nexcept ImportError:\n    print('awsiotsdk not available', flush=True)\n    sys.exit(1)\n\nrunning = True\ndef handler(s,f): global running; running = False\nsignal.signal(signal.SIGTERM, handler)\n\nprint('Starting coreMQTT PoC publisher...', flush=True)\nipc = GreengrassCoreIPCClientV2()\ncount = 0\nwhile running:\n    count += 1\n    msg = json.dumps({'message': 'Hello from coreMQTT PoC!', 'count': count, 'timestamp': int(time.time())})\n    try:\n        ipc.publish_to_iot_core(topic_name='gg/coremqtt/hello', qos=1, payload=msg.encode())\n        print(f'Published #{count} to gg/coremqtt/hello', flush=True)\n    except Exception as e:\n        print(f'Error: {e}', flush=True)\n    time.sleep(10)\n\""
+        }
+      },
+      "Artifacts": []
+    }
+  ]
+}
