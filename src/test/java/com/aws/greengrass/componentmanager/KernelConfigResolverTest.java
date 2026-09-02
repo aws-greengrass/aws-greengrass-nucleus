@@ -1503,6 +1503,127 @@ class KernelConfigResolverTest {
         assertThat("Service B must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo:bar"));
     }
 
+    @Test
+    void GIVEN_component_upgrade_WHEN_config_resolution_requested_THEN_previous_version_rotates_to_replaced_version()
+            throws Exception {
+        // GIVEN a component running 1.0.0
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, KernelConfigResolver.VERSION_CONFIG_KEY)
+                .withValue("1.0.0");
+
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("2.0.0", Semver.SemverType.NPM));
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Collections.singletonList(DeploymentPackageConfiguration.builder()
+                        .packageName(TEST_INPUT_PACKAGE_A).rootComponent(true).resolvedVersion("=2.0.0").build()))
+                .timestamp(10_000L)
+                .build();
+
+        // WHEN deploying 2.0.0
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document, Collections.singletonMap(
+                componentIdentifier,
+                getPackage(TEST_INPUT_PACKAGE_A, "2.0.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_A)));
+
+        // THEN previousVersion names the version actually replaced
+        Map<String, Object> serviceConfig = getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig);
+        assertThat(serviceConfig, hasEntry(KernelConfigResolver.VERSION_CONFIG_KEY, "2.0.0"));
+        assertThat(serviceConfig, hasEntry(KernelConfigResolver.PREV_VERSION_CONFIG_KEY, "1.0.0"));
+    }
+
+    @Test
+    void GIVEN_deployment_of_running_version_WHEN_config_resolution_requested_THEN_previous_version_is_preserved()
+            throws Exception {
+        // GIVEN a component running 1.1.0 which replaced 1.0.0
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, KernelConfigResolver.VERSION_CONFIG_KEY)
+                .withValue("1.1.0");
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, KernelConfigResolver.PREV_VERSION_CONFIG_KEY)
+                .withValue("1.0.0");
+
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.1.0", Semver.SemverType.NPM));
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Collections.singletonList(DeploymentPackageConfiguration.builder()
+                        .packageName(TEST_INPUT_PACKAGE_A).rootComponent(true).resolvedVersion("=1.1.0").build()))
+                .timestamp(10_000L)
+                .build();
+
+        // WHEN deploying the version already running
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document, Collections.singletonMap(
+                componentIdentifier,
+                getPackage(TEST_INPUT_PACKAGE_A, "1.1.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_A)));
+
+        // THEN previousVersion still names the version 1.1.0 actually replaced, not 1.1.0 itself
+        Map<String, Object> serviceConfig = getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig);
+        assertThat(serviceConfig, hasEntry(KernelConfigResolver.VERSION_CONFIG_KEY, "1.1.0"));
+        assertThat(serviceConfig, hasEntry(KernelConfigResolver.PREV_VERSION_CONFIG_KEY, "1.0.0"));
+    }
+
+    @Test
+    void GIVEN_deployment_of_running_version_with_no_previous_version_WHEN_config_resolution_requested_THEN_none_is_written()
+            throws Exception {
+        // GIVEN a component running 1.0.0 that has never been upgraded
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, KernelConfigResolver.VERSION_CONFIG_KEY)
+                .withValue("1.0.0");
+
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.0.0", Semver.SemverType.NPM));
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Collections.singletonList(DeploymentPackageConfiguration.builder()
+                        .packageName(TEST_INPUT_PACKAGE_A).rootComponent(true).resolvedVersion("=1.0.0").build()))
+                .timestamp(10_000L)
+                .build();
+
+        // WHEN deploying the version already running
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document, Collections.singletonMap(
+                componentIdentifier,
+                getPackage(TEST_INPUT_PACKAGE_A, "1.0.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_A)));
+
+        // THEN no previousVersion is fabricated
+        Map<String, Object> serviceConfig = getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig);
+        assertThat(serviceConfig, hasEntry(KernelConfigResolver.VERSION_CONFIG_KEY, "1.0.0"));
+        assertThat(serviceConfig, not(hasKey(KernelConfigResolver.PREV_VERSION_CONFIG_KEY)));
+    }
+
+    @Test
+    void GIVEN_deployment_changing_one_component_WHEN_config_resolution_requested_THEN_unchanged_sibling_previous_version_is_preserved()
+            throws Exception {
+        // GIVEN component A running 1.0.0, and component B running 1.1.0 which replaced 1.0.0
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, KernelConfigResolver.VERSION_CONFIG_KEY)
+                .withValue("1.0.0");
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_B, KernelConfigResolver.VERSION_CONFIG_KEY)
+                .withValue("1.1.0");
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_B, KernelConfigResolver.PREV_VERSION_CONFIG_KEY)
+                .withValue("1.0.0");
+
+        ComponentIdentifier componentA =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("2.0.0", Semver.SemverType.NPM));
+        ComponentIdentifier componentB =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_B, new Semver("1.1.0", Semver.SemverType.NPM));
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Arrays.asList(
+                        DeploymentPackageConfiguration.builder().packageName(TEST_INPUT_PACKAGE_A).rootComponent(true)
+                                .resolvedVersion("=2.0.0").build(),
+                        DeploymentPackageConfiguration.builder().packageName(TEST_INPUT_PACKAGE_B).rootComponent(true)
+                                .resolvedVersion("=1.1.0").build()))
+                .timestamp(10_000L)
+                .build();
+
+        Map<ComponentIdentifier, ComponentRecipe> componentsToResolve = new HashMap<>();
+        componentsToResolve.put(componentA,
+                getPackage(TEST_INPUT_PACKAGE_A, "2.0.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_A));
+        componentsToResolve.put(componentB,
+                getPackage(TEST_INPUT_PACKAGE_B, "1.1.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_B));
+
+        // WHEN a deployment upgrades only component A, with B unchanged in the closure
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document, componentsToResolve);
+
+        // THEN the changed component rotates and the unchanged sibling is untouched
+        Map<String, Object> serviceConfigA = getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig);
+        assertThat(serviceConfigA, hasEntry(KernelConfigResolver.PREV_VERSION_CONFIG_KEY, "1.0.0"));
+        Map<String, Object> serviceConfigB = getServiceConfig(TEST_INPUT_PACKAGE_B, servicesConfig);
+        assertThat(serviceConfigB, hasEntry(KernelConfigResolver.VERSION_CONFIG_KEY, "1.1.0"));
+        assertThat(serviceConfigB, hasEntry(KernelConfigResolver.PREV_VERSION_CONFIG_KEY, "1.0.0"));
+    }
+
     private Map<String, Object> serviceConfigurationProperlyResolved(DeploymentDocument deploymentDocument,
                                                                      Map<ComponentIdentifier,
                                                                              ComponentRecipe> componentsToResolve)
