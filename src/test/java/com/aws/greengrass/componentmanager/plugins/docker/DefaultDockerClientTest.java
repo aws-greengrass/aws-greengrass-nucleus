@@ -6,10 +6,15 @@
 package com.aws.greengrass.componentmanager.plugins.docker;
 
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.Locale;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -96,5 +101,38 @@ class DefaultDockerClientTest {
     void GIVEN_unrecognized_error_WHEN_classified_THEN_neither_connection_nor_non_retryable(String err) {
         assertFalse(DefaultDockerClient.isConnectionError(err));
         assertFalse(DefaultDockerClient.isNonRetryableError(err));
+    }
+
+    /**
+     * Matching folds the case of the error text, so an entry carrying an upper case character could never match.
+     * Nothing else in the suite would catch that, since a needle that never matches only makes classification
+     * quietly miss an error it was meant to cover.
+     */
+    @Test
+    void GIVEN_error_lists_WHEN_inspected_THEN_every_entry_is_lower_case() {
+        Stream.concat(DefaultDockerClient.CONNECTION_ERRORS.stream(),
+                DefaultDockerClient.NON_RETRYABLE_ERRORS.stream())
+                .forEach(needle -> assertEquals(needle.toLowerCase(Locale.ROOT), needle,
+                        "\"" + needle + "\" must be lower case to be matchable"));
+    }
+
+    /**
+     * Case folding must not depend on the device's locale. Turkish is the case that breaks a locale-sensitive
+     * {@code toLowerCase()}: it maps {@code I} to a dotless i, so a needle spelled with an ASCII i stops matching
+     * error text containing {@code I}. Several entries rely on that fold, for example the stream error below, which
+     * docker writes as {@code stream ID}.
+     */
+    @Test
+    void GIVEN_locale_with_different_case_rules_WHEN_classified_THEN_classification_is_unchanged() {
+        Locale original = Locale.getDefault();
+        try {
+            Locale.setDefault(new Locale("tr", "TR"));
+            assertTrue(DefaultDockerClient
+                    .isConnectionError("failed to copy: stream error: stream ID 5; INTERNAL_ERROR"));
+            assertTrue(DefaultDockerClient.isNonRetryableError(
+                    "Error response from daemon: manifest for alpine:doesnotexist not found: manifest unknown"));
+        } finally {
+            Locale.setDefault(original);
+        }
     }
 }
