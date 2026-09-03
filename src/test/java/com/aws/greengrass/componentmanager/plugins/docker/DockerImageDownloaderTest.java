@@ -18,6 +18,7 @@ import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullE
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.RegistryAuthException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UnknownDockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UserNotAuthorizedForDockerException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -60,6 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -85,6 +87,11 @@ public class DockerImageDownloaderTest {
                     .maxRetryInterval(Duration.ofMillis(50L)).maxAttempt(2).retryableExceptions(
                             Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
                                     SdkClientException.class, ServerException.class)).build();
+
+    private final RetryUtils.RetryConfig unknownErrorRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(50L))
+                    .maxRetryInterval(Duration.ofMillis(50L)).maxAttempt(3).retryableExceptions(
+                            Collections.singletonList(UnknownDockerPullException.class)).build();
 
     private final RetryUtils.RetryConfig finiteDeleteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(50L))
@@ -666,12 +673,92 @@ public class DockerImageDownloaderTest {
         verify(dockerClient, times(1)).pullImage(image);
     }
 
+    @Test
+    void GIVEN_unrecognized_pull_error_WHEN_download_docker_image_THEN_retry_a_bounded_number_of_times(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, UnknownDockerPullException.class);
+        URI artifactUri = new URI("docker:alpine");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+        doThrow(new UnknownDockerPullException("some error docker has not emitted before")).when(dockerClient).pullImage(image);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        assertThrows(PackageDownloadException.class, () -> downloader.download());
+
+        // The device is online per the default setup, so the error is not attributable to connectivity and the
+        // bounded unknownErrorRetryConfig applies rather than failing on the first attempt
+        verify(dockerClient, times(3)).pullImage(image);
+    }
+
+    @Test
+    void GIVEN_unrecognized_pull_error_and_device_offline_WHEN_connectivity_is_back_THEN_retry_and_succeed(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, UnknownDockerPullException.class);
+        ignoreExceptionOfType(extensionContext, ConnectionException.class);
+        URI artifactUri = new URI("docker:alpine");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(mqttClient.getMqttOnline()).thenReturn(new AtomicBoolean(false));
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+        // Four failures exceeds unknownErrorRetryConfig's bound of 3 attempts, so succeeding on the fifth is only
+        // reachable if the offline device caused the error to be treated as a connection error and retried by
+        // infiniteAttemptsRetryConfig instead
+        doThrow(new UnknownDockerPullException("some error docker has not emitted before"))
+                .doThrow(new UnknownDockerPullException("some error docker has not emitted before"))
+                .doThrow(new UnknownDockerPullException("some error docker has not emitted before"))
+                .doThrow(new UnknownDockerPullException("some error docker has not emitted before")).doNothing()
+                .when(dockerClient).pullImage(image);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        downloader.download();
+
+        verify(dockerClient, times(5)).pullImage(image);
+        // Asserted loosely on purpose: the point is that connectivity was consulted, not how many times the
+        // implementation happens to read the flag
+        verify(mqttClient, atLeastOnce()).getMqttOnline();
+    }
+
+    @Test
+    void GIVEN_unrecognized_pull_error_WHEN_it_recovers_THEN_download_succeeds(ExtensionContext extensionContext)
+            throws Exception {
+        ignoreExceptionOfType(extensionContext, UnknownDockerPullException.class);
+        URI artifactUri = new URI("docker:alpine");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+        doThrow(new UnknownDockerPullException("some error docker has not emitted before")).doNothing().when(dockerClient)
+                .pullImage(image);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        downloader.download();
+
+        verify(dockerClient, times(2)).pullImage(image);
+    }
+
+    @Test
+    void GIVEN_non_retryable_pull_error_WHEN_download_docker_image_THEN_fail_without_retrying(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, DockerPullException.class);
+        URI artifactUri = new URI("docker:alpine");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+        doThrow(new DockerPullException("manifest unknown")).when(dockerClient).pullImage(image);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        assertThrows(PackageDownloadException.class, () -> downloader.download());
+
+        verify(dockerClient, times(1)).pullImage(image);
+    }
+
     private DockerImageDownloader getDownloader(URI artifactUri) {
         DockerImageDownloader downloader = new DockerImageDownloader(TEST_COMPONENT_ID,
                 ComponentArtifact.builder().artifactUri(artifactUri).build(), artifactDir, dockerClient, ecrAccessor,
                 mqttClient, componentStore);
         downloader.setInfiniteAttemptsRetryConfig(infiniteAttemptsRetryConfig);
         downloader.setFiniteAttemptsRetryConfig(finiteAttemptsRetryConfig);
+        downloader.setUnknownErrorRetryConfig(unknownErrorRetryConfig);
         downloader.setFiniteDeleteAttemptsRetryConfig(finiteDeleteAttemptsRetryConfig);
         return downloader;
     }
