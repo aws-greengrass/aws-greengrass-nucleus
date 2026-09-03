@@ -50,8 +50,11 @@ public class DefaultDockerClient {
      * instead reports {@code read tcp} or {@code write tcp}. The remaining entries are transport-level causes,
      * matched on their own because docker and containerd also surface them without an op prefix, for example when
      * wrapping an error raised while copying an image layer.
+     *
+     * <p>Every entry must be lower case, since {@link #containsAny} only folds the case of the error text it is
+     * matched against. {@code DefaultDockerClientTest} enforces this.
      */
-    private static final List<String> CONNECTION_ERRORS = Collections.unmodifiableList(Arrays.asList(
+    static final List<String> CONNECTION_ERRORS = Collections.unmodifiableList(Arrays.asList(
             // Go net.OpError op prefixes for the transport operations
             "dial tcp",
             "read tcp",
@@ -75,17 +78,22 @@ public class DefaultDockerClient {
             "tls: use of closed connection",
             "bad record mac",
             "tls: internal error",
-            // HTTP/2 transport failures, matched on the package prefix for the same reason "net/http" is. A stream
-            // error carries no such prefix, so it is matched separately.
-            "http2:",
+            // HTTP/2 transport failures. Matched as specific forms rather than on the "http2:" package prefix,
+            // because the prefix would also match framing and flow-control faults that are not connectivity
+            // problems and could persist, for example through a broken proxy. A stream error carries no package
+            // prefix, so it is matched separately.
+            "http2: server sent goaway",
+            "http2: client connection lost",
             "stream error: stream id",
             // Transport failures that containerd surfaces while copying an image layer, having discarded the
             // net.OpError that produced them
             "file already closed",
             // Timeouts and cancellations, which all mean the request did not complete rather than that the registry
-            // rejected it
+            // rejected it. The bare "timeout" that was previously matched is gone: "read: connection timed out",
+            // "i/o timeout" and "net/http" cover the forms it stood in for, and as a bare substring it could match
+            // an image name or registry prose and retry a permanent failure indefinitely. A timeout form matching
+            // none of these now gets the bounded unknown-error retry instead of failing outright.
             "net/http",
-            "timeout",
             "request canceled",
             "context canceled",
             "context deadline exceeded",
@@ -96,8 +104,10 @@ public class DefaultDockerClient {
 
     /**
      * Errors that a retry cannot recover from, so a docker pull failing with one of these should fail fast.
+     *
+     * <p>Lower case for the same reason as {@link #CONNECTION_ERRORS}.
      */
-    private static final List<String> NON_RETRYABLE_ERRORS = Collections.unmodifiableList(Arrays.asList(
+    static final List<String> NON_RETRYABLE_ERRORS = Collections.unmodifiableList(Arrays.asList(
             "manifest unknown",
             "no matching manifest for",
             "invalid reference format",
