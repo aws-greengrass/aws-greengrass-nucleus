@@ -72,10 +72,20 @@ public class DockerImageDownloader extends ArtifactDownloader {
     // transient, so allow a small number of retries. Deliberately much shorter than finiteAttemptsRetryConfig: the
     // error is not known to be recoverable, so this only needs to be long enough to ride out a brief blip before
     // reporting the failure.
+    //
+    // The attempt count is chosen against the offline fallback in runWithConnectionErrorCheck, which reads
+    // MqttClient's cached connection flag. That flag can lag a real outage by around 90 seconds with default
+    // keep-alive settings, so a shorter budget could expire before the device notices it is offline, defeating the
+    // fallback for the very outages it exists to catch. Seven attempts at this ceiling span roughly 195-390 seconds
+    // with jitter, which clears that lag on any draw.
+    //
+    // This bounds the retry tier, not the deployment: performDownloadSteps re-enters run() if the ECR credentials
+    // expire mid-pull, which starts a fresh budget. In practice that can happen at most once, since the refreshed
+    // token is valid for hours, so the effective worst case is about twice the figure above.
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig unknownErrorRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(10L))
-                    .maxRetryInterval(Duration.ofMinutes(2L)).maxAttempt(5).retryableExceptions(
+                    .maxRetryInterval(Duration.ofMinutes(2L)).maxAttempt(7).retryableExceptions(
                             Collections.singletonList(UnknownDockerPullException.class)).build();
 
     @Setter(AccessLevel.PACKAGE)
