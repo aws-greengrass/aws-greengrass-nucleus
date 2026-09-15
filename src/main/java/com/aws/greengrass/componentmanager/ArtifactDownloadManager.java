@@ -35,6 +35,9 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.builtins.ArtifactDownloader.ARTIFACT_URI_LOG_KEY;
+import static com.aws.greengrass.componentmanager.builtins.ArtifactDownloader.COMPONENT_IDENTIFIER_LOG_KEY;
+
 /**
  * Downloads artifacts for a batch of components, honoring the configured parallelism
  * (device configuration key {@code maxParallelDownloads}, default 1). All download tasks are
@@ -98,6 +101,8 @@ public class ArtifactDownloadManager {
             return;
         }
 
+        logger.atInfo().kv("numberOfArtifacts", downloadTasks.size()).kv("maxParallelDownloads", poolSize)
+                .log("Starting artifact downloads");
         ExecutorService downloadPool = Executors.newFixedThreadPool(poolSize);
         try {
             CompletionService<Void> completionService = new ExecutorCompletionService<>(downloadPool);
@@ -113,6 +118,8 @@ public class ArtifactDownloadManager {
                     remaining--;
                 }
             } catch (ExecutionException e) {
+                logger.atInfo().setCause(e)
+                        .log("An artifact download failed; cancelling all other in-flight and queued downloads");
                 submittedFutures.forEach(f -> f.cancel(true));
                 throw e;
             } catch (InterruptedException ie) {
@@ -123,6 +130,7 @@ public class ArtifactDownloadManager {
         } finally {
             downloadPool.shutdownNow();
         }
+        logger.atInfo().log("Finished artifact downloads");
     }
 
     private void checkAggregateDownloadSize(List<ArtifactDownloader> downloadersNeedingSizeCheck)
@@ -145,6 +153,9 @@ public class ArtifactDownloadManager {
             throws PackageDownloadException, InterruptedException, IOException, PackageLoadingException {
         ArtifactDownloader downloader = downloadTask.downloader;
         ComponentArtifact artifact = downloadTask.artifact;
+        logger.atDebug().kv(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
+                .kv(COMPONENT_IDENTIFIER_LOG_KEY, downloadTask.componentIdentifier.getName())
+                .log("Invoking download task for artifact");
 
         if (downloader.downloadRequired()) {
             Optional<String> errorMsg = downloader.checkDownloadable();
@@ -163,6 +174,9 @@ public class ArtifactDownloadManager {
         }
         setArtifactPermissionsIfNeeded(downloader, artifact);
         unarchiveIfNeeded(downloadTask);
+        logger.atDebug().kv(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
+                .kv(COMPONENT_IDENTIFIER_LOG_KEY, downloadTask.componentIdentifier.getName())
+                .log("Finished download task for artifact");
         return null;
     }
 
@@ -171,6 +185,8 @@ public class ArtifactDownloadManager {
         if (downloader.canSetFilePermissions()) {
             File artifactFile = downloader.getArtifactFile();
             if (artifactFile != null) {
+                logger.atDebug().kv(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
+                        .log("Setting artifact file permissions");
                 Permissions.setArtifactPermission(artifactFile.toPath(),
                         artifact.getPermission().toFileSystemPermission());
             }
@@ -193,6 +209,8 @@ public class ArtifactDownloadManager {
         }
         Path unarchivePath = nucleusPaths.unarchiveArtifactPath(downloadTask.componentIdentifier,
                 getFileName(artifactFile));
+        logger.atDebug().kv(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri()).kv("unarchiveType", unarchive)
+                .log("Unarchiving artifact");
         unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
         if (downloader.canSetFilePermissions()) {
             Permissions.setArtifactPermission(unarchivePath, artifact.getPermission().toFileSystemPermission());
