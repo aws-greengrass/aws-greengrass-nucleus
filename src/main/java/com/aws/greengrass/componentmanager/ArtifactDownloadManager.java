@@ -107,10 +107,8 @@ public class ArtifactDownloadManager {
             }
 
             try {
-                int remaining = downloadTasks.size();
-                while (remaining > 0) {
+                for (int i = downloadTasks.size(); i > 0; i--) {
                     completionService.take().get();
-                    remaining--;
                 }
             } catch (ExecutionException e) {
                 submittedFutures.forEach(f -> f.cancel(true));
