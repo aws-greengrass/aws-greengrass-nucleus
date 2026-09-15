@@ -32,7 +32,6 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -45,11 +44,6 @@ import javax.inject.Inject;
  */
 public class ArtifactDownloadManager {
     private static final Logger logger = LogManager.getLogger(ArtifactDownloadManager.class);
-    private static final ThreadFactory DAEMON_THREAD_FACTORY = r -> {
-        Thread t = new Thread(r);
-        t.setDaemon(true);
-        return t;
-    };
 
     private final ComponentStore componentStore;
     private final DeviceConfiguration deviceConfiguration;
@@ -104,7 +98,7 @@ public class ArtifactDownloadManager {
             return;
         }
 
-        ExecutorService downloadPool = Executors.newFixedThreadPool(poolSize, DAEMON_THREAD_FACTORY);
+        ExecutorService downloadPool = Executors.newFixedThreadPool(poolSize);
         try {
             CompletionService<Void> completionService = new ExecutorCompletionService<>(downloadPool);
             List<Future<Void>> submittedFutures = new ArrayList<>();
