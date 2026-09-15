@@ -23,8 +23,9 @@ import com.aws.greengrass.util.Permissions;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
@@ -102,28 +103,39 @@ public class ArtifactDownloadManager {
         }
 
         logger.atInfo().kv("numberOfArtifacts", downloadTasks.size()).kv("maxParallelDownloads", poolSize)
+                .kv("artifactUris", downloadTasks.stream().map(t -> t.artifact.getArtifactUri().toString())
+                        .collect(Collectors.toList()))
                 .log("Starting artifact downloads");
         ExecutorService downloadPool = Executors.newFixedThreadPool(poolSize);
         try {
             CompletionService<Void> completionService = new ExecutorCompletionService<>(downloadPool);
-            List<Future<Void>> submittedFutures = new ArrayList<>();
+            Map<Future<Void>, ArtifactDownloadTask> submittedFutures = new HashMap<>();
             for (ArtifactDownloadTask downloadTask : downloadTasks) {
-                submittedFutures.add(completionService.submit(() -> invokeDownloadTask(downloadTask)));
+                submittedFutures.put(completionService.submit(() -> invokeDownloadTask(downloadTask)), downloadTask);
             }
 
             try {
                 int remaining = downloadTasks.size();
                 while (remaining > 0) {
-                    completionService.take().get();
+                    Future<Void> completed = completionService.take();
+                    try {
+                        completed.get();
+                    } catch (ExecutionException e) {
+                        ArtifactDownloadTask failedTask = submittedFutures.get(completed);
+                        logger.atInfo().setCause(e)
+                                .kv(ARTIFACT_URI_LOG_KEY, failedTask.artifact.getArtifactUri())
+                                .kv(COMPONENT_IDENTIFIER_LOG_KEY, failedTask.componentIdentifier.getName())
+                                .log("An artifact download failed; cancelling all other in-flight and queued "
+                                        + "downloads");
+                        throw e;
+                    }
                     remaining--;
                 }
             } catch (ExecutionException e) {
-                logger.atInfo().setCause(e)
-                        .log("An artifact download failed; cancelling all other in-flight and queued downloads");
-                submittedFutures.forEach(f -> f.cancel(true));
+                submittedFutures.keySet().forEach(f -> f.cancel(true));
                 throw e;
             } catch (InterruptedException ie) {
-                submittedFutures.forEach(f -> f.cancel(true));
+                submittedFutures.keySet().forEach(f -> f.cancel(true));
                 logger.atInfo().setCause(ie).log("Interrupted while downloading artifacts.");
                 Thread.currentThread().interrupt();
             }
