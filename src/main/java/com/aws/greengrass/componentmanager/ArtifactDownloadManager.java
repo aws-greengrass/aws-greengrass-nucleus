@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -44,6 +45,11 @@ import javax.inject.Inject;
  */
 public class ArtifactDownloadManager {
     private static final Logger logger = LogManager.getLogger(ArtifactDownloadManager.class);
+    private static final ThreadFactory DAEMON_THREAD_FACTORY = r -> {
+        Thread t = new Thread(r);
+        t.setDaemon(true);
+        return t;
+    };
 
     private final ComponentStore componentStore;
     private final DeviceConfiguration deviceConfiguration;
@@ -98,7 +104,7 @@ public class ArtifactDownloadManager {
             return;
         }
 
-        ExecutorService downloadPool = Executors.newFixedThreadPool(poolSize);
+        ExecutorService downloadPool = Executors.newFixedThreadPool(poolSize, DAEMON_THREAD_FACTORY);
         try {
             CompletionService<Void> completionService = new ExecutorCompletionService<>(downloadPool);
             List<Future<Void>> submittedFutures = new ArrayList<>();
@@ -161,6 +167,13 @@ public class ArtifactDownloadManager {
         } else {
             logger.atDebug().log("Artifact download is not required for [{}]", artifact.getArtifactUri());
         }
+        setArtifactPermissionsIfNeeded(downloader, artifact);
+        unarchiveIfNeeded(downloadTask);
+        return null;
+    }
+
+    private void setArtifactPermissionsIfNeeded(ArtifactDownloader downloader, ComponentArtifact artifact)
+            throws IOException {
         if (downloader.canSetFilePermissions()) {
             File artifactFile = downloader.getArtifactFile();
             if (artifactFile != null) {
@@ -168,24 +181,28 @@ public class ArtifactDownloadManager {
                         artifact.getPermission().toFileSystemPermission());
             }
         }
-        if (downloader.canUnarchiveArtifact()) {
-            Unarchive unarchive = artifact.getUnarchive();
-            if (unarchive == null) {
-                unarchive = Unarchive.NONE;
-            }
-            File artifactFile = downloader.getArtifactFile();
-            if (artifactFile != null && !unarchive.equals(Unarchive.NONE)) {
-                ComponentIdentifier componentIdentifier = downloadTask.componentIdentifier;
-                Path unarchivePath = nucleusPaths.unarchiveArtifactPath(componentIdentifier,
-                        getFileName(artifactFile));
-                unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
-                if (downloader.canSetFilePermissions()) {
-                    Permissions.setArtifactPermission(unarchivePath, artifact.getPermission()
-                            .toFileSystemPermission());
-                }
-            }
+    }
+
+    private void unarchiveIfNeeded(ArtifactDownloadTask downloadTask) throws IOException {
+        ArtifactDownloader downloader = downloadTask.downloader;
+        if (!downloader.canUnarchiveArtifact()) {
+            return;
         }
-        return null;
+        ComponentArtifact artifact = downloadTask.artifact;
+        Unarchive unarchive = artifact.getUnarchive();
+        if (unarchive == null) {
+            unarchive = Unarchive.NONE;
+        }
+        File artifactFile = downloader.getArtifactFile();
+        if (artifactFile == null || unarchive.equals(Unarchive.NONE)) {
+            return;
+        }
+        Path unarchivePath = nucleusPaths.unarchiveArtifactPath(downloadTask.componentIdentifier,
+                getFileName(artifactFile));
+        unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
+        if (downloader.canSetFilePermissions()) {
+            Permissions.setArtifactPermission(unarchivePath, artifact.getPermission().toFileSystemPermission());
+        }
     }
 
     private static String getFileName(File f) {

@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
@@ -158,19 +159,25 @@ class ArtifactDownloadManagerTest {
     @Test
     void GIVEN_one_download_fails_WHEN_invoke_download_tasks_THEN_other_tasks_are_cancelled(
             ExtensionContext extensionContext) throws Exception {
+        CountDownLatch slowDownloadStarted = new CountDownLatch(1);
         ArtifactDownloader failingDownloader = mock(ArtifactDownloader.class);
         lenient().when(failingDownloader.downloadRequired()).thenReturn(true);
         lenient().when(failingDownloader.checkDownloadable()).thenReturn(Optional.empty());
         lenient().when(failingDownloader.checkComponentStoreSize()).thenReturn(true);
-        when(failingDownloader.download())
-                .thenThrow(new com.aws.greengrass.componentmanager.exceptions.PackageDownloadException("boom"));
+        // Wait for the slow download to actually start before failing, so the fail-fast cancellation has a
+        // real in-flight task to cancel rather than racing against it on wall-clock time.
+        when(failingDownloader.download()).thenAnswer(invocation -> {
+            slowDownloadStarted.await();
+            throw new com.aws.greengrass.componentmanager.exceptions.PackageDownloadException("boom");
+        });
 
         ArtifactDownloader slowDownloader = mock(ArtifactDownloader.class);
         lenient().when(slowDownloader.downloadRequired()).thenReturn(true);
         lenient().when(slowDownloader.checkDownloadable()).thenReturn(Optional.empty());
         lenient().when(slowDownloader.checkComponentStoreSize()).thenReturn(true);
         when(slowDownloader.download()).thenAnswer(invocation -> {
-            Thread.sleep(5_000);
+            slowDownloadStarted.countDown();
+            Thread.sleep(30_000);
             return new File("binary2");
         });
 
