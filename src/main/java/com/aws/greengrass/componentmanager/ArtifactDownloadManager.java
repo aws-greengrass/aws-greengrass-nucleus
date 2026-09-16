@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.SizeLimitException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.logging.api.Logger;
@@ -23,6 +24,7 @@ import com.aws.greengrass.util.Permissions;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,8 +72,13 @@ public class ArtifactDownloadManager {
         this.deviceConfiguration = deviceConfiguration;
         this.nucleusPaths = nucleusPaths;
         this.unarchiver = unarchiver;
-        deviceConfiguration.getMaxParallelDownloads().subscribe((what, topic) ->
-                this.poolSize = Coerce.toInt(deviceConfiguration.getMaxParallelDownloads()));
+        Topic maxParallelDownloadsTopic = deviceConfiguration.getMaxParallelDownloads();
+        if (maxParallelDownloadsTopic == null) {
+            this.poolSize = 1;
+        } else {
+            maxParallelDownloadsTopic.subscribe((what, topic) ->
+                    this.poolSize = Coerce.toInt(deviceConfiguration.getMaxParallelDownloads()));
+        }
     }
 
     /**
@@ -91,11 +98,23 @@ public class ArtifactDownloadManager {
      */
     public void invokeDownloadTasks(List<ArtifactDownloadTask> downloadTasks)
             throws SizeLimitException, ExecutionException, PackageLoadingException, PackageDownloadException {
+        List<ArtifactDownloader> downloadersNeedingSizeCheck = new ArrayList<>();
+        for (ArtifactDownloadTask downloadTask : downloadTasks) {
+            ArtifactDownloader downloader = downloadTask.downloader;
+            if (!downloader.checkComponentStoreSize() || !downloader.downloadRequired()) {
+                continue;
+            }
+            Optional<String> errorMsg = downloader.checkDownloadable();
+            if (errorMsg.isPresent()) {
+                throw new PackageDownloadException(
+                        String.format("Download required for artifact %s but device configs are invalid: %s",
+                                downloadTask.artifact.getArtifactUri(), errorMsg.get()),
+                        DeploymentErrorCode.DEVICE_CONFIG_NOT_VALID_FOR_ARTIFACT_DOWNLOAD);
+            }
+            downloadersNeedingSizeCheck.add(downloader);
+        }
         try {
-            checkAggregateDownloadSize(downloadTasks.stream()
-                    .filter(t -> t.downloader.checkComponentStoreSize())
-                    .map(t -> t.downloader)
-                    .collect(Collectors.toList()));
+            checkAggregateDownloadSize(downloadersNeedingSizeCheck);
         } catch (InterruptedException ie) {
             logger.atInfo().setCause(ie).log("Interrupted while checking aggregate download size.");
             Thread.currentThread().interrupt();
@@ -147,6 +166,9 @@ public class ArtifactDownloadManager {
 
     private void checkAggregateDownloadSize(List<ArtifactDownloader> downloadersNeedingSizeCheck)
             throws PackageDownloadException, InterruptedException, PackageLoadingException {
+        if (downloadersNeedingSizeCheck.isEmpty()) {
+            return;
+        }
         long totalDownloadSize = 0;
         for (ArtifactDownloader downloader : downloadersNeedingSizeCheck) {
             totalDownloadSize += downloader.getDownloadSize();
