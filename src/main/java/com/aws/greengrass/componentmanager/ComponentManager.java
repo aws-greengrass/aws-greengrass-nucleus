@@ -14,10 +14,8 @@ import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailabl
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
-import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
-import com.aws.greengrass.componentmanager.exceptions.SizeLimitException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -37,7 +35,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
-import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Requirement;
@@ -57,7 +54,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -75,7 +74,6 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERS
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
-import static org.apache.commons.io.FileUtils.ONE_MB;
 
 public class ComponentManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(ComponentManager.class);
@@ -83,13 +81,13 @@ public class ComponentManager implements InjectionActions {
     private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
     private static final String COMPONENT_STR = "component";
 
-    private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
 
     public static final String VERSION_NOT_FOUND_FAILURE_MESSAGE =
             "No local or cloud component version satisfies the requirements";
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
+    private final ArtifactDownloadManager artifactDownloadManager;
     private final ComponentServiceHelper componentServiceHelper;
     private final ExecutorService executorService;
     private final ComponentStore componentStore;
@@ -112,6 +110,7 @@ public class ComponentManager implements InjectionActions {
      * PackageManager constructor.
      *
      * @param artifactDownloaderFactory artifactDownloaderFactory
+     * @param artifactDownloadManager   artifactDownloadManager
      * @param componentServiceHelper    greengrassPackageServiceHelper
      * @param executorService           executorService
      * @param componentStore            componentStore
@@ -122,10 +121,12 @@ public class ComponentManager implements InjectionActions {
      */
     @Inject
     public ComponentManager(ArtifactDownloaderFactory artifactDownloaderFactory,
+                            ArtifactDownloadManager artifactDownloadManager,
                             ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
                             ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
                             DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
         this.artifactDownloaderFactory = artifactDownloaderFactory;
+        this.artifactDownloadManager = artifactDownloadManager;
         this.componentServiceHelper = componentServiceHelper;
         this.executorService = executorService;
         this.componentStore = componentStore;
@@ -393,22 +394,52 @@ public class ComponentManager implements InjectionActions {
      */
     public Future<Void> preparePackages(List<ComponentIdentifier> pkgIds) {
         return executorService.submit(() -> {
+            List<ArtifactDownloadManager.ArtifactDownloadTask> downloadTasks = new ArrayList<>();
             for (ComponentIdentifier componentIdentifier : pkgIds) {
-                if (Thread.currentThread().isInterrupted()) {
-                    logger.atInfo().log("Interrupted while preparing artifact for component {}.",
-                            componentIdentifier.getName());
-                    return null;
-                }
-                try {
-                    preparePackage(componentIdentifier);
-                } catch (InterruptedException ie) {
-                    logger.atInfo().log("Interrupted while preparing artifact for component {}.",
-                            componentIdentifier.getName());
-                    return null;
-                }
+                downloadTasks.addAll(buildDownloadTasksForComponent(componentIdentifier));
             }
+            artifactDownloadManager.invokeDownloadTasks(downloadTasks);
             return null;
         });
+    }
+
+    /**
+     * Build the download tasks for a single component: one task per artifact, with the component's artifact
+     * directory resolved once, sequentially, before any of its artifacts are handed off for download.
+     *
+     * @param componentIdentifier the component whose artifacts should be prepared for download
+     * @return the list of download tasks for this component's artifacts (empty if the component has none)
+     * @throws PackageLoadingException     when unable to access the package store
+     * @throws InvalidArtifactUriException when an artifact's URI cannot be resolved to a downloader
+     */
+    private List<ArtifactDownloadManager.ArtifactDownloadTask> buildDownloadTasksForComponent(
+            ComponentIdentifier componentIdentifier)
+            throws PackageLoadingException, InvalidArtifactUriException {
+        ComponentRecipe pkg = componentStore.getPackageRecipe(componentIdentifier);
+        List<ComponentArtifact> artifacts = pkg.getArtifacts();
+        if (Utils.isEmpty(artifacts)) {
+            if (DEFAULT_NUCLEUS_COMPONENT_NAME.equals(componentIdentifier.getName())) {
+                logger.atDebug().kv(PACKAGE_IDENTIFIER, componentIdentifier).log("Skipping Nucleus artifact"
+                        + " download as version to be deployed is already running");
+            } else {
+                logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
+                        .log("Artifact list was null, expected non-null and non-empty");
+            }
+            return Collections.emptyList();
+        }
+        Path packageArtifactDirectory = componentStore.resolveArtifactDirectoryPath(componentIdentifier);
+
+        logger.atDebug().setEventType("downloading-package-artifacts")
+                .addKeyValue(PACKAGE_IDENTIFIER, componentIdentifier).log();
+
+        List<ArtifactDownloadManager.ArtifactDownloadTask> downloadTasks = new ArrayList<>();
+        for (ComponentArtifact artifact : artifacts) {
+            ArtifactDownloader downloader = artifactDownloaderFactory
+                    .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory);
+            downloadTasks.add(
+                    new ArtifactDownloadManager.ArtifactDownloadTask(componentIdentifier, downloader, artifact));
+        }
+        return downloadTasks;
     }
 
     /**
@@ -431,131 +462,6 @@ public class ComponentManager implements InjectionActions {
             artifactDownloaderFactory
                     .checkDownloadPrerequisites(recipeOption.get().getArtifacts(), componentId, componentIds);
         }
-    }
-
-    private void preparePackage(ComponentIdentifier componentIdentifier)
-            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException,
-            InterruptedException {
-        logger.atInfo().setEventType("prepare-package-start").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
-        try {
-            ComponentRecipe pkg = componentStore.getPackageRecipe(componentIdentifier);
-            prepareArtifacts(componentIdentifier, pkg.getArtifacts());
-            logger.atDebug("prepare-package-finished").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
-        } catch (SizeLimitException e) {
-            logger.atError().log("Size limit reached", e);
-            throw e;
-        } catch (PackageLoadingException | PackageDownloadException e) {
-            logger.atError().log("Failed to prepare package {}", componentIdentifier, e);
-            throw e;
-        }
-    }
-
-    void prepareArtifacts(ComponentIdentifier componentIdentifier, List<ComponentArtifact> artifacts)
-            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException,
-            InterruptedException {
-        if (Utils.isEmpty(artifacts)) {
-            if (DEFAULT_NUCLEUS_COMPONENT_NAME.equals(componentIdentifier.getName())) {
-                logger.atDebug().kv(PACKAGE_IDENTIFIER, componentIdentifier).log("Skipping Nucleus artifact"
-                        + " download as version to be deployed is already running");
-            } else {
-                logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
-                        .log("Artifact list was null, expected non-null and non-empty");
-            }
-            return;
-        }
-        Path packageArtifactDirectory = componentStore.resolveArtifactDirectoryPath(componentIdentifier);
-
-        logger.atDebug().setEventType("downloading-package-artifacts")
-                .addKeyValue(PACKAGE_IDENTIFIER, componentIdentifier).log();
-
-        for (ComponentArtifact artifact : artifacts) {
-            ArtifactDownloader downloader = artifactDownloaderFactory
-                    .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory);
-            if (downloader.downloadRequired()) {
-                Optional<String> errorMsg = downloader.checkDownloadable();
-                if (errorMsg.isPresent()) {
-                    throw new PackageDownloadException(
-                            String.format("Download required for artifact %s but device configs are invalid: %s",
-                                    artifact.getArtifactUri(), errorMsg.get()),
-                            DeploymentErrorCode.DEVICE_CONFIG_NOT_VALID_FOR_ARTIFACT_DOWNLOAD);
-                }
-                // Check disk size limits before download
-                // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
-                long usableSpaceBytes = componentStore.getUsableSpace();
-                if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
-                    throw new SizeLimitException(
-                            String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
-                                    usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
-                }
-                if (downloader.checkComponentStoreSize()) {
-                    long downloadSize = downloader.getDownloadSize();
-                    long storeContentSize = componentStore.getContentSize();
-                    if (storeContentSize + downloadSize > getConfiguredMaxSize()) {
-                        throw new SizeLimitException(String.format(
-                                "Component store size limit reached: %d bytes existing, %d bytes needed"
-                                        + ", %d bytes maximum allowed total", storeContentSize, downloadSize,
-                                getConfiguredMaxSize()));
-                    }
-                }
-                try {
-                    downloader.download();
-                } catch (IOException e) {
-                    throw new PackageDownloadException(
-                            String.format("Failed to download component %s artifact %s", componentIdentifier, artifact),
-                            e);
-                }
-            } else {
-                logger.atDebug().log("Artifact download is not required for [{}]", artifact.getArtifactUri());
-            }
-            if (downloader.canSetFilePermissions()) {
-                File artifactFile = downloader.getArtifactFile();
-                if (artifactFile != null) {
-                    try {
-                        Permissions.setArtifactPermission(artifactFile.toPath(),
-                                artifact.getPermission().toFileSystemPermission());
-                    } catch (IOException e) {
-                        throw new PackageDownloadException(
-                                String.format("Failed to change permissions of component %s artifact %s",
-                                        componentIdentifier, artifact), e)
-                                .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
-                    }
-                }
-            }
-            if (downloader.canUnarchiveArtifact()) {
-                Unarchive unarchive = artifact.getUnarchive();
-                if (unarchive == null) {
-                    unarchive = Unarchive.NONE;
-                }
-
-                File artifactFile = downloader.getArtifactFile();
-                if (artifactFile != null && !unarchive.equals(Unarchive.NONE)) {
-                    try {
-                        Path unarchivePath =
-                                nucleusPaths.unarchiveArtifactPath(componentIdentifier, getFileName(artifactFile));
-                        unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
-                        if (downloader.canSetFilePermissions()) {
-                            try {
-                                Permissions.setArtifactPermission(unarchivePath,
-                                        artifact.getPermission().toFileSystemPermission());
-                            } catch (IOException e) {
-                                throw new PackageDownloadException(
-                                        String.format("Failed to change permissions of component %s artifact %s",
-                                                componentIdentifier, artifact), e)
-                                        .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
-                            }
-                        }
-                    } catch (IOException e) {
-                        throw new PackageDownloadException(
-                                String.format("Failed to unarchive component %s artifact %s", componentIdentifier,
-                                        artifact), e).withErrorContext(e, DeploymentErrorCode.IO_UNZIP_ERROR);
-                    }
-                }
-            }
-        }
-    }
-
-    private long getConfiguredMaxSize() {
-        return Coerce.toLong(deviceConfiguration.getComponentStoreMaxSizeBytes());
     }
 
     /**
