@@ -55,7 +55,6 @@ public class ArtifactDownloadManager {
     private final DeviceConfiguration deviceConfiguration;
     private final NucleusPaths nucleusPaths;
     private final Unarchiver unarchiver;
-    private int poolSize;
 
     /**
      * Constructor.
@@ -72,13 +71,12 @@ public class ArtifactDownloadManager {
         this.deviceConfiguration = deviceConfiguration;
         this.nucleusPaths = nucleusPaths;
         this.unarchiver = unarchiver;
-        Topic maxParallelDownloadsTopic = deviceConfiguration.getMaxParallelDownloads();
-        if (maxParallelDownloadsTopic == null) {
-            this.poolSize = 1;
-        } else {
-            maxParallelDownloadsTopic.subscribe((what, topic) ->
-                    this.poolSize = Coerce.toInt(deviceConfiguration.getMaxParallelDownloads()));
-        }
+    }
+
+    private int getMaxParallelDownloads() {
+        Topic topic = deviceConfiguration.getMaxParallelDownloads();
+        // A mocked DeviceConfiguration in tests can return null here; fall back to today's sequential default.
+        return topic == null ? 1 : Coerce.toInt(topic);
     }
 
     /**
@@ -98,29 +96,15 @@ public class ArtifactDownloadManager {
      */
     public void invokeDownloadTasks(List<ArtifactDownloadTask> downloadTasks)
             throws SizeLimitException, ExecutionException, PackageLoadingException, PackageDownloadException {
-        List<ArtifactDownloader> downloadersNeedingSizeCheck = new ArrayList<>();
-        for (ArtifactDownloadTask downloadTask : downloadTasks) {
-            ArtifactDownloader downloader = downloadTask.downloader;
-            if (!downloader.checkComponentStoreSize() || !downloader.downloadRequired()) {
-                continue;
-            }
-            Optional<String> errorMsg = downloader.checkDownloadable();
-            if (errorMsg.isPresent()) {
-                throw new PackageDownloadException(
-                        String.format("Download required for artifact %s but device configs are invalid: %s",
-                                downloadTask.artifact.getArtifactUri(), errorMsg.get()),
-                        DeploymentErrorCode.DEVICE_CONFIG_NOT_VALID_FOR_ARTIFACT_DOWNLOAD);
-            }
-            downloadersNeedingSizeCheck.add(downloader);
-        }
         try {
-            checkAggregateDownloadSize(downloadersNeedingSizeCheck);
+            checkAggregateDownloadSize(collectDownloadersNeedingSizeCheck(downloadTasks));
         } catch (InterruptedException ie) {
             logger.atInfo().setCause(ie).log("Interrupted while checking aggregate download size.");
             Thread.currentThread().interrupt();
             return;
         }
 
+        int poolSize = getMaxParallelDownloads();
         logger.atInfo().kv("numberOfArtifacts", downloadTasks.size()).kv("maxParallelDownloads", poolSize)
                 .kv("artifactUris", downloadTasks.stream().map(t -> t.artifact.getArtifactUri().toString())
                         .collect(Collectors.toList()))
@@ -162,6 +146,26 @@ public class ArtifactDownloadManager {
             downloadPool.shutdownNow();
         }
         logger.atInfo().log("Finished artifact downloads");
+    }
+
+    private List<ArtifactDownloader> collectDownloadersNeedingSizeCheck(List<ArtifactDownloadTask> downloadTasks)
+            throws PackageDownloadException {
+        List<ArtifactDownloader> downloadersNeedingSizeCheck = new ArrayList<>();
+        for (ArtifactDownloadTask downloadTask : downloadTasks) {
+            ArtifactDownloader downloader = downloadTask.downloader;
+            if (!downloader.checkComponentStoreSize() || !downloader.downloadRequired()) {
+                continue;
+            }
+            Optional<String> errorMsg = downloader.checkDownloadable();
+            if (errorMsg.isPresent()) {
+                throw new PackageDownloadException(
+                        String.format("Download required for artifact %s but device configs are invalid: %s",
+                                downloadTask.artifact.getArtifactUri(), errorMsg.get()),
+                        DeploymentErrorCode.DEVICE_CONFIG_NOT_VALID_FOR_ARTIFACT_DOWNLOAD);
+            }
+            downloadersNeedingSizeCheck.add(downloader);
+        }
+        return downloadersNeedingSizeCheck;
     }
 
     private void checkAggregateDownloadSize(List<ArtifactDownloader> downloadersNeedingSizeCheck)
