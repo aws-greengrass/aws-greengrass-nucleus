@@ -238,7 +238,10 @@
             When updating the version here, ensure you match the correct aws-crt version below.
             Get the correct version from: https://github.com/aws/aws-iot-device-sdk-java-v2/blob/main/sdk/pom.xml#L45
             !-->
-            <version>1.33.0</version>
+            <!-- Snapshot uber jar from the GG Maven repo (greengrass-common CloudFront repository above)
+                 built from tushar-aws/aws-iot-device-sdk-java-v2 @ fe364de (SubscriptionMode support).
+                 Revert to the public release version once the SDK change ships to Maven Central. -->
+            <version>1.33.0-DIRECTMSG-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>software.amazon.awssdk.crt</groupId>
@@ -249,7 +252,7 @@
         <dependency>
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
-            <version>0.45.0</version>
+            <version>0.47.0</version>
             <classifier>fips-where-available</classifier>
         </dependency>
         <dependency>
