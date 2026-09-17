@@ -7,6 +7,8 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -16,7 +18,9 @@ import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -147,6 +151,68 @@ class ProxyUtilsTest {
     @Test
     void testGetNoProxyEnvVarValue_noProxyConfigured() {
         assertEquals("", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    void testNoProxyMatches_wildcardPrefix() {
+        assertTrue(ProxyUtils.noProxyMatches("foo.sts.amazon.com", "*.sts.amazon.com"));
+        assertTrue(ProxyUtils.noProxyMatches("bar.baz.sts.amazon.com", "*.sts.amazon.com"));
+        assertFalse(ProxyUtils.noProxyMatches("sts.amazon.com", "*.sts.amazon.com"));
+        assertFalse(ProxyUtils.noProxyMatches("notsts.amazon.com", "*.sts.amazon.com"));
+    }
+
+    @Test
+    void testNoProxyMatches_leadingDot() {
+        // Leading dot is equivalent to *. per NO_PROXY convention
+        assertTrue(ProxyUtils.noProxyMatches("foo.sts.amazon.com", ".sts.amazon.com"));
+        assertTrue(ProxyUtils.noProxyMatches("bar.baz.sts.amazon.com", ".sts.amazon.com"));
+        assertFalse(ProxyUtils.noProxyMatches("sts.amazon.com", ".sts.amazon.com"));
+    }
+
+    @Test
+    void testNoProxyMatches_exactMatch() {
+        assertTrue(ProxyUtils.noProxyMatches("sts.amazon.com", "sts.amazon.com"));
+        assertFalse(ProxyUtils.noProxyMatches("foo.sts.amazon.com", "sts.amazon.com"));
+        assertFalse(ProxyUtils.noProxyMatches("sts.amazon.com.evil.com", "sts.amazon.com"));
+    }
+
+    @Test
+    void testNoProxyMatches_invalidPatternDoesNotThrow() {
+        // Previously this would throw PatternSyntaxException and crash Nucleus
+        assertFalse(ProxyUtils.noProxyMatches("anything.com", "[invalid"));
+        assertFalse(ProxyUtils.noProxyMatches("anything.com", ""));
+        assertFalse(ProxyUtils.noProxyMatches("anything.com", "  "));
+    }
+
+    @Test
+    void testNoProxyMatches_dotsAreNotRegexWildcards() {
+        // Dots in patterns must be literal, not regex "any char"
+        assertFalse(ProxyUtils.noProxyMatches("stsXamazonXcom", "sts.amazon.com"));
+        assertTrue(ProxyUtils.noProxyMatches("sts.amazon.com", "sts.amazon.com"));
+    }
+
+    @Test
+    void testValidateNoProxyAddresses_validPatterns() {
+        // All valid — should return empty list
+        assertTrue(ProxyUtils.validateNoProxyAddresses("*.sts.amazon.com,.domain.com,exact.com,127.0.0.1").isEmpty());
+        assertTrue(ProxyUtils.validateNoProxyAddresses("").isEmpty());
+        assertTrue(ProxyUtils.validateNoProxyAddresses(null).isEmpty());
+    }
+
+    @Test
+    void testValidateNoProxyAddresses_invalidPatterns() {
+        // Wildcard in wrong position
+        List<String> invalid = ProxyUtils.validateNoProxyAddresses("foo.*.com,*bar.com,valid.com");
+        assertEquals(2, invalid.size());
+        assertTrue(invalid.contains("foo.*.com"));
+        assertTrue(invalid.contains("*bar.com"));
+    }
+
+    @Test
+    void testValidateNoProxyAddresses_spacesRejected() {
+        List<String> invalid = ProxyUtils.validateNoProxyAddresses("has space.com,valid.com");
+        assertEquals(1, invalid.size());
+        assertTrue(invalid.contains("has space.com"));
     }
 
 }
