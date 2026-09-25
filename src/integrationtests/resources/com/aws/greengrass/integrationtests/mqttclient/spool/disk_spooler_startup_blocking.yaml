@@ -1,0 +1,41 @@
+---
+# Test config for DiskSpoolerStartupBlockingTest (GitHub issue #1832)
+# Configures the MQTT spooler to use Disk storage with our mock plugin and defines
+# a simple user component that should start independently but is blocked by the
+# synchronous persistentQueueSync() call.
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      mqtt:
+        spooler:
+          storageType: "Disk"
+          maxSizeInBytes: 262144000
+          keepQos0WhenOffline: false
+          pluginName: "aws.greengrass.DiskSpooler"
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+
+  # The mock DiskSpooler plugin service (registered via @ImplementsService in the test class)
+  aws.greengrass.DiskSpooler:
+    configuration:
+
+  # A simple long-running user component with NO dependency on the spooler.
+  # Per the bug, this component's startup is blocked until persistentQueueSync() completes,
+  # even though it doesn't need spooler state.
+  UserComponent:
+    lifecycle:
+      posix:
+        run: |-
+          echo "UserComponent is RUNNING"
+          while true; do
+            sleep 5
+          done
+      windows:
+        run: |
+          echo UserComponent is RUNNING
+          ping -n 1000 127.0.0.1 > NUL
+
+  main:
+    dependencies:
+      - UserComponent
