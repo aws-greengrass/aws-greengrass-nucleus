@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -29,14 +30,20 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.testcommons.testutilities.Matchers.hasPermission;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -167,5 +174,61 @@ class ComponentManagerIntegTest extends BaseITCase {
             Files.copy(getClass().getResourceAsStream(resource), f.toPath());
             return f;
         };
+    }
+
+    @Test
+    void GIVEN_multiple_artifacts_and_max_parallel_downloads_configured_WHEN_prepareArtifacts_THEN_downloads_run_concurrently()
+            throws Exception {
+        ComponentIdentifier ident = new ComponentIdentifier("aws.iot.gg.test.integ.parallel", new Semver("1.0.0"));
+
+        NucleusPaths nucleusPaths = kernel.getNucleusPaths();
+        nucleusPaths.setComponentStorePath(tempRootDir);
+        ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
+        kernel.getContext().put(ComponentStore.class, store);
+
+        // Configure the device to allow all 3 artifacts to download at once.
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        deviceConfiguration.getMaxParallelDownloads().withValue(3L);
+
+        // Each mocked download blocks until all 3 downloads have started. If downloads were still
+        // sequential (today's pre-parallel behavior), the second download() call would never happen --
+        // it would be waiting on the first, which itself is waiting for all 3 to have started -- so this
+        // test would time out instead of passing if concurrency regressed to sequential.
+        List<File> artifactFiles = new ArrayList<>();
+        for (String name : new String[] {"artifact1.txt", "artifact2.txt", "artifact3.txt"}) {
+            artifactFiles.add(store.resolveArtifactDirectoryPath(ident).resolve(name).toFile());
+        }
+        CountDownLatch allDownloadsStarted = new CountDownLatch(3);
+        AtomicInteger concurrentDownloads = new AtomicInteger(0);
+        AtomicInteger maxObservedConcurrency = new AtomicInteger(0);
+
+        ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
+        when(mockDownloader.downloadRequired()).thenReturn(true);
+        when(mockDownloader.checkDownloadable()).thenReturn(Optional.empty());
+        when(mockDownloader.canUnarchiveArtifact()).thenReturn(false);
+        when(mockDownloader.canSetFilePermissions()).thenReturn(false);
+        when(mockDownloader.checkComponentStoreSize()).thenReturn(true);
+        when(mockDownloader.download()).thenAnswer((invocation) -> {
+            int current = concurrentDownloads.incrementAndGet();
+            maxObservedConcurrency.getAndUpdate(prevMax -> Math.max(prevMax, current));
+            allDownloadsStarted.countDown();
+            assertTrue(allDownloadsStarted.await(10, TimeUnit.SECONDS),
+                    "All 3 downloads should have started concurrently within the timeout");
+            concurrentDownloads.decrementAndGet();
+            return artifactFiles.get(0);
+        });
+
+        ArtifactDownloaderFactory mockDownloaderFactory = mock(ArtifactDownloaderFactory.class);
+        when(mockDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(mockDownloader);
+        kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
+
+        Files.copy(Paths.get(this.getClass().getResource("aws.iot.gg.test.integ.parallel-1.0.0.yaml").toURI()),
+                nucleusPaths.recipePath().resolve(PreloadComponentStoreHelper
+                        .getRecipeStorageFilenameFromTestSource("aws.iot.gg.test.integ.parallel-1.0.0.yaml")));
+
+        kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
+                .get(15, TimeUnit.SECONDS);
+
+        assertThat(maxObservedConcurrency.get(), is(3));
     }
 }

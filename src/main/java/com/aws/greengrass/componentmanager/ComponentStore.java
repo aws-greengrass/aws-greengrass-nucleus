@@ -66,6 +66,7 @@ public class ComponentStore {
     private static final String LOG_METADATA_INVALID = "Ignoring the local recipe metadata file and proceeding with "
             + "dependency resolution";
     private static final String RECIPE_SUFFIX = ".recipe";
+    private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * FileUtils.ONE_MB;
 
     private final NucleusPaths nucleusPaths;
     private final PlatformResolver platformResolver;
@@ -492,6 +493,16 @@ public class ComponentStore {
             throw new PackageLoadingException(
                     "Failed to get usable disk space for directory: " + nucleusPaths.componentStorePath(), e);
         }
+    }
+
+    /**
+     * Check whether the package store's usable disk space has dropped below the critical minimum.
+     *
+     * @return true if usable space is below the critical floor
+     * @throws PackageLoadingException if I/O error occurred while checking
+     */
+    public boolean isDiskSpaceCritical() throws PackageLoadingException {
+        return getUsableSpace() < DEFAULT_MIN_DISK_AVAIL_BYTES;
     }
 
     private static Semver parseVersionFromRecipeFileName(String recipeFilename) throws PackageLoadingException {
