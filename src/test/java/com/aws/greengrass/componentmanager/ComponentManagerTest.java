@@ -8,15 +8,12 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
-import com.amazon.aws.iot.greengrass.component.common.Unarchive;
-import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
-import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
-import com.aws.greengrass.componentmanager.exceptions.SizeLimitException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -52,7 +49,6 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 
-import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -89,6 +85,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -111,8 +108,6 @@ class ComponentManagerTest {
     private static final Semver v1_2_0 = new Semver("1.2.0");
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String componentA = "A";
-    private static final long TEN_TERA_BYTES = 10_000_000_000_000L;
-    private static final long TEN_BYTES = 10L;
     private static Path RECIPE_RESOURCE_PATH;
 
     static {
@@ -128,9 +123,9 @@ class ComponentManagerTest {
     private ComponentManager componentManager;
     private RecipeLoader recipeLoader;
     @Mock
-    private ArtifactDownloader artifactDownloader;
-    @Mock
     private ArtifactDownloaderFactory artifactDownloaderFactory;
+    @Mock
+    private ArtifactDownloadManager artifactDownloadManager;
     @Mock
     private ComponentServiceHelper componentManagementServiceHelper;
     @Mock
@@ -153,22 +148,14 @@ class ComponentManagerTest {
         PlatformResolver platformResolver = new PlatformResolver(null);
         recipeLoader = new RecipeLoader(platformResolver);
 
-        lenient().when(artifactDownloader.downloadRequired()).thenReturn(true);
-        lenient().when(artifactDownloader.checkDownloadable()).thenReturn(Optional.empty());
-        lenient().when(artifactDownloader.checkComponentStoreSize()).thenReturn(true);
-        lenient().when(artifactDownloader.canSetFilePermissions()).thenReturn(true);
-        lenient().when(artifactDownloader.canUnarchiveArtifact()).thenReturn(true);
-        lenient().when(artifactDownloaderFactory.getArtifactDownloader(any(), any(), any()))
-                .thenReturn(artifactDownloader);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         Topic maxSizeTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         lenient().when(deviceConfiguration.getComponentStoreMaxSizeBytes()).thenReturn(maxSizeTopic);
         Topic regionTopic = Topic.of(context, DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1");
         lenient().when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
-        lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager =
-                new ComponentManager(artifactDownloaderFactory, componentManagementServiceHelper, executor, componentStore,
-                                     kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
+                new ComponentManager(artifactDownloaderFactory, artifactDownloadManager, componentManagementServiceHelper,
+                                     executor, componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
     }
 
     @AfterEach
@@ -177,44 +164,6 @@ class ComponentManagerTest {
         if (context != null) {
             context.close();
         }
-    }
-
-    @Test
-    void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
-
-        componentManager.prepareArtifacts(pkgId, Collections.emptyList());
-
-        verify(artifactDownloader, never()).download();
-    }
-
-    @Test
-    void GIVEN_artifact_already_downloaded_WHEN_attempt_download_artifact_THEN_do_not_download() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
-
-        lenient().when(artifactDownloader.downloadRequired()).thenReturn(false);
-
-        componentManager.prepareArtifacts(pkgId, Collections.emptyList());
-
-        verify(artifactDownloader, never()).download();
-    }
-
-    @Test
-    void GIVEN_artifact_from_gg_repo_WHEN_download_artifact_with_unarchive_THEN_calls_unarchiver() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
-
-        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-        when(artifactDownloader.download()).thenReturn(new File("binary1"));
-        when(artifactDownloader.getArtifactFile()).thenReturn(new File("binary1"));
-
-        componentManager.prepareArtifacts(pkgId, Arrays.asList(
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1")).unarchive(Unarchive.ZIP).build(),
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2")).unarchive(Unarchive.NONE)
-                        .build()));
-
-        ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
-        verify(mockUnarchiver).unarchive(any(), fileCaptor.capture(), any());
-        assertEquals("binary1", fileCaptor.getValue().getName());
     }
 
     @Test
@@ -242,7 +191,8 @@ class ComponentManagerTest {
     void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out(ExtensionContext context)
             throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("SomeService", new Semver("1.0.0"));
-        ignoreExceptionUltimateCauseOfType(context, PackageDownloadException.class);
+        ignoreExceptionUltimateCauseOfType(context, PackageLoadingException.class);
+        when(componentStore.getPackageRecipe(pkgId)).thenThrow(new PackageLoadingException("failed to load recipe"));
 
         Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
         assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
@@ -552,9 +502,8 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_component_WHEN_disk_space_critical_and_prepare_components_THEN_throws_exception(ExtensionContext context)
+    void GIVEN_component_with_artifacts_WHEN_prepare_packages_THEN_download_tasks_built_and_delegated()
             throws Exception {
-        // mock get recipe
         ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"));
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
@@ -562,36 +511,15 @@ class ComponentManagerTest {
         String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
+        when(artifactDownloaderFactory.getArtifactDownloader(eq(pkgId), any(), eq(tempDir)))
+                .thenReturn(mock(com.aws.greengrass.componentmanager.builtins.ArtifactDownloader.class));
 
-        // mock very limited space left
-        when(componentStore.getUsableSpace()).thenReturn(TEN_BYTES);
-
-        ignoreExceptionUltimateCauseOfType(context, SizeLimitException.class);
         Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
-        assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
-        verify(artifactDownloader, never()).download();
-    }
+        future.get(5, TimeUnit.SECONDS);
 
-    @Test
-    void GIVEN_component_WHEN_component_store_full_and_prepare_components_THEN_throws_exception(
-            ExtensionContext context) throws Exception {
-        // mock get recipe
-        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"));
-        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-        String fileName = "SimpleApp-1.0.0.yaml";
-        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
-        ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
-        when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
-
-        // mock very large component store size
-        when(componentStore.getContentSize()).thenReturn(TEN_TERA_BYTES);
-        when(artifactDownloader.getDownloadSize()).thenReturn(TEN_BYTES);
-
-        ignoreExceptionUltimateCauseOfType(context, SizeLimitException.class);
-        Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
-        assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
-        verify(artifactDownloader, never()).download();
+        assertThat(future.isDone(), is(true));
+        verify(artifactDownloadManager).invokeDownloadTasks(argThat(tasks -> tasks.size() == componentRecipe
+                .getArtifacts().size()));
     }
 
     @Test
