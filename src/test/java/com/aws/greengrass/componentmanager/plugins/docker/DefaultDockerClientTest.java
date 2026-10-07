@@ -51,19 +51,24 @@ class DefaultDockerClientTest {
             "read tcp 10.0.0.1:52044->1.2.3.4:443: read: network is down",
             "Error response from daemon: Get \"https://1234.dkr.ecr.us-east-1.amazonaws.com/v2/\": dial tcp 1.2.3"
                     + ".4:443: connect: host is unreachable",
-            "read tcp 10.0.0.1:52044->1.2.3.4:443: read: software caused connection aborted",
+            "read tcp 10.0.0.1:52044->1.2.3.4:443: read: software caused connection abort",
+            "failed to copy: software caused connection abort",
             // Cancellations and DNS server faults
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": context deadline exceeded",
             "dial tcp: lookup 1234.dkr.ecr.us-east-1.amazonaws.com on 10.0.0.53:53: server misbehaving",
             // Wire-level TLS failures, which do not arrive as a net.OpError
-            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": remote error: tls: bad record MAC",
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": tls: use of closed connection",
-            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": remote error: tls: internal error",
             // HTTP/2 transport failures
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": http2: server sent GOAWAY and "
                     + "closed the connection",
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": http2: client connection lost",
             "failed to copy: stream error: stream ID 5; INTERNAL_ERROR; received from peer",
+            "failed to copy: stream error: stream ID 7; REFUSED_STREAM",
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": http: server closed idle connection",
+            // Timeouts without a TCP op prefix
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": net/http: timeout awaiting "
+                    + "response headers",
+            "failed to copy: write: connection timed out",
             // Transport failures containerd surfaces after discarding the net.OpError
             "failed to copy: read |0: file already closed",
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": context canceled",
@@ -97,7 +102,17 @@ class DefaultDockerClientTest {
     @ValueSource(strings = {
             "failed to copy: httpReadSeeker: failed open: unexpected status code 503",
             "Error response from daemon: failed to resolve reference: unexpected commit digest",
-            "some error string docker has not emitted before"})
+            "some error string docker has not emitted before",
+            // Errors that look like transport failures but usually persist on every attempt, so they get the bounded
+            // retry rather than an indefinite one
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": remote error: tls: bad record MAC",
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": remote error: tls: internal error",
+            "failed to copy: stream error: stream ID 5; PROTOCOL_ERROR",
+            "failed to copy: stream error: stream ID 5; FLOW_CONTROL_ERROR",
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": net/http: invalid header field "
+                    + "value for \"Authorization\"",
+            "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": net/http: HTTP/1.x transport "
+                    + "connection broken: malformed HTTP response"})
     void GIVEN_unrecognized_error_WHEN_classified_THEN_neither_connection_nor_non_retryable(String err) {
         assertFalse(DefaultDockerClient.isConnectionError(err));
         assertFalse(DefaultDockerClient.isNonRetryableError(err));

@@ -62,38 +62,50 @@ public class DefaultDockerClient {
             // Transport-level causes
             "connection reset by peer",
             "connection refused",
-            "connection aborted",
+            // Linux renders ECONNABORTED as "software caused connection abort"
+            "connection abort",
             "broken pipe",
             "network is unreachable",
             "network is down",
             "host is unreachable",
             "no route to host",
-            "read: connection timed out",
+            "connection timed out",
             "i/o timeout",
             "unexpected eof",
             "\": eof",
-            // TLS transport failures. Only wire-level failures are listed. An error saying the peer rejected our
+            // TLS transport failures. Only a closed connection is listed. An error saying the peer rejected our
             // certificate, or that we do not trust theirs, is a configuration problem a retry cannot fix, so
-            // "x509:", "bad certificate" and "handshake failure" are deliberately absent.
+            // "x509:", "bad certificate" and "handshake failure" are deliberately absent. "bad record mac" and
+            // "tls: internal error" are absent for a similar reason: both are usually caused by a misconfigured
+            // registry, proxy or middlebox that fails the same way on every attempt, so they get the bounded
+            // unknown-error retry rather than an indefinite one. When the device is offline the connectivity
+            // fallback in DockerImageDownloader still retries them until it reconnects.
             "tls: use of closed connection",
-            "bad record mac",
-            "tls: internal error",
             // HTTP/2 transport failures. Matched as specific forms rather than on the "http2:" package prefix,
             // because the prefix would also match framing and flow-control faults that are not connectivity
             // problems and could persist, for example through a broken proxy. A stream error carries no package
-            // prefix, so it is matched separately.
+            // prefix and is rendered as "stream error: stream ID <n>; <code>", so it is matched on the error codes
+            // that indicate the stream was reset in transit. PROTOCOL_ERROR, FLOW_CONTROL_ERROR and the like are
+            // left to the bounded unknown-error retry for the same reason as the package prefix.
             "http2: server sent goaway",
             "http2: client connection lost",
-            "stream error: stream id",
+            "; internal_error",
+            "; refused_stream",
+            // Go's HTTP/1.x client reports this when the server closed a pooled connection the request was sent on
+            "http: server closed idle connection",
             // Transport failures that containerd surfaces while copying an image layer, having discarded the
             // net.OpError that produced them
             "file already closed",
             // Timeouts and cancellations, which all mean the request did not complete rather than that the registry
-            // rejected it. The bare "timeout" that was previously matched is gone: "read: connection timed out",
-            // "i/o timeout" and "net/http" cover the forms it stood in for, and as a bare substring it could match
-            // an image name or registry prose and retry a permanent failure indefinitely. A timeout form matching
-            // none of these now gets the bounded unknown-error retry instead of failing outright.
-            "net/http",
+            // rejected it. The bare "timeout" that was previously matched is gone: "connection timed out",
+            // "i/o timeout" and the net/http timeouts below cover the forms it stood in for, and as a bare substring
+            // it could match an image name or registry prose and retry a permanent failure indefinitely. The bare
+            // "net/http" package prefix that was previously matched is gone for the same reason: it also matches
+            // persistent faults such as "net/http: invalid header field value" or a malformed response from a broken
+            // proxy. A timeout form matching none of these now gets the bounded unknown-error retry instead of
+            // failing outright.
+            "tls handshake timeout",
+            "timeout awaiting response headers",
             "request canceled",
             "context canceled",
             "context deadline exceeded",
