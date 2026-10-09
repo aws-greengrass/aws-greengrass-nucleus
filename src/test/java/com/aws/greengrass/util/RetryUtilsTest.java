@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RetryUtilsTest {
 
@@ -78,5 +79,43 @@ class RetryUtilsTest {
             }
         }, "", logger));
         assertEquals(4, invoked.get());
+    }
+
+    @Test
+    void GIVEN_configs_with_different_ceilings_WHEN_run_with_retry_THEN_each_backs_off_independently()
+            throws Exception {
+        AtomicInteger invoked = new AtomicInteger(0);
+        List<RetryUtils.RetryConfig> configList = new ArrayList<>();
+
+        // Ramps its interval to 4s after one failure
+        configList.add(RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(2))
+                .maxRetryInterval(Duration.ofSeconds(30)).maxAttempt(2).retryableExceptions(
+                        Collections.singletonList(IOException.class)).build());
+
+        // Must stay at its own ceiling regardless of how far the other config has ramped
+        configList.add(RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(10))
+                .maxRetryInterval(Duration.ofMillis(10)).maxAttempt(2).retryableExceptions(
+                        Collections.singletonList(RuntimeException.class)).build());
+
+        RetryUtils.DifferentiatedRetryConfig config = RetryUtils.DifferentiatedRetryConfig.builder()
+                .retryConfigList(configList).build();
+
+        long start = System.currentTimeMillis();
+        assertThrows(RuntimeException.class, () -> RetryUtils.runWithRetry(config, () -> {
+            // Let the IOException config ramp its interval to 4s, then throw the exception whose config caps at 10ms
+            if (invoked.getAndIncrement() < 1) {
+                throw new IOException();
+            }
+            throw new RuntimeException();
+        }, "", logger));
+        long elapsed = System.currentTimeMillis() - start;
+
+        assertEquals(3, invoked.get());
+        // Sleeps are jittered at 50-100% of the interval. One IOException sleep on a 2s interval takes 1000-2000ms,
+        // then the single RuntimeException retry sleeps 5-10ms from its own interval, so at most 2010ms. Sharing one
+        // interval across configs would instead sleep 2000-4000ms from the ramped 4s interval, so at least 3000ms.
+        // A single 2s interval rather than a ramp over several separates the two cases by ~490ms either side of the
+        // threshold, well beyond any plausible Thread.sleep overshoot.
+        assertTrue(elapsed < 2500, "elapsed " + elapsed + "ms indicates the ramped interval leaked across configs");
     }
 }
