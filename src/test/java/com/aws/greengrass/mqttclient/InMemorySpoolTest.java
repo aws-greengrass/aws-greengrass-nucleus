@@ -17,6 +17,7 @@ import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,11 +32,18 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -53,6 +61,8 @@ class InMemorySpoolTest {
     DeviceConfiguration deviceConfiguration;
 
     private Spool spool;
+    // Runs tasks on the calling thread to keep tests deterministic.
+    private final ExecutorService executorService = TestUtils.synchronousExecutorService();
     Configuration config = new Configuration(new Context());
     private static final String GG_SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
     private static final String SPOOL_STORAGE_TYPE_KEY = "storageType";
@@ -65,7 +75,7 @@ class InMemorySpoolTest {
     void beforeEach() throws SpoolerStoreException {
         config.lookup("spooler", GG_SPOOL_MAX_SIZE_IN_BYTES_KEY).withValue(25L);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(config.lookupTopics("spooler"));
-        spool = spy(new Spool(deviceConfiguration, kernel));
+        spool = spy(new Spool(deviceConfiguration, kernel, executorService));
     }
 
     @AfterEach
@@ -219,7 +229,7 @@ class InMemorySpoolTest {
         lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
-        spool = new Spool(deviceConfiguration, kernel);
+        spool = new Spool(deviceConfiguration, kernel, executorService);
         assertEquals(3, spool.getCurrentMessageCount());
     }
 
@@ -235,9 +245,13 @@ class InMemorySpoolTest {
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
         lenient().when(persistenceSpool.getAllMessageIds()).thenThrow(new IOException("Get all message IDs failed for Disk Spooler"));
 
-        spool = new Spool(deviceConfiguration, kernel);
+        spool = new Spool(deviceConfiguration, kernel, executorService);
         spool.addMessage(request);
         assertEquals(1, spool.getCurrentMessageCount());
+        // getAllMessageIds() failing during setup must fall back to the in-memory spooler, not retain
+        // a disk spooler whose nextId is still 0 over a populated DB. Verify the disk spooler is never
+        // written to: addMessage() must not reach persistenceSpool.add(...).
+        verify(persistenceSpool, never()).add(anyLong(), any(SpoolMessage.class));
     }
 
     @Test
@@ -263,7 +277,7 @@ class InMemorySpoolTest {
                 when(persistenceSpool).add(anyLong(), any(SpoolMessage.class));
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
-        spool = new Spool(deviceConfiguration, kernel);
+        spool = new Spool(deviceConfiguration, kernel, executorService);
 
         assertEquals(3, spool.getCurrentMessageCount());
 
@@ -273,5 +287,169 @@ class InMemorySpoolTest {
         assertEquals(4, spool.getCurrentMessageCount());
         // Should read from InMemory spooler first and successfully return a message, even if "Disk" Spooler is configured
         assertNotNull(spool.getMessageById(3L));
+    }
+
+    @Test
+    void GIVEN_disk_load_in_progress_WHEN_popId_called_THEN_it_waits_for_full_load_before_returning()
+            throws Exception {
+        // Use a REAL async executor (not the synchronous one) so the background load genuinely runs
+        // concurrently with the caller, exercising the awaitDiskQueueLoaded() gate on popId().
+        ExecutorService asyncExecutor = Executors.newSingleThreadExecutor();
+        try {
+            GreengrassService persistenceSpoolService =
+                    Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+            CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
+
+            List<Long> messageIds = Arrays.asList(0L, 1L);
+            CountDownLatch firstMessageLoaded = new CountDownLatch(1);
+            CountDownLatch releaseSecondRead = new CountDownLatch(1);
+            AtomicLong getByIdCalls = new AtomicLong(0);
+            Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(1).array())
+                    .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+            lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+            lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
+            lenient().when(persistenceSpool.getMessageById(anyLong())).thenAnswer(inv -> {
+                long id = inv.getArgument(0);
+                getByIdCalls.incrementAndGet();
+                if (id == 0L) {
+                    // id 0 is enqueued right after this returns; signal that so the popper starts.
+                    firstMessageLoaded.countDown();
+                } else {
+                    // Hold the load open before id 1 so popId() observes a partially loaded queue.
+                    releaseSecondRead.await();
+                }
+                return SpoolMessage.builder().id(id).request(request).build();
+            });
+
+            config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
+            spool = new Spool(deviceConfiguration, kernel, asyncExecutor);
+
+            AtomicLong firstPop = new AtomicLong(-1);
+            // Number of getMessageById calls observed AT the moment popId() returned. Note popId itself
+            // calls getMessageById once on the id it pops, so: gate present => id0 + id1 loaded (2) +
+            // popId's own read = 3; gate absent => popId returns after only id0 loaded (1) + its own
+            // read = 2, because id1's read is still blocked. This value distinguishes the two.
+            AtomicLong callsAtReturn = new AtomicLong(-1);
+            CountDownLatch firstPopCompleted = new CountDownLatch(1);
+            Thread popper = new Thread(() -> {
+                try {
+                    long id = spool.popId();
+                    callsAtReturn.set(getByIdCalls.get());
+                    firstPop.set(id);
+                    firstPopCompleted.countDown();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+
+            popper.start();
+            // Wait for Message 0 to load from disk
+            firstMessageLoaded.await();
+
+            // popId() must NOT return while the load is still mid-flight (id 1 read is blocked).
+            assertFalse(firstPopCompleted.await(1, TimeUnit.SECONDS),
+                    "popId() must block until the full background disk load completes, "
+                            + "not return the partially-loaded head");
+
+            // Release id 1's read; the load finishes and popId() may now return.
+            releaseSecondRead.countDown();
+            assertTrue(firstPopCompleted.await(10, TimeUnit.SECONDS),
+                    "popId() must return once the background load completes");
+            assertEquals(0L, firstPop.get(), "popId() must return the oldest persisted id first");
+
+            // Without the gate in popId(), this would be 2 (for all the messages on disk)
+            assertTrue(callsAtReturn.get() >= 3,
+                    "popId() must not return until the entire disk load completed; getMessageById calls "
+                            + "at return = " + callsAtReturn.get() + " (expected >= 3 with the gate)");
+        } finally {
+            asyncExecutor.shutdownNow();
+        }
+    }
+
+    @Test
+    void GIVEN_disk_load_in_progress_WHEN_addMessage_called_THEN_it_blocks_until_load_completes_then_allocates_id_above_persisted()
+            throws Exception {
+        // Use a REAL async executor so the background load genuinely runs concurrently with the caller,
+        // exercising the awaitDiskQueueLoaded() gate on addMessage(). This is the addMessage() sibling
+        // of the popId() concurrency test above and covers the other half of the new blocking contract.
+        ExecutorService asyncExecutor = Executors.newSingleThreadExecutor();
+        try {
+            GreengrassService persistenceSpoolService =
+                    Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+            CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
+
+            // Two persisted messages, ids 5 and 6 (deliberately non-zero so a gate-less addMessage() that
+            // allocated from nextId=0... would visibly collide with a persisted id). The mock loads id 5,
+            // then BLOCKS before loading id 6, holding the background sync mid-flight.
+            //
+            // nextId is advanced to highestId+1 (== 7) synchronously in setupDiskSpooler before the load
+            // is scheduled, so addMessage() should allocate 7 -- above every persisted id -- but only once
+            // the load has completed (the gate). We assert both: it does not return early, and the id it
+            // allocates is strictly greater than every persisted id.
+            List<Long> messageIds = Arrays.asList(5L, 6L);
+            CountDownLatch id5Loaded = new CountDownLatch(1);
+            CountDownLatch releaseSecondRead = new CountDownLatch(1);
+            AtomicLong getByIdCalls = new AtomicLong(0);
+            Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(1).array())
+                    .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+            lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+            lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
+            lenient().when(persistenceSpool.getMessageById(anyLong())).thenAnswer(inv -> {
+                long id = inv.getArgument(0);
+                getByIdCalls.incrementAndGet();
+                if (id == 5L) {
+                    id5Loaded.countDown();
+                } else {
+                    // Hold the load open before id 6 so addMessage() observes a mid-load state.
+                    releaseSecondRead.await();
+                }
+                return SpoolMessage.builder().id(id).request(request).build();
+            });
+
+            config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
+            // Give the spool enough room that queueCapacityCheck never trips for these tiny messages.
+            config.lookup("spooler", GG_SPOOL_MAX_SIZE_IN_BYTES_KEY).withValue(25000L);
+            spool = new Spool(deviceConfiguration, kernel, asyncExecutor);
+
+            AtomicLong allocatedId = new AtomicLong(-1);
+            CountDownLatch addReturned = new CountDownLatch(1);
+            Thread adder = new Thread(() -> {
+                try {
+                    SpoolMessage message = spool.addMessage(request);
+                    allocatedId.set(message.getId());
+                    addReturned.countDown();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (SpoolerStoreException e) {
+                    // leave addReturned uncounted; the await assertion below will fail and surface it
+                }
+            });
+
+            // Make sure the load has actually started (id 5 read) before we call addMessage().
+            id5Loaded.await();
+            adder.start();
+
+            // addMessage() must NOT return while the load is still mid-flight (id 6 read is blocked),
+            // otherwise nextId is not yet settled relative to the persisted ids still loading.
+            assertFalse(addReturned.await(1, TimeUnit.SECONDS),
+                    "addMessage() must block until the background disk load completes");
+
+            // Release id 6's read; the load finishes and addMessage() may now proceed.
+            releaseSecondRead.countDown();
+            assertTrue(addReturned.await(10, TimeUnit.SECONDS),
+                    "addMessage() must return once the background load completes");
+
+            // The allocated id must be strictly greater than every persisted id (5, 6): the whole point
+            // of gating addMessage() on the load is that nextId is advanced past the persisted range, so
+            // a newly added message can never collide with a persisted row still on disk.
+            assertEquals(7L, allocatedId.get(),
+                    "addMessage() must allocate an id above every persisted id (max persisted = 6)");
+            // Sanity: both persisted messages plus the newly added one are in the runtime queue.
+            assertEquals(3, spool.getCurrentMessageCount());
+        } finally {
+            asyncExecutor.shutdownNow();
+        }
     }
 }

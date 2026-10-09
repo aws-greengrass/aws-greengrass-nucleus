@@ -281,7 +281,7 @@ public class MqttClient implements Closeable {
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
-        spool = new Spool(deviceConfiguration, kernel);
+        spool = new Spool(deviceConfiguration, kernel, executorService);
         callbackEventManager.addToCallbackEvents(onConnect, callbacks);
 
         // Call getters for all of these topics prior to subscribing to changes so that these namespaces
