@@ -22,11 +22,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.BOOTSTRAP_TASK_FILE;
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.DEPLOYMENT_METADATA_FILE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS;
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.ROLLBACK_SNAPSHOT_FILE;
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.TARGET_CONFIG_FILE;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
@@ -37,6 +39,8 @@ import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -171,6 +175,171 @@ class DeploymentDirectoryManagerTest {
         assertEquals(actual.resolve(ROLLBACK_SNAPSHOT_FILE), deploymentDirectoryManager.getSnapshotFilePath());
         assertEquals(actual.resolve(TARGET_CONFIG_FILE), deploymentDirectoryManager.getTargetConfigFilePath());
         assertEquals(actual.resolve(BOOTSTRAP_TASK_FILE), deploymentDirectoryManager.getBootstrapTaskFilePath());
+    }
+
+    @Test
+    void GIVEN_unfinished_deployment_WHEN_same_deployment_reprocessed_THEN_rollback_snapshot_and_attempts_carried_forward()
+            throws Exception {
+        Path first = createNewDeploymentDir(mockArn);
+        Files.write(first.resolve(ROLLBACK_SNAPSHOT_FILE), "verified".getBytes(StandardCharsets.UTF_8));
+        assertEquals(1, deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS));
+
+        // No persistLast*Deployment call, so the ongoing link survives: the deployment never completed.
+        Path second = createNewDeploymentDir(mockArn);
+
+        assertEquals(first, second);
+        assertEquals("verified",
+                new String(Files.readAllBytes(second.resolve(ROLLBACK_SNAPSHOT_FILE)), StandardCharsets.UTF_8));
+        assertEquals(2, deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS));
+    }
+
+    @Test
+    void GIVEN_unfinished_deployment_WHEN_superseded_THEN_rollback_snapshot_carried_forward_but_attempts_reset()
+            throws Exception {
+        Path first = createNewDeploymentDir(mockArn);
+        Files.write(first.resolve(ROLLBACK_SNAPSHOT_FILE), "verified".getBytes(StandardCharsets.UTF_8));
+        assertEquals(1, deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS));
+
+        Path second = createNewDeploymentDir(mockArn + "-superseding");
+
+        assertEquals("verified",
+                new String(Files.readAllBytes(second.resolve(ROLLBACK_SNAPSHOT_FILE)), StandardCharsets.UTF_8));
+        // A different deployment gets its own attempt budget.
+        assertEquals(1, deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS));
+    }
+
+    @Test
+    void GIVEN_completed_deployment_WHEN_new_deployment_starts_THEN_nothing_carried_forward() throws Exception {
+        Path first = createNewDeploymentDir(mockArn);
+        Files.write(first.resolve(ROLLBACK_SNAPSHOT_FILE), "verified".getBytes(StandardCharsets.UTF_8));
+        deploymentDirectoryManager.persistLastSuccessfulDeployment();
+
+        Path second = createNewDeploymentDir(mockArn + "-next");
+
+        assertThat(second.resolve(ROLLBACK_SNAPSHOT_FILE).toFile(), not(anExistingFileOrDirectory()));
+        assertEquals(1, deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS));
+    }
+
+    @Test
+    void GIVEN_carried_forward_snapshot_WHEN_take_rollback_snapshot_THEN_snapshot_kept() throws Exception {
+        Path dir = createNewDeploymentDir(mockArn);
+        Files.write(dir.resolve(ROLLBACK_SNAPSHOT_FILE), "verified".getBytes(StandardCharsets.UTF_8));
+
+        deploymentDirectoryManager.takeRollbackSnapshot();
+
+        verify(kernel, times(0)).writeEffectiveConfigAsTransactionLog(any());
+        assertEquals("verified",
+                new String(Files.readAllBytes(dir.resolve(ROLLBACK_SNAPSHOT_FILE)), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void GIVEN_no_snapshot_WHEN_take_rollback_snapshot_THEN_snapshot_written() throws Exception {
+        createNewDeploymentDir(mockArn);
+
+        deploymentDirectoryManager.takeRollbackSnapshot();
+
+        verify(kernel, times(1)).writeEffectiveConfigAsTransactionLog(deploymentDirectoryManager.getSnapshotFilePath());
+    }
+
+    @Test
+    void WHEN_deployment_completes_THEN_no_unfinished_deployment_reported() throws Exception {
+        assertFalse(deploymentDirectoryManager.hasUnfinishedDeployment());
+        createNewDeploymentDir(mockArn);
+        assertTrue(deploymentDirectoryManager.hasUnfinishedDeployment());
+        deploymentDirectoryManager.persistLastSuccessfulDeployment();
+        assertFalse(deploymentDirectoryManager.hasUnfinishedDeployment());
+    }
+
+    @Test
+    void GIVEN_deployment_processed_repeatedly_WHEN_attempts_reach_the_cap_THEN_attempts_reported_exhausted()
+            throws Exception {
+        createNewDeploymentDir(mockArn);
+
+        for (int attempt = 1; attempt < DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS; attempt++) {
+            assertEquals(attempt, deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS));
+            assertFalse(deploymentDirectoryManager.hasExhaustedProcessingAttempts());
+        }
+        assertEquals(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS, deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS));
+        assertTrue(deploymentDirectoryManager.hasExhaustedProcessingAttempts());
+    }
+
+    @Test
+    void GIVEN_deployment_failed_for_exhausted_attempts_WHEN_redelivered_THEN_recognised() throws Exception {
+        createNewDeploymentDir(mockArn);
+        for (int attempt = 0; attempt < DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS; attempt++) {
+            deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        }
+        deploymentDirectoryManager.persistLastFailedDeployment();
+
+        assertTrue(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(mockArn));
+        // A different deployment is unaffected, so a new revision still gets processed.
+        assertFalse(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(mockArn + "-next"));
+    }
+
+    @Test
+    void GIVEN_deployment_failed_with_attempts_remaining_WHEN_redelivered_THEN_not_recognised() throws Exception {
+        createNewDeploymentDir(mockArn);
+        deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        deploymentDirectoryManager.persistLastFailedDeployment();
+
+        assertFalse(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(mockArn));
+    }
+
+    @Test
+    void GIVEN_deployment_succeeded_WHEN_redelivered_THEN_not_recognised() throws Exception {
+        createNewDeploymentDir(mockArn);
+        for (int attempt = 0; attempt < DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS; attempt++) {
+            deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        }
+        deploymentDirectoryManager.persistLastSuccessfulDeployment();
+
+        assertFalse(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(mockArn));
+    }
+
+    @Test
+    void GIVEN_another_deployment_finished_WHEN_refused_deployment_redelivered_THEN_no_longer_recognised()
+            throws Exception {
+        createNewDeploymentDir(mockArn);
+        for (int attempt = 0; attempt < DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS; attempt++) {
+            deploymentDirectoryManager.recordProcessingAttempt(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        }
+        deploymentDirectoryManager.persistLastFailedDeployment();
+        assertTrue(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(mockArn));
+
+        // A later deployment reaching a terminal state takes over the last-failed and last-successful
+        // links, which is what keeps the device able to accept new revisions. The refused deployment is
+        // consequently forgotten: a re-delivery of it arriving this late is treated as a new request. That
+        // is bounded elsewhere — a cloud deployment older than the group's last one is rejected as stale,
+        // and a local deployment is never re-delivered.
+        createNewDeploymentDir(mockArn + "-next");
+        deploymentDirectoryManager.persistLastSuccessfulDeployment();
+
+        assertFalse(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(mockArn));
+    }
+
+    @Test
+    void GIVEN_no_attempt_limit_configured_WHEN_deployment_applied_repeatedly_THEN_attempts_never_exhausted()
+            throws Exception {
+        createNewDeploymentDir(mockArn);
+
+        // Below 1 means no limit: a device whose environment is not ready yet keeps retrying rather than
+        // being restored and failed.
+        for (int attempt = 1; attempt <= DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS + 5; attempt++) {
+            assertEquals(attempt, deploymentDirectoryManager.recordProcessingAttempt(0));
+            assertFalse(deploymentDirectoryManager.hasExhaustedProcessingAttempts());
+        }
+        assertFalse(deploymentDirectoryManager.wasRefusedForExhaustedAttempts(mockArn));
+    }
+
+    @Test
+    void GIVEN_attempt_limit_lowered_WHEN_deployment_applied_THEN_the_limit_in_force_applies() throws Exception {
+        createNewDeploymentDir(mockArn);
+
+        // The limit recorded with the attempt is the one that decides, so a deployment is judged by the
+        // limit its operator had configured when it was applied.
+        deploymentDirectoryManager.recordProcessingAttempt(1);
+
+        assertTrue(deploymentDirectoryManager.hasExhaustedProcessingAttempts());
     }
 
     private Path createNewDeploymentDir(String arn) throws IOException {

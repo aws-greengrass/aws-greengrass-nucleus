@@ -1466,8 +1466,17 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
-        kernel.getContext().get(DeploymentDirectoryManager.class)
-                .createNewDeploymentDirectory("testFleetConfigArn" + deploymentCount.getAndIncrement());
+        DeploymentDirectoryManager deploymentDirectoryManager =
+                kernel.getContext().get(DeploymentDirectoryManager.class);
+        // DeploymentService removes the ongoing link when a deployment reports a terminal status. This
+        // helper bypasses DeploymentService, so do it here: an ongoing link left behind means the next
+        // deployment treats the previous one as interrupted and inherits its rollback snapshot as the
+        // baseline, which would roll back past a deployment that actually completed.
+        if (deploymentDirectoryManager.hasUnfinishedDeployment()) {
+            deploymentDirectoryManager.persistLastSuccessfulDeployment();
+        }
+        deploymentDirectoryManager.createNewDeploymentDirectory(
+                "testFleetConfigArn" + deploymentCount.getAndIncrement());
 
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
