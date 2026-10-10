@@ -86,6 +86,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
+@SuppressWarnings("PMD.ExcessiveClassLength")
 public class DeploymentService extends GreengrassService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
@@ -106,6 +107,7 @@ public class DeploymentService extends GreengrassService {
 
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
     private static final String GG_DEPLOYMENT_ID_LOG_KEY_NAME = "GreengrassDeploymentId";
+    private static final String THING_GROUP_LOG_KEY_NAME = "ThingGroup";
 
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -431,7 +433,7 @@ public class DeploymentService extends GreengrassService {
         Topics groupLastDeploymentTopics = config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS);
 
         // clean up group
-        cleanupGroupData(deploymentGroupTopics, groupLastDeploymentTopics);
+        cleanupGroupData(deploymentGroupTopics, groupLastDeploymentTopics, deploymentDocument.getDeploymentId());
 
         // persist group to root components
         Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
@@ -464,7 +466,7 @@ public class DeploymentService extends GreengrassService {
     /**
      * Group memberships for a device can change. If the device is no longer part of a group, then perform cleanup.
      */
-    private void cleanupGroupData(Topics deploymentGroupTopics, Topics groupLastDeploymentTopics) {
+    private void cleanupGroupData(Topics deploymentGroupTopics, Topics groupLastDeploymentTopics, String deploymentId) {
         Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
         deploymentGroupTopics.forEach(node -> {
             if (node instanceof Topics) {
@@ -472,7 +474,9 @@ public class DeploymentService extends GreengrassService {
                 if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
                         .startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics.getName()
                         .equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                    logger.debug("Removing mapping for thing group " + groupTopics.getName());
+                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
+                            .kv(THING_GROUP_LOG_KEY_NAME, groupTopics.getName())
+                            .log("Removing mapping for thing group");
                     groupTopics.remove();
                 }
             }
@@ -484,7 +488,9 @@ public class DeploymentService extends GreengrassService {
                 if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
                         .startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics.getName()
                         .equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                    logger.debug("Removing last deployment information for thing group " + groupTopics.getName());
+                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
+                            .kv(THING_GROUP_LOG_KEY_NAME, groupTopics.getName())
+                            .log("Removing last deployment information for thing group");
                     groupTopics.remove();
                 }
             }
