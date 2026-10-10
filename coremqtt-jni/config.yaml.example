@@ -1,0 +1,19 @@
+---
+system:
+  certificateFilePath: "/greengrass/certs/certificate.pem.crt"
+  privateKeyPath: "/greengrass/certs/private.pem.key"
+  rootCaPath: "/greengrass/certs/AmazonRootCA1.pem"
+  rootpath: "/greengrass/v2"
+  thingName: "<YOUR_THING_NAME>"
+services:
+  aws.greengrass.Nucleus:
+    componentType: "NUCLEUS"
+    version: "2.18.0-SNAPSHOT"
+    configuration:
+      awsRegion: "<YOUR_REGION>"
+      iotDataEndpoint: "<YOUR_IOT_ENDPOINT>-ats.iot.<YOUR_REGION>.amazonaws.com"
+      iotCredEndpoint: "<YOUR_IOT_ENDPOINT>.credentials.iot.<YOUR_REGION>.amazonaws.com"
+      mqtt:
+        version: "coremqtt"
+        port: 8883
+        keepAliveTimeoutMs: 60000
