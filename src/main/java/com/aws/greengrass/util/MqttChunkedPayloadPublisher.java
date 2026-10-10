@@ -21,7 +21,7 @@ import java.util.List;
 public class MqttChunkedPayloadPublisher<T> {
     private static final Logger logger = LogManager.getLogger(MqttChunkedPayloadPublisher.class);
     private static final String topicKey = "topic";
-    private static final ObjectMapper SERIALIZER = new ObjectMapper();
+    private static final ObjectMapper SERIALIZER = SerializerFactory.getJsonObjectMapper();
     private final MqttClient mqttClient;
     @Setter
     private String updateTopic;
