@@ -1,0 +1,22 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+      mqtt:
+        operationTimeoutMs: 0
+  main:
+    dependencies:
+      - ServiceName
+  ServiceName:
+    configuration:
+      accessControl:
+        aws.greengrass.ipc.mqttproxy:
+          policyId1:
+            policyDescription: access to IoT topics for mqtt direct messages
+            operations:
+              - 'aws.greengrass#SubscribeToIoTCore'
+            resources:
+              - "A/#"
