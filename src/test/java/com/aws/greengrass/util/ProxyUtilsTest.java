@@ -9,14 +9,21 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
 
+import java.util.List;
+import java.util.regex.PatternSyntaxException;
+
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -147,6 +154,73 @@ class ProxyUtilsTest {
     @Test
     void testGetNoProxyEnvVarValue_noProxyConfigured() {
         assertEquals("", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    void testNoProxyMatches_validRegexBehaviorPreserved() {
+        // Existing documented behavior: entries are Java regular expressions
+        assertTrue(ProxyUtils.noProxyMatches("sts.amazon.com", "sts.amazon.com"));
+        assertTrue(ProxyUtils.noProxyMatches("foo.sts.amazon.com", ".*\\.sts\\.amazon\\.com"));
+        assertFalse(ProxyUtils.noProxyMatches("example.com", "sts.amazon.com"));
+    }
+
+    @Test
+    void testNoProxyMatches_invalidPatternDoesNotThrow(ExtensionContext context) {
+        // The matcher logs the rejected entry -- expected, not a test failure
+        ignoreExceptionOfType(context, PatternSyntaxException.class);
+        // Previously an entry like "*.sts.amazon.com" threw PatternSyntaxException
+        // ("Dangling meta character '*'") and killed MQTT connectivity
+        assertFalse(ProxyUtils.noProxyMatches("foo.sts.amazon.com", "*.sts.amazon.com"));
+        assertFalse(ProxyUtils.noProxyMatches("anything.com", "[invalid"));
+    }
+
+    @Test
+    void testNoProxyMatches_emptyOrBlankPatternNeverMatches() {
+        assertFalse(ProxyUtils.noProxyMatches("anything.com", ""));
+        assertFalse(ProxyUtils.noProxyMatches("anything.com", "  "));
+    }
+
+    @Test
+    void testNoProxyMatches_nullOrEmptyEndpointNeverMatchesOrThrows() {
+        // The method's contract is total crash-safety -- a missing endpoint is a non-match, not an NPE
+        assertFalse(ProxyUtils.noProxyMatches(null, "sts.amazon.com"));
+        assertFalse(ProxyUtils.noProxyMatches("", "sts.amazon.com"));
+    }
+
+    @Test
+    void testNoProxyMatches_surroundingWhitespaceTrimmed() {
+        assertTrue(ProxyUtils.noProxyMatches("sts.amazon.com", " sts.amazon.com "));
+    }
+
+    @Test
+    void testValidateNoProxyAddresses_validEntriesAccepted() {
+        assertTrue(ProxyUtils.validateNoProxyAddresses("sts.amazon.com,.*\\.example\\.com,127.0.0.1").isEmpty());
+        assertTrue(ProxyUtils.validateNoProxyAddresses("").isEmpty());
+        assertTrue(ProxyUtils.validateNoProxyAddresses(null).isEmpty());
+    }
+
+    @Test
+    void testValidateNoProxyAddresses_emptySegmentsSkippedNotRejected() {
+        // A stray comma must not fail an otherwise valid deployment
+        assertTrue(ProxyUtils.validateNoProxyAddresses("a.com,,b.com").isEmpty());
+        assertTrue(ProxyUtils.validateNoProxyAddresses(",a.com").isEmpty());
+        assertTrue(ProxyUtils.validateNoProxyAddresses("a.com,").isEmpty());
+    }
+
+    @Test
+    void testValidateNoProxyAddresses_uncompilablePatternRejected() {
+        // These are exactly the entries the runtime matcher cannot process
+        List<String> invalid = ProxyUtils.validateNoProxyAddresses("*.sts.amazon.com,valid.com,[invalid");
+        assertEquals(2, invalid.size());
+        assertTrue(invalid.contains("*.sts.amazon.com"));
+        assertTrue(invalid.contains("[invalid"));
+    }
+
+    @Test
+    void testValidateNoProxyAddresses_embeddedWhitespaceRejected() {
+        List<String> invalid = ProxyUtils.validateNoProxyAddresses("has space.com,valid.com");
+        assertEquals(1, invalid.size());
+        assertTrue(invalid.contains("has space.com"));
     }
 
 }
