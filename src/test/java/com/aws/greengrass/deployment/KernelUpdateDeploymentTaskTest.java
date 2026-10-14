@@ -34,9 +34,12 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.dependency.State.BROKEN;
@@ -54,6 +57,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -62,6 +66,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -247,5 +252,51 @@ class KernelUpdateDeploymentTaskTest {
         task.cancel();
 
         assertNull(result.get());
+    }
+
+    @Test
+    void GIVEN_deployment_activation_WHEN_deployment_cancelled_THEN_stale_versions_not_cleaned_up() throws Exception {
+        // Block the background service-tracking thread so it cannot complete the result future before cancel()
+        CountDownLatch releaseServiceTracking = new CountDownLatch(1);
+        lenient().doAnswer(invocation -> {
+            releaseServiceTracking.await();
+            return Arrays.asList(greengrassService).stream().collect(Collectors.toSet());
+        }).when(kernel).findAutoStartableServicesToTrack();
+        try {
+            Future<DeploymentResult> result = executorService.submit(task);
+            task.cancel();
+
+            assertNull(result.get(5, TimeUnit.SECONDS));
+            verify(componentManager, never()).cleanupStaleVersions();
+        } finally {
+            releaseServiceTracking.countDown();
+        }
+    }
+
+    @Test
+    void GIVEN_deployment_activation_WHEN_deployment_interrupted_THEN_stale_versions_not_cleaned_up()
+            throws Exception {
+        AtomicReference<DeploymentResult> result = new AtomicReference<>(
+                new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null));
+        Thread t = new Thread(() -> result.set(task.call()));
+        t.start();
+        t.interrupt();
+        t.join(TimeUnit.SECONDS.toMillis(5));
+        // Stop the background service-tracking loop
+        task.cancel();
+
+        assertFalse(t.isAlive());
+        assertNull(result.get());
+        verify(componentManager, never()).cleanupStaleVersions();
+    }
+
+    @Test
+    void GIVEN_deployment_activation_WHEN_service_healthy_THEN_stale_versions_cleaned_up() throws Exception {
+        doReturn(KERNEL_ACTIVATION).when(deployment).getDeploymentStage();
+        doReturn(STARTING, RUNNING).when(greengrassService).getState();
+        doReturn(true).when(greengrassService).reachedDesiredState();
+
+        assertEquals(new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null), task.call());
+        verify(componentManager).cleanupStaleVersions();
     }
 }
