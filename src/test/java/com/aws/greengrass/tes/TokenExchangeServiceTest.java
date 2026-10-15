@@ -41,6 +41,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.BOOT_CONFIG_TLOG
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
+import static com.aws.greengrass.deployment.DeviceConfiguration.MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_CONFIG_LOGGING_TOPICS;
@@ -123,6 +124,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
                 COMPONENT_STORE_MAX_SIZE_BYTES)).thenReturn(componentStoreSizeLimitTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES)).thenReturn(mock(Topic.class));
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS)).thenReturn(mock(Topic.class));
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 NUCLEUS_CONFIG_LOGGING_TOPICS)).thenReturn(mock(Topics.class));
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,

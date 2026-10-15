@@ -19,6 +19,7 @@ import java.nio.charset.MalformedInputException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -27,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
 class ConfigurationReaderTest {
@@ -217,6 +219,25 @@ class ConfigurationReaderTest {
         // test a config file with non-UTF8 encoding
         Path corruptedTlogPath = Paths.get(this.getClass().getResource("corruptedConfig.tlog").toURI());
         assertFalse(ConfigurationReader.validateTlog(corruptedTlogPath));
+    }
+
+    @Test
+    void GIVEN_valid_tlog_WHEN_validated_on_interrupted_thread_THEN_valid() throws Exception {
+        Path tlogPath = Files.createTempFile(tempDir, null, null);
+        Files.write(tlogPath, Collections.singletonList(
+                "{\"TS\":1,\"TP\":[\"system\",\"thingName\"],\"W\":\"changed\",\"V\":\"testThing\"}"));
+
+        // An interrupt says nothing about the file. The deployment thread validates rollback snapshots and is
+        // interrupted when the nucleus stops, so an interrupted read must not report the file invalid.
+        Thread.currentThread().interrupt();
+        boolean valid;
+        try {
+            valid = ConfigurationReader.validateTlog(tlogPath);
+        } finally {
+            assertTrue(Thread.interrupted(), "the interruption is preserved for the caller");
+        }
+
+        assertTrue(valid);
     }
 
     @Test

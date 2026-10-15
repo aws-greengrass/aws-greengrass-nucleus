@@ -23,6 +23,8 @@ import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
+import com.aws.greengrass.logging.impl.GreengrassLogMessage;
+import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.spool.CloudMessageSpool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
@@ -36,6 +38,8 @@ import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
@@ -56,6 +60,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
@@ -65,6 +71,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
@@ -89,14 +96,33 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
+// This test class was already at PMD's object-coupling and class-length limits before the
+// interrupted-deployment cases were added. Splitting it up is worth doing on its own, not as part of a
+// bug fix.
+@SuppressWarnings({"PMD.CouplingBetweenObjects", "PMD.ExcessiveClassLength"})
 class KernelTest {
+    private static final String UNFINISHED_DEPLOYMENT_ID =
+            "arn:aws:greengrass:us-east-1:123456789012:configuration:thing/UnfinishedThing:7";
+    // A rollback snapshot as the nucleus writes one, a transaction log.
+    private static final String VALID_SNAPSHOT =
+            "{\"TS\":1602000000000,\"TP\":[\"services\",\"com.example.Component\",\"version\"],"
+                    + "\"W\":\"changed\",\"V\":\"1.0.0\"}\n";
+    // config.tlog as an interrupted deployment left it, and as it is once the device has run on after a restore.
+    private static final String UNVERIFIED_CONFIG =
+            "{\"TS\":1602000000001,\"TP\":[\"services\",\"com.example.Component\",\"version\"],"
+                    + "\"W\":\"changed\",\"V\":\"2.0.0\"}\n";
+    private static final String CHANGED_SINCE_RESTORE =
+            "{\"TS\":1602000000002,\"TP\":[\"services\",\"com.example.Component\",\"version\"],"
+                    + "\"W\":\"changed\",\"V\":\"1.0.0\"}\n";
     private static final String EXPECTED_CONFIG_OUTPUT =
             "  main:\n"
                     + "    dependencies:\n"
@@ -407,6 +433,509 @@ class KernelTest {
 
         DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
         assertThat(deployments.toArray(), hasSize(1));
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_deployment_was_interrupted_without_completing_THEN_reprocess_it()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+        doReturn(new Deployment("{}", Deployment.DeploymentType.LOCAL, "mockId"))
+                .when(deploymentDirectoryManager).readDeploymentMetadata();
+
+        launchWithDefaultStage(deploymentDirectoryManager);
+
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(1));
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_interrupted_cloud_deployment_THEN_left_for_the_cloud_to_redeliver()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+        doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
+                .when(deploymentDirectoryManager).readDeploymentMetadata();
+
+        launchWithDefaultStage(deploymentDirectoryManager);
+
+        // Re-processing it from disk would race the cloud's own re-delivery, which carries the document
+        // the cloud holds and can resolve components this device cannot.
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_no_deployment_in_progress_THEN_nothing_reprocessed() throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(false).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+
+        launchWithDefaultStage(deploymentDirectoryManager);
+
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+        verify(deploymentDirectoryManager, times(0)).readDeploymentMetadata();
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_interrupted_deployment_exhausted_its_attempts_THEN_boot_from_rollback_snapshot()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.LOCAL,
+                VALID_SNAPSHOT, true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+
+        kernel.parseArgs().launch();
+
+        // config.tlog now holds exactly the snapshot, and the launch boots it like any config.tlog.
+        assertEquals(VALID_SNAPSHOT, read(configTlog));
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog.resolveSibling("config.tlog~")));
+        verify(kernelLifecycle).initConfigAndTlog();
+        verify(kernelLifecycle, never()).initConfigAndTlog(anyString());
+        // Still re-queued, so DeploymentService reports the deployment failed rather than leaving it
+        // outstanding for the cloud to deliver again.
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(1));
+        assertEquals(DeploymentDirectoryManager.LaunchRecovery.RESTORED, launchRecoveryRecorded());
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_WHEN_args_parsed_without_launch_THEN_restored_once_and_nothing_requeued()
+            throws Exception {
+        // GreengrassSetup parses arguments and can exit without launching, e.g. to set up the system service.
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.LOCAL,
+                VALID_SNAPSHOT, true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+
+        kernel.parseArgs();
+
+        assertEquals(VALID_SNAPSHOT, read(configTlog));
+        verify(kernelLifecycle).initConfigAndTlog();
+        verify(kernelLifecycle, never()).launch();
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+        // The restore is recorded once it has taken effect, so the launch that follows does not restore again.
+        assertNull(deploymentDirectoryManager.assessUnfinishedDeploymentAtLaunch(false).getRecovery());
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_restored_WHEN_args_parsed_again_THEN_snapshot_not_restored_again()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW,
+                VALID_SNAPSHOT, true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+
+        kernel.parseArgs();
+        assertEquals(VALID_SNAPSHOT, read(configTlog));
+        Files.write(configTlog, CHANGED_SINCE_RESTORE.getBytes(StandardCharsets.UTF_8));
+        // Restoring again would erase everything written to config.tlog since the first restore.
+        kernel.parseArgs();
+
+        assertEquals(CHANGED_SINCE_RESTORE, read(configTlog));
+        verify(kernelLifecycle, times(2)).initConfigAndTlog();
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_restored_WHEN_nucleus_restarts_THEN_snapshot_not_restored_again()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW,
+                VALID_SNAPSHOT, true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        wireDefaultStageLaunch(deploymentDirectoryManager, mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+        kernel.parseArgs();
+        assertEquals(VALID_SNAPSHOT, read(configTlog));
+        Files.write(configTlog, CHANGED_SINCE_RESTORE.getBytes(StandardCharsets.UTF_8));
+
+        // A restart before the cloud re-delivers the deployment, on the same root.
+        kernel.shutdown();
+        kernel.getContext().close();
+        kernel = new Kernel();
+        kernel.getContext().put(DeviceConfiguration.class,
+                spy(new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine())));
+        KernelLifecycle secondLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        kernel.parseArgs();
+
+        assertEquals(CHANGED_SINCE_RESTORE, read(configTlog));
+        verify(secondLifecycle).initConfigAndTlog();
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_WHEN_explicit_config_provided_THEN_explicit_config_wins_and_not_restored_later()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW, VALID_SNAPSHOT,
+                true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        doReturn(tempFile.toString()).when(kernelCommandLine).getProvidedConfigPathName();
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager, kernelCommandLine);
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+
+        kernel.parseArgs();
+
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog));
+        verify(kernelLifecycle).initConfigAndTlog();
+        // Decided once: a later launch without the explicit configuration does not override it with the snapshot.
+        assertNull(deploymentDirectoryManager.assessUnfinishedDeploymentAtLaunch(false).getRecovery());
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_WHEN_init_config_provided_THEN_init_config_wins() throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW, VALID_SNAPSHOT,
+                true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        doReturn(tempFile.toString()).when(kernelCommandLine).getProvidedInitialConfigPath();
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager, kernelCommandLine);
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+
+        kernel.parseArgs();
+
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog));
+        verify(kernelLifecycle).initConfigAndTlog();
+        // Decided once, as for -i/--config, so the deployment's failure reports why the device was not restored.
+        assertEquals(DeploymentDirectoryManager.LaunchRecovery.EXPLICIT_CONFIGURATION, launchRecoveryRecorded());
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_that_does_not_roll_back_WHEN_args_parsed_THEN_not_restored() throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW, VALID_SNAPSHOT,
+                false, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+
+        kernel.parseArgs();
+
+        // DO_NOTHING: a failure of this deployment would not roll back, so neither does using up its attempts.
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog));
+        verify(kernelLifecycle).initConfigAndTlog();
+        assertEquals(DeploymentDirectoryManager.LaunchRecovery.ROLLBACK_NOT_REQUESTED, launchRecoveryRecorded());
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_with_invalid_snapshot_WHEN_args_parsed_THEN_snapshot_not_applied(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, com.fasterxml.jackson.core.JsonParseException.class);
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW,
+                "\u0000\u0000 not a transaction log", true,
+                DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+
+        kernel.parseArgs();
+
+        // Reading it would apply only the lines that parse and make that partial configuration durable.
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog));
+        verify(kernelLifecycle).initConfigAndTlog();
+        assertEquals(DeploymentDirectoryManager.LaunchRecovery.ROLLBACK_SNAPSHOT_UNUSABLE, launchRecoveryRecorded());
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_WHEN_restoring_its_snapshot_fails_THEN_device_boots_its_config_and_failure_recorded(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, java.nio.file.FileSystemException.class);
+        // What Windows throws for opening a directory as a file.
+        ignoreExceptionOfType(context, java.nio.file.AccessDeniedException.class);
+        ignoreExceptionOfType(context, java.nio.file.DirectoryNotEmptyException.class);
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        Path snapshotPath = stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW,
+                VALID_SNAPSHOT, true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+        // Writing the copy next to config.tlog fails, as on a full disk, an I/O error or a read-only filesystem.
+        // A directory where the copy has to go fails it for any user, root included.
+        Files.createDirectories(configTlog.resolveSibling("config.tlog+").resolve("occupied"));
+
+        // With Restart=on-failure a throw here would be a boot loop; main boots config.tlog.
+        kernel.parseArgs();
+
+        verify(kernelLifecycle).initConfigAndTlog();
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog));
+        // The snapshot is kept, and what happened is recorded for the deployment's failure status.
+        assertEquals(VALID_SNAPSHOT, read(snapshotPath));
+        assertEquals(DeploymentDirectoryManager.LaunchRecovery.RESTORE_FAILED, launchRecoveryRecorded());
+        // Decided once, so a later launch does not keep retrying a restore before every boot.
+        assertNull(deploymentDirectoryManager.assessUnfinishedDeploymentAtLaunch(false).getRecovery());
+    }
+
+    @Test
+    void GIVEN_exhausted_deployment_WHEN_restore_throws_unexpectedly_THEN_device_boots_its_config(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, IllegalStateException.class);
+        DeploymentDirectoryManager deploymentDirectoryManager = spy(deploymentDirectoryManagerOnDisk());
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW,
+                VALID_SNAPSHOT, true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+        doThrow(new IllegalStateException("unexpected")).when(deploymentDirectoryManager)
+                .restoreRollbackSnapshot(any(), any());
+
+        kernel.parseArgs();
+
+        verify(kernelLifecycle).initConfigAndTlog();
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog));
+        assertEquals(DeploymentDirectoryManager.LaunchRecovery.RESTORE_FAILED, launchRecoveryRecorded());
+    }
+
+    @Test
+    // Windows moves a directory over a file, so the leftover below is only unmovable on POSIX. The launch's handling
+    // of a failed restore is covered on every OS by the restore-failure tests above; the settle failure itself by
+    // DeploymentDirectoryManagerTest.
+    @DisabledOnOs(OS.WINDOWS)
+    void GIVEN_exhausted_deployment_WHEN_truncation_leftover_cannot_be_settled_THEN_not_restored_and_failure_recorded(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, java.nio.file.FileSystemException.class);
+        ignoreExceptionOfType(context, java.nio.file.DirectoryNotEmptyException.class);
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.SHADOW, VALID_SNAPSHOT, true,
+                DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+        // An interrupted truncation's leftover that cannot be removed or moved, for any user. The launch moves it
+        // back over config.tlog, so a restore it survived would be undone while recorded as done.
+        Files.createDirectories(configTlog.resolveSibling("config.tlog.old").resolve("occupied"));
+
+        kernel.parseArgs();
+
+        verify(kernelLifecycle).initConfigAndTlog();
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog));
+        assertEquals(DeploymentDirectoryManager.LaunchRecovery.RESTORE_FAILED, launchRecoveryRecorded());
+    }
+
+    @Test
+    void GIVEN_cancelled_local_deployment_on_ongoing_link_WHEN_launched_THEN_not_reprocessed() throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.LOCAL, VALID_SNAPSHOT, true,
+                1);
+        // CANCELED was published for it, and DeploymentService recorded the cancel first.
+        recordTerminalOutcomeOnDisk("CANCELLED");
+        wireDefaultStageLaunch(deploymentDirectoryManager, mock(KernelCommandLine.class));
+
+        kernel.parseArgs().launch();
+
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+        // It stays on the ongoing link, for the next deployment to carry its snapshot forward.
+        assertTrue(deploymentDirectoryManager.hasUnfinishedDeployment());
+    }
+
+    @Test
+    void GIVEN_cancelled_deployment_that_used_up_its_attempts_WHEN_args_parsed_THEN_not_restored() throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.IOT_JOBS, VALID_SNAPSHOT,
+                true, DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        // Its job was cancelled during the last allowed attempt.
+        recordTerminalOutcomeOnDisk("CANCELLED");
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+        Path configTlog = givenConfigTlog(UNVERIFIED_CONFIG);
+
+        kernel.parseArgs();
+
+        // Cancelling is not failing: nothing restores the device behind the back of whoever cancelled it.
+        assertEquals(UNVERIFIED_CONFIG, read(configTlog));
+        verify(kernelLifecycle).initConfigAndTlog();
+        assertNull(launchRecoveryRecorded());
+    }
+
+    @Test
+    void GIVEN_interrupted_cloud_deployment_WHEN_launched_THEN_log_says_awaiting_redelivery_not_reprocessing()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.IOT_JOBS, VALID_SNAPSHOT,
+                true, 1);
+        wireDefaultStageLaunch(deploymentDirectoryManager, mock(KernelCommandLine.class));
+
+        List<String> messages = logMessagesDuring(() -> kernel.parseArgs().launch());
+
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+        assertFalse(messages.stream().anyMatch(m -> m.contains("re-process") && !m.contains("Not re-processing")),
+                messages::toString);
+        assertTrue(messages.stream().anyMatch(m -> m.contains("awaiting the cloud to re-deliver it")),
+                messages::toString);
+    }
+
+    @Test
+    void GIVEN_interrupted_local_deployment_WHEN_launched_THEN_log_says_reprocessing() throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.LOCAL, VALID_SNAPSHOT, true,
+                1);
+        wireDefaultStageLaunch(deploymentDirectoryManager, mock(KernelCommandLine.class));
+
+        List<String> messages = logMessagesDuring(() -> kernel.parseArgs().launch());
+
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(1));
+        assertTrue(messages.stream().anyMatch(m -> m.contains("interrupted before it completed. Re-processing it")),
+                messages::toString);
+    }
+
+    @Test
+    void GIVEN_deployment_finished_but_not_moved_off_ongoing_link_WHEN_launched_THEN_not_treated_as_unfinished()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = deploymentDirectoryManagerOnDisk();
+        stageUnfinishedDeployment(deploymentDirectoryManager, Deployment.DeploymentType.LOCAL, VALID_SNAPSHOT, true,
+                DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        // Its terminal status was recorded, then the nucleus stopped before the directory moved.
+        deploymentDirectoryManager.recordTerminalStatus(UNFINISHED_DEPLOYMENT_ID,
+                DeploymentDirectoryManager.TerminalOutcome.SUCCEEDED);
+        KernelLifecycle kernelLifecycle = wireDefaultStageLaunch(deploymentDirectoryManager,
+                mock(KernelCommandLine.class));
+
+        kernel.parseArgs().launch();
+
+        verify(kernelLifecycle, never()).initConfigAndTlog(anyString());
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+        assertFalse(deploymentDirectoryManager.hasUnfinishedDeployment());
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_interrupted_deployment_cannot_be_read_THEN_launch_still_proceeds(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, RuntimeException.class);
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+        doThrow(new RuntimeException("corrupt metadata")).when(deploymentDirectoryManager).readDeploymentMetadata();
+
+        KernelLifecycle kernelLifecycle = launchWithDefaultStage(deploymentDirectoryManager, false);
+
+        // Re-processing is a recovery step: failing it must not keep the device from starting.
+        verify(kernelLifecycle).launch();
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+    }
+
+    private void launchWithDefaultStage(DeploymentDirectoryManager deploymentDirectoryManager) throws Exception {
+        launchWithDefaultStage(deploymentDirectoryManager, false);
+    }
+
+    private KernelLifecycle launchWithDefaultStage(DeploymentDirectoryManager deploymentDirectoryManager,
+                                                  boolean expectConfigOverride) throws Exception {
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        doNothing().when(kernelLifecycle).launch();
+        if (expectConfigOverride) {
+            doNothing().when(kernelLifecycle).initConfigAndTlog(any());
+        } else {
+            doNothing().when(kernelLifecycle).initConfigAndTlog();
+        }
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(DEFAULT).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+        doReturn(mock(BootstrapManager.class)).when(kernelCommandLine).getBootstrapManager();
+        kernel.setKernelCommandLine(kernelCommandLine);
+
+        kernel.parseArgs().launch();
+        return kernelLifecycle;
+    }
+
+    private DeploymentDirectoryManager deploymentDirectoryManagerOnDisk() throws IOException {
+        Path deployments = Files.createDirectories(tempRootDir.resolve("deployments"));
+        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
+        doReturn(deployments).when(nucleusPaths).deploymentPath();
+        return new DeploymentDirectoryManager(kernel, nucleusPaths);
+    }
+
+    /**
+     * Leave a deployment on disk the way an interrupted one is left: its directory on the ongoing link, its
+     * metadata, its rollback snapshot and the given number of recorded attempts.
+     */
+    private static Path stageUnfinishedDeployment(DeploymentDirectoryManager deploymentDirectoryManager,
+                                                  Deployment.DeploymentType type, String snapshot,
+                                                  boolean rollbackOnFailure, int attempts) throws IOException {
+        Path dir = deploymentDirectoryManager.createNewDeploymentDirectory(UNFINISHED_DEPLOYMENT_ID);
+        deploymentDirectoryManager.writeDeploymentMetadata(new Deployment("{}", type, UNFINISHED_DEPLOYMENT_ID));
+        Path snapshotPath = dir.resolve("rollback_snapshot.tlog");
+        Files.write(snapshotPath, snapshot.getBytes(StandardCharsets.UTF_8));
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            deploymentDirectoryManager.recordProcessingAttempt(UNFINISHED_DEPLOYMENT_ID,
+                    DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS, rollbackOnFailure);
+        }
+        return snapshotPath;
+    }
+
+    private KernelLifecycle wireDefaultStageLaunch(DeploymentDirectoryManager deploymentDirectoryManager,
+                                                   KernelCommandLine kernelCommandLine) throws IOException {
+        // The launch restores config.tlog in the configuration directory, which parsing the command line sets up.
+        kernel.getNucleusPaths().setConfigPath(tempRootDir.resolve("config"));
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        lenient().doNothing().when(kernelLifecycle).launch();
+        lenient().doNothing().when(kernelLifecycle).initConfigAndTlog(any());
+        lenient().doNothing().when(kernelLifecycle).initConfigAndTlog();
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(DEFAULT).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
+
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+        doReturn(mock(BootstrapManager.class)).when(kernelCommandLine).getBootstrapManager();
+        kernel.setKernelCommandLine(kernelCommandLine);
+        return kernelLifecycle;
+    }
+
+    /**
+     * Write config.tlog as the launch finds it.
+     */
+    private Path givenConfigTlog(String content) throws IOException {
+        Path configTlog = tempRootDir.resolve("config").resolve("config.tlog");
+        Files.write(configTlog, content.getBytes(StandardCharsets.UTF_8));
+        return configTlog;
+    }
+
+    /**
+     * Set the terminal outcome in the staged deployment's record, as the nucleus that recorded it wrote it.
+     */
+    private void recordTerminalOutcomeOnDisk(String outcome) throws IOException {
+        Path record = processingStateFileOfStagedDeployment();
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        Map<String, Object> state = mapper.readValue(record.toFile(), Map.class);
+        state.put("terminalOutcome", outcome);
+        Files.write(record, mapper.writeValueAsBytes(state));
+    }
+
+    private Path processingStateFileOfStagedDeployment() {
+        return tempRootDir.resolve("deployments")
+                .resolve(DeploymentDirectoryManager.getSafeFileName(UNFINISHED_DEPLOYMENT_ID))
+                .resolve("processing_state.json");
+    }
+
+    private DeploymentDirectoryManager.LaunchRecovery launchRecoveryRecorded() throws IOException {
+        Path record = processingStateFileOfStagedDeployment();
+        Object recovery = new com.fasterxml.jackson.databind.ObjectMapper().readValue(record.toFile(), Map.class)
+                .get("launchRecovery");
+        return recovery == null ? null : DeploymentDirectoryManager.LaunchRecovery.valueOf(recovery.toString());
+    }
+
+    private static String read(Path file) throws IOException {
+        return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+    }
+
+    private static List<String> logMessagesDuring(Runnable action) {
+        List<String> messages = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> messages.add(m.getMessage());
+        Slf4jLogAdapter.addGlobalListener(listener);
+        try {
+            action.run();
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
+        return messages;
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

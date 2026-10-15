@@ -705,6 +705,35 @@ class ComponentManagerTest {
     }
 
     @Test
+    void GIVEN_unsuccessful_deployment_with_rollback_baseline_WHEN_cleanup_THEN_keeps_baseline_versions() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        // Live config names 2.0.0 and 1.0.0; the rollback snapshot the device may be returned to names others.
+        Map<String, Set<String>> baseline = new HashMap<>();
+        baseline.put(MONITORING_SERVICE_PKG_NAME, new HashSet<>(Arrays.asList("0.9.0", "0.8.0")));
+        baseline.put("notRunningAnyMore", Collections.singleton("1.2.3"));
+
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(true, null, baseline);
+
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0", "0.9.0", "0.8.0")),
+                versions.get(MONITORING_SERVICE_PKG_NAME));
+        assertEquals(Collections.singleton("1.2.3"), versions.get("notRunningAnyMore"));
+    }
+
+    @Test
+    void GIVEN_successful_deployment_with_rollback_baseline_WHEN_cleanup_THEN_baseline_not_kept() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(false, null,
+                Collections.singletonMap(MONITORING_SERVICE_PKG_NAME, Collections.singleton("0.9.0")));
+
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
     void GIVEN_null_deployment_result_WHEN_cleanup_THEN_keeps_only_current_and_previous() {
         Collection<GreengrassService> mockOrderedDeps =
                 Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));

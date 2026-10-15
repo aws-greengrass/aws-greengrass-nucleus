@@ -524,7 +524,10 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                         .equals("[ComponentTakesLongToStartup]")) {
                     componentTakesLongToStartupRemoved.countDown();
                 }
-                if (m.getMessage().contains("Persist configuration snapshot")) {
+                // Cancel once the first deployment has been applied and its component is in its long install. A
+                // deployment cancelled before it is applied is not applied at all, which is not what this tests.
+                if (m.getMessage().contains("Start install.") && "ComponentTakesLongToStartup".equals(
+                        m.getContexts().get("serviceName"))) {
                     componentStartingUp.countDown();
                 }
                 if (m.getMessage().contains("deployment cancelled while waiting for services to start")) {
@@ -588,7 +591,10 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                     componentTakesLongToStartupRemoved.countDown();
                 }
 
-                if (m.getMessage().contains("Persist configuration snapshot")) {
+                // Cancel once the first deployment has been applied and its component is in its long install. A
+                // deployment cancelled before it is applied is not applied at all, which is not what this tests.
+                if (m.getMessage().contains("Start install.") && "ComponentTakesLongToStartup".equals(
+                        m.getContexts().get("serviceName"))) {
                     componentStartingUp.countDown();
                 }
                 if (m.getMessage().contains("deployment cancelled while waiting for services to start")) {

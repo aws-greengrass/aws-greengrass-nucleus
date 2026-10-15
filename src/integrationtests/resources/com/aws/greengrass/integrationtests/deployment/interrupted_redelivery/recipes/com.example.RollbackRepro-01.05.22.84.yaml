@@ -1,0 +1,26 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: com.example.RollbackRepro
+ComponentDescription: Interrupted-deployment repro component, faulty version that never finishes starting
+ComponentPublisher: Me
+ComponentVersion: '01.05.22.84'
+# No bootstrap step, so a deployment that only changes this component takes the DefaultActivator path.
+# The startup step stays in STARTING for a few seconds before failing, which gives the test a window to
+# interrupt the Nucleus after the merge but before activation can reach a terminal result.
+Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      startup: powershell -command "Write-Output 'RollbackRepro 01.05.22.84 starting'; Start-Sleep -Seconds 5; Write-Output 'RollbackRepro 01.05.22.84 failed to start'; exit 1"
+    Artifacts:
+      - URI: s3://mock-bucket/rollbackRepro.txt
+  - Platform:
+      os: all
+    Lifecycle:
+      startup: |-
+        echo "RollbackRepro 01.05.22.84 starting"
+        sleep 5
+        echo "RollbackRepro 01.05.22.84 failed to start"
+        exit 1
+    Artifacts:
+      - URI: s3://mock-bucket/rollbackRepro.txt

@@ -117,7 +117,8 @@ class PluginComponentTest extends BaseITCase {
                         deploymentConfigMerger, LogManager.getLogger("Deployer"),
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null),
-                        kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class));
+                        kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class),
+                        kernel.getContext().get(DeploymentDirectoryManager.class));
         return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
     }
 
@@ -268,6 +269,11 @@ class PluginComponentTest extends BaseITCase {
         // setup again because local files removed by cleanup in the previous deployment
         setupPackageStoreAndConfigWithDigest();
         String deploymentId2 = "deployment2";
+        // As DeploymentService does: the first deployment finished, and the second gets a directory of its own.
+        DeploymentDirectoryManager deploymentDirectoryManager =
+                kernelSpy.getContext().get(DeploymentDirectoryManager.class);
+        deploymentDirectoryManager.persistLastSuccessfulDeployment(deploymentId);
+        deploymentDirectoryManager.createNewDeploymentDirectory(deploymentId2);
         // No need to actually verify directory setup or make directory changes here.
         doNothing().when(kernelAltsSpy).validateLaunchDirSetupVerbose();
         doNothing().when(kernelAltsSpy).prepareBootstrap(eq(deploymentId2));
@@ -348,6 +354,11 @@ class PluginComponentTest extends BaseITCase {
         // setup again because local files removed by cleanup in the previous deployment
         setupPackageStoreAndConfigWithDigest();
         String deploymentId2 = "deployment2";
+        // As DeploymentService does: the first deployment finished, and the second gets a directory of its own.
+        DeploymentDirectoryManager deploymentDirectoryManager =
+                kernelSpy.getContext().get(DeploymentDirectoryManager.class);
+        deploymentDirectoryManager.persistLastSuccessfulDeployment(deploymentId);
+        deploymentDirectoryManager.createNewDeploymentDirectory(deploymentId2);
         // No need to actually verify directory setup or make directory changes here.
         doNothing().when(kernelAltsSpy).validateLaunchDirSetupVerbose();
         doNothing().when(kernelAltsSpy).prepareBootstrap(eq(deploymentId2));

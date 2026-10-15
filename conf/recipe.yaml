@@ -21,6 +21,7 @@ ComponentConfiguration:
     networkProxy: {}
     runWithDefault: {}
     deploymentPollingFrequencySeconds: 15
+    maxInterruptedDeploymentAttempts: 3
     componentStoreMaxSizeBytes: 10000000000
     platformOverride: {}
 Manifests:
