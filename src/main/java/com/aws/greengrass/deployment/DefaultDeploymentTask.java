@@ -69,6 +69,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
     private final DeploymentDocumentDownloader deploymentDocumentDownloader;
     private final ThingGroupHelper thingGroupHelper;
+    private final DeploymentDirectoryManager deploymentDirectoryManager;
 
     /**
      * Constructor for DefaultDeploymentTask.
@@ -84,6 +85,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
      * @param deploymentDocumentDownloader download large deployment document.
      * @param thingGroupHelper             Thing Group Helper / Retriever
      * @param deviceConfiguration          Device Configuration Information
+     * @param deploymentDirectoryManager   the deployment directory, for the versions its rollback snapshot needs
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
@@ -92,7 +94,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
                                  Topics deploymentServiceConfig, ExecutorService executorService,
                                  DeploymentDocumentDownloader deploymentDocumentDownloader,
                                  ThingGroupHelper thingGroupHelper,
-                                 DeviceConfiguration deviceConfiguration) {
+                                 DeviceConfiguration deviceConfiguration,
+                                 DeploymentDirectoryManager deploymentDirectoryManager) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -104,6 +107,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.deploymentDocumentDownloader = deploymentDocumentDownloader;
         this.thingGroupHelper = thingGroupHelper;
         this.deviceConfiguration = deviceConfiguration;
+        this.deploymentDirectoryManager = deploymentDirectoryManager;
     }
 
     @Override
@@ -113,6 +117,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
         Future<Void> preparePackagesFuture = null;
         Future<DeploymentResult> deploymentMergeFuture = null;
         DeploymentResult deploymentResult = null;
+        // Whether this attempt ended without a result because it was interrupted or cancelled, rather than failed.
+        boolean endedWithoutResult = false;
         List<ComponentIdentifier> desiredPackages = null;
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         try {
@@ -220,6 +226,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).
             deploymentResult = deploymentMergeFuture.get();
+            // The activator completes the merge with no result when the nucleus interrupts it mid-activation.
+            endedWithoutResult = deploymentResult == null;
 
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .log("Finished deployment task");
@@ -233,33 +241,70 @@ public class DefaultDeploymentTask implements DeploymentTask {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
             Throwable t = e.getCause();
             if (t instanceof InterruptedException) {
+                endedWithoutResult = true;
                 throw (InterruptedException) t;
             } else {
                 deploymentResult = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, t);
                 return deploymentResult;
             }
         } catch (InterruptedException e) {
+            endedWithoutResult = true;
             // DeploymentTask got interrupted while performing a blocking step.
             cancelDeploymentTask(resolveDependenciesFuture, preparePackagesFuture, deploymentMergeFuture);
             // Populate the exception up to the stack
             throw e;
         } finally {
-            // Clean up stale artifacts from previous deployments after downloading deployment document
-            // if we have desiredPackages then the artifact download has started
-            Map<String, String> currentDeploymentComponentVersions = null;
-            if (desiredPackages != null) {
-                currentDeploymentComponentVersions = desiredPackages.stream()
-                        .collect(Collectors.toMap(
-                                ComponentIdentifier::getName,
-                                ci -> ci.getVersion().getValue()));
-                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
-                        .kv("Current deployment map", currentDeploymentComponentVersions.toString())
-                        .log("Found current deployment artifacts, will preserve.");
+            if (endedWithoutResult) {
+                // The deployment is picked up again, by a re-delivery or by a deployment superseding it, which carries
+                // its rollback snapshot forward as the rollback baseline. Live config now holds this attempt's
+                // unverified versions rather than that baseline's, so a cleanup judged by it can delete versions the
+                // baseline still needs. The next attempt that reaches a result cleans up instead.
+                logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
+                        .log("Deployment ended without a result. Keeping stale component versions until one does");
+            } else {
+                // Clean up stale artifacts from previous deployments after downloading deployment document
+                // if we have desiredPackages then the artifact download has started
+                Map<String, String> currentDeploymentComponentVersions = null;
+                if (desiredPackages != null) {
+                    currentDeploymentComponentVersions = desiredPackages.stream()
+                            .collect(Collectors.toMap(
+                                    ComponentIdentifier::getName,
+                                    ci -> ci.getVersion().getValue()));
+                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                            .kv("Current deployment map", currentDeploymentComponentVersions.toString())
+                            .log("Found current deployment artifacts, will preserve.");
+                }
+                boolean isDeploymentAborted = deploymentResult == null
+                        || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
+                cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
             }
-            boolean isDeploymentAborted = deploymentResult == null
-                    || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
-            componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
         }
+    }
+
+    /**
+     * Clean up stale component versions after an attempt that reached a result. A deployment that did not succeed
+     * may still leave the device to be returned to its rollback snapshot: by its own rollback, by a launch that
+     * restores it, or as the baseline the next deployment carries forward when its failure left unverified changes.
+     * Live configuration, which the cleanup otherwise goes by, need not name the versions that snapshot names any
+     * more: once a superseding deployment has been applied it holds that deployment's and the superseded one's
+     * versions instead. So the versions the snapshot names are kept too. A successful deployment is verified, and its
+     * snapshot is no longer anything to return to.
+     */
+    private void cleanupStaleVersions(boolean isDeploymentAborted, Map<String, String> currentDeploymentVersions) {
+        Map<String, Set<String>> rollbackBaselineVersions = Collections.emptyMap();
+        if (isDeploymentAborted) {
+            try {
+                rollbackBaselineVersions = deploymentDirectoryManager.findRollbackBaselineVersions();
+            } catch (IOException e) {
+                // Cleaning up is best effort; deleting what the rollback snapshot needs is not.
+                logger.atWarn(DEPLOYMENT_TASK_EVENT_TYPE).setCause(e)
+                        .log("Unable to read the versions the rollback snapshot needs. Keeping stale component "
+                                + "versions until a deployment reaches a result that can be judged without it");
+                return;
+            }
+        }
+        componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentVersions,
+                rollbackBaselineVersions);
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})

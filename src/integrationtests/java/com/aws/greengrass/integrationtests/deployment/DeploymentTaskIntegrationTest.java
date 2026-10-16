@@ -94,7 +94,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -143,7 +142,8 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-    private static final AtomicInteger deploymentCount = new AtomicInteger();
+    // The deployment whose directory the ongoing link names, which the next submission finishes first.
+    private static String lastDeploymentDirectoryId;
     private static final int STDOUT_TIMEOUT = 40;
     private static final int DEPLOYMENT_TIMEOUT = 80;
 
@@ -1466,17 +1466,30 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
-        kernel.getContext().get(DeploymentDirectoryManager.class)
-                .createNewDeploymentDirectory("testFleetConfigArn" + deploymentCount.getAndIncrement());
-
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
         sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
+
+        DeploymentDirectoryManager deploymentDirectoryManager =
+                kernel.getContext().get(DeploymentDirectoryManager.class);
+        // DeploymentService removes the ongoing link when a deployment reports a terminal status. This
+        // helper bypasses DeploymentService, so do it here: an ongoing link left behind means the next
+        // deployment treats the previous one as interrupted and inherits its rollback snapshot as the
+        // baseline, which would roll back past a deployment that actually completed.
+        if (lastDeploymentDirectoryId != null) {
+            deploymentDirectoryManager.persistLastSuccessfulDeployment(lastDeploymentDirectoryId);
+        }
+        // Named after the deployment, as DeploymentService names it: an activation writes its rollback snapshot and
+        // attempt record only into its own deployment's directory.
+        lastDeploymentDirectoryId = sampleJobDocument.getDeploymentId();
+        deploymentDirectoryManager.createNewDeploymentDirectory(lastDeploymentDirectoryId);
+
         DefaultDeploymentTask deploymentTask =
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class));
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class),
+                        kernel.getContext().get(DeploymentDirectoryManager.class));
         return executorService.submit(deploymentTask);
     }
 }

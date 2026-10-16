@@ -58,6 +58,7 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -574,8 +575,23 @@ public class ComponentManager implements InjectionActions {
      * @param currentDeploymentVersions map of component names to their versions in the last tried deployment
      */
     public void cleanupStaleVersions(final boolean isDeploymentAborted, Map<String, String> currentDeploymentVersions) {
+        cleanupStaleVersions(isDeploymentAborted, currentDeploymentVersions, Collections.emptyMap());
+    }
+
+    /**
+     * Delete stale versions from local store with deployment context, keeping the versions a rollback or a restore
+     * may still return the device to. It's best effort and all the errors are logged.
+     *
+     * @param isDeploymentAborted       the result of the deployment, true of deployment is abnormal and aborted
+     * @param currentDeploymentVersions map of component names to their versions in the last tried deployment
+     * @param rollbackBaselineVersions  versions, by component, that the device may still be returned to; kept when
+     *                                  the deployment did not succeed
+     */
+    public void cleanupStaleVersions(final boolean isDeploymentAborted, Map<String, String> currentDeploymentVersions,
+                                     Map<String, Set<String>> rollbackBaselineVersions) {
         logger.atDebug("cleanup-stale-versions-start").log();
-        Map<String, Set<String>> versionsToKeep = getVersionsToKeep(isDeploymentAborted, currentDeploymentVersions);
+        Map<String, Set<String>> versionsToKeep = getVersionsToKeep(isDeploymentAborted, currentDeploymentVersions,
+                rollbackBaselineVersions);
         Map<String, Set<String>> versionsToRemove = componentStore.listAvailableComponentVersions();
         // remove all local versions that does not exist in versionsToKeep
         for (Map.Entry<String, Set<String>> localVersions : versionsToRemove.entrySet()) {
@@ -620,6 +636,22 @@ public class ComponentManager implements InjectionActions {
      */
     public Map<String, Set<String>> getVersionsToKeep(final boolean isDeploymentAborted,
                                                       Map<String, String> currentDeploymentVersions) {
+        return getVersionsToKeep(isDeploymentAborted, currentDeploymentVersions, Collections.emptyMap());
+    }
+
+    /**
+     * Query service config to obtain non-stale versions of components which should not be cleaned up, together with
+     * the versions a rollback or a restore may still return the device to.
+     *
+     * @param isDeploymentAborted       the result of the deployment, true of deployment is abnormal and aborted
+     * @param currentDeploymentVersions map of component names to their versions in the last tried deployment
+     * @param rollbackBaselineVersions  versions, by component, that the device may still be returned to; kept when
+     *                                  the deployment did not succeed
+     * @return mapping from component name string to collection of non-stale version strings
+     */
+    public Map<String, Set<String>> getVersionsToKeep(final boolean isDeploymentAborted,
+                                                      Map<String, String> currentDeploymentVersions,
+                                                      Map<String, Set<String>> rollbackBaselineVersions) {
         Map<String, Set<String>> result = new HashMap<>();
         for (GreengrassService service : kernel.orderedDependencies()) {
             Set<String> nonStaleVersions = new HashSet<>();
@@ -649,6 +681,15 @@ public class ComponentManager implements InjectionActions {
                         .kv("CurrentVersions", currentVersion)
                         .log("Current component version: ", componentName, currentVersion);
             }
+        }
+        // Live config judges staleness only for a deployment that succeeded; until then, what the deployment's rollback
+        // snapshot names is what the device may be returned to.
+        if (isDeploymentAborted && rollbackBaselineVersions != null) {
+            rollbackBaselineVersions.forEach((componentName, versions) -> {
+                result.computeIfAbsent(componentName, k -> new HashSet<>()).addAll(versions);
+                logger.atDebug().kv("ComponentName", componentName).kv("RollbackBaselineVersions", versions)
+                        .log("Keeping the versions the rollback snapshot names");
+            });
         }
         return result;
     }

@@ -52,18 +52,20 @@ public class DefaultActivator extends DeploymentActivator {
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         String deploymentId = deployment.getId();
-        boolean autoRollback = isAutoRollbackRequested(deploymentDocument);
 
-        // Endpoint switch deployments force config snapshot and rollback regardless of FailureHandlingPolicy,
-        // so that we can restore the original endpoint if the new one is unreachable after applying the change.
-        // Only check when auto-rollback is not already requested to avoid redundant config store reads.
-        boolean forceSnapshotForEndpointSwitch = !autoRollback && isEndpointSwitch(deploymentId);
-        if (forceSnapshotForEndpointSwitch) {
-            logger.atInfo(MERGE_CONFIG_EVENT_KEY)
-                    .log("Endpoint switch deployment: forcing config snapshot and rollback support");
-        }
-        if ((autoRollback || forceSnapshotForEndpointSwitch)
-                && !takeConfigSnapshot(totallyCompleteFuture)) {
+        // Snapshot regardless of FailureHandlingPolicy. The policy governs whether a *failed* deployment
+        // rolls back; it cannot govern whether an *interrupted* one is recoverable, because the merge below
+        // makes the new configuration durable either way. Endpoint switch deployments need the snapshot for
+        // the same reason, to restore the original endpoint when the new one proves unreachable.
+        // The attempt is counted only once the snapshot is durable, and before the merge. What a failure would do
+        // is recorded with it: a launch restores a deployment that used up its attempts only if a failure of it
+        // would have been rolled back. Both name this deployment, so an activation a superseding deployment
+        // overtook cannot write into that deployment's directory.
+        boolean rollbackOnFailure = rollsBackOnFailure(deploymentDocument, deploymentId);
+        String greengrassDeploymentId = deploymentDocument.getDeploymentId();
+        if (!takeConfigSnapshot(totallyCompleteFuture, greengrassDeploymentId, rollbackOnFailure)
+                || !recordProcessingAttempt(rollbackOnFailure, totallyCompleteFuture, greengrassDeploymentId)
+                || !stillToBeApplied(totallyCompleteFuture, greengrassDeploymentId)) {
             return;
         }
 
@@ -106,6 +108,14 @@ public class DefaultActivator extends DeploymentActivator {
             logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTime)
                     .log("Applied new service config. Waiting for services to complete update");
             waitForServicesToStart(servicesToTrack, mergeTime, kernel, totallyCompleteFuture);
+            if (totallyCompleteFuture.isCancelled()) {
+                // waitForServicesToStart returns early rather than throwing when the deployment is
+                // cancelled, e.g. because a newer deployment superseded it. Stop here instead of mutating
+                // services alongside the deployment that replaced this one.
+                logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                        .log("Deployment cancelled: will not remove obsolete services");
+                return;
+            }
             logger.atDebug(MERGE_CONFIG_EVENT_KEY)
                     .log("new/updated services are running, will now remove old services");
             servicesChangeManager.removeObsoleteServices();
@@ -129,7 +139,7 @@ public class DefaultActivator extends DeploymentActivator {
                                Throwable failureCause) {
         logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                 .setCause(failureCause).log("Deployment failed");
-        if (isAutoRollbackRequested(deploymentDocument) || isEndpointSwitch(deploymentId)) {
+        if (rollsBackOnFailure(deploymentDocument, deploymentId)) {
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .log("Initiating rollback for failed deployment");
             rollback(deploymentDocument, totallyCompleteFuture, failureCause,
@@ -139,6 +149,14 @@ public class DefaultActivator extends DeploymentActivator {
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED,
                             failureCause));
         }
+    }
+
+    /**
+     * Whether a failure of this deployment rolls it back: when the deployment requests it, or when it switches
+     * the IoT data endpoint, which must be undone if the new endpoint proves unreachable.
+     */
+    private boolean rollsBackOnFailure(DeploymentDocument deploymentDocument, String deploymentId) {
+        return isAutoRollbackRequested(deploymentDocument) || isEndpointSwitch(deploymentId);
     }
 
     /**
@@ -152,6 +170,13 @@ public class DefaultActivator extends DeploymentActivator {
     void rollback(DeploymentDocument deploymentDocument, CompletableFuture<DeploymentResult> totallyCompleteFuture,
                   Throwable failureCause, DeploymentConfigMerger.AggregateServicesChangeManager rollbackManager) {
         String deploymentId = deploymentDocument.getDeploymentId();
+        if (totallyCompleteFuture.isCancelled()) {
+            // A deployment that replaced this one owns the device's configuration now; rolling back would merge
+            // this deployment's snapshot over it.
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                    .log("Deployment cancelled: will not roll back");
+            return;
+        }
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
                 .log("Rolling back failed deployment");
 
@@ -193,6 +218,13 @@ public class DefaultActivator extends DeploymentActivator {
                     .kv("mergeTime", mergeTime)
                     .log("Applied rollback service config. Waiting for services to complete update");
             waitForServicesToStart(servicesToTrackForRollback, mergeTime, kernel, totallyCompleteFuture);
+            if (totallyCompleteFuture.isCancelled()) {
+                // As in activate: waitForServicesToStart returns early when the deployment is cancelled, and the
+                // deployment that replaced this one must not have services removed underneath it.
+                logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                        .log("Deployment cancelled during rollback: will not remove obsolete services");
+                return;
+            }
 
             rollbackManager.removeObsoleteServices();
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)

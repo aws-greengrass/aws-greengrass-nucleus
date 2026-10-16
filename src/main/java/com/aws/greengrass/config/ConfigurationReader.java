@@ -13,8 +13,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Predicate;
@@ -166,6 +169,8 @@ public final class ConfigurationReader {
      * @return true if all entries in the file are valid;
      *         false if file doesn't exist, is empty, or contains invalid entry
      */
+    // FileInputStream is deliberate: see the reader below.
+    @SuppressWarnings("PMD.AvoidFileStream")
     public static boolean validateTlog(Path tlogPath) {
         try {
             if (!Files.exists(tlogPath)) {
@@ -173,7 +178,12 @@ public final class ConfigurationReader {
                         .log("Transaction log file does not exist at given path");
                 return false;
             }
-            try (BufferedReader in = Files.newBufferedReader(tlogPath)) {
+            // Equivalent to Files.newBufferedReader, including reporting malformed UTF-8, but reading through a
+            // FileInputStream: a channel's read fails when the calling thread is interrupted, which would report a
+            // valid transaction log as invalid. The deployment thread validates rollback snapshots and is
+            // interrupted when the nucleus stops.
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(tlogPath.toFile()),
+                    StandardCharsets.UTF_8.newDecoder()))) {
                 // We have seen two different file corruption scenarios
                 // 1. The last line of config file is corrupted with non-UTF8 characters and BufferedReader::readLine
                 // throws a MalformedInputException.

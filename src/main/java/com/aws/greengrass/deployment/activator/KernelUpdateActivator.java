@@ -68,7 +68,12 @@ public class KernelUpdateActivator extends DeploymentActivator {
     @Override
     public void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
-        if (!takeConfigSnapshot(totallyCompleteFuture)) {
+        // Count the attempt once the snapshot is durable and before anything changes. A failed Nucleus update is
+        // always rolled back (see rollback), so one that uses up its attempts is restored too, and one without a
+        // deployment directory to snapshot into is not applied.
+        String deploymentId = deployment.getDeploymentDocumentObj().getDeploymentId();
+        if (!takeConfigSnapshot(totallyCompleteFuture, deploymentId, true)
+                || !recordProcessingAttempt(true, totallyCompleteFuture, deploymentId)) {
             return;
         }
         try {
