@@ -22,6 +22,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import lombok.Getter;
 import software.amazon.awssdk.http.HttpStatusCode;
@@ -52,7 +53,6 @@ import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverte
  */
 public class DefaultDeploymentTask implements DeploymentTask {
     private static final int INFINITE_RETRY_COUNT = Integer.MAX_VALUE;
-    private static final int MAX_CAUSE_CHAIN_DEPTH = 20;
 
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
     public static final String DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX = "thing/";
@@ -237,6 +237,14 @@ public class DefaultDeploymentTask implements DeploymentTask {
             if (t instanceof InterruptedException) {
                 deploymentInterrupted = true;
                 throw (InterruptedException) t;
+            } else if (Utils.hasCause(t, InterruptedException.class)) {
+                // A shutdown interrupt can arrive wrapped in another exception. Report it as an interrupt
+                // rather than a deployment failure.
+                deploymentInterrupted = true;
+                Thread.currentThread().interrupt();
+                InterruptedException interrupted = new InterruptedException("Deployment task is interrupted");
+                interrupted.initCause(t);
+                throw interrupted;
             } else {
                 deploymentResult = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, t);
                 return deploymentResult;
@@ -281,27 +289,6 @@ public class DefaultDeploymentTask implements DeploymentTask {
         }
     }
 
-    /**
-     * Check whether an interrupt is anywhere in the exception's cause chain.
-     *
-     * @param throwable exception to inspect
-     * @return true if the chain contains an InterruptedException
-     */
-    private static boolean isCausedByInterrupt(Throwable throwable) {
-        Throwable cause = throwable;
-        // Bound the walk so a self-referencing cause chain cannot loop forever.
-        for (int depth = 0; cause != null && depth < MAX_CAUSE_CHAIN_DEPTH; depth++) {
-            if (cause instanceof InterruptedException) {
-                return true;
-            }
-            if (cause == cause.getCause()) {
-                break;
-            }
-            cause = cause.getCause();
-        }
-        return false;
-    }
-
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     private Map<String, Set<ComponentRequirementIdentifier>> getNonTargetGroupToRootPackagesMap(
             DeploymentDocument deploymentDocument)
@@ -332,7 +319,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         } catch (InterruptedException e) {
             throw e;
         } catch (Exception e) {
-            if (isCausedByInterrupt(e)) {
+            if (Utils.hasCause(e, InterruptedException.class)) {
                 // A shutdown interrupt can reach here wrapped in another exception (e.g. TLSAuthException
                 // from key-manager loading). Report it as an interrupt, not a deployment failure.
                 Thread.currentThread().interrupt();

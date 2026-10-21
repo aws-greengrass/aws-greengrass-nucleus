@@ -51,6 +51,7 @@ public final class Utils {
     private static final int BASE_10 = 10;
     private static final String TRUNCATED_STRING = "...";
     private static final String FILE_URL_PREFIX = "file://";
+    private static final int MAX_CAUSE_CHAIN_DEPTH = 20;
     private static final Map<Runnable, Boolean> onceMap = new ConcurrentHashMap<>();
     private static SecureRandom random;
 
@@ -170,6 +171,26 @@ public final class Utils {
             t = t.getCause();
         }
         return t;
+    }
+
+    /**
+     * Check whether a throwable or any throwable in its chain of causes is an instance of the given type.
+     * Unlike {@link #getUltimateCause}, this matches at any depth rather than only the last cause, and the
+     * walk is depth-bounded so a cyclic cause chain cannot loop forever.
+     *
+     * @param t    throwable to inspect. May be null.
+     * @param type throwable type to look for.
+     * @return true if t or any of its causes is an instance of type.
+     */
+    public static boolean hasCause(Throwable t, Class<? extends Throwable> type) {
+        Throwable cause = t;
+        for (int depth = 0; cause != null && depth < MAX_CAUSE_CHAIN_DEPTH; depth++) {
+            if (type.isInstance(cause)) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     /**

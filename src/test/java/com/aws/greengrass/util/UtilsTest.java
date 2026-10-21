@@ -13,11 +13,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.CharBuffer;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static com.aws.greengrass.util.Utils.deepToString;
 import static com.aws.greengrass.util.Utils.dequote;
@@ -30,6 +32,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -178,5 +181,33 @@ class UtilsTest {
         assertEquals("abcdefghi", Utils.truncate("abcdefghij", 9));
         assertEquals("abcdef", Utils.truncate("abcdefghij", 6));
         assertEquals("", Utils.truncate("abcdefghij", 0));
+    }
+
+    @Test
+    void GIVEN_throwable_chain_WHEN_hasCause_THEN_matches_at_any_depth() {
+        InterruptedException interrupt = new InterruptedException("interrupted");
+
+        assertTrue(Utils.hasCause(interrupt, InterruptedException.class));
+        assertTrue(Utils.hasCause(new RuntimeException(interrupt), InterruptedException.class));
+        assertTrue(Utils.hasCause(new ExecutionException(new RuntimeException(interrupt)),
+                InterruptedException.class));
+        // A supertype matches too.
+        assertTrue(Utils.hasCause(new RuntimeException(interrupt), Exception.class));
+
+        assertFalse(Utils.hasCause(new RuntimeException(new IllegalStateException()), InterruptedException.class));
+        assertFalse(Utils.hasCause(null, InterruptedException.class));
+    }
+
+    @Test
+    void GIVEN_cyclic_cause_chain_WHEN_hasCause_THEN_terminates() {
+        // A two-element cause cycle is constructible via initCause and would loop forever in an unbounded
+        // walk. hasCause is depth-bounded, so it must return instead of hanging. Asserted preemptively so a
+        // regressed bound fails this test rather than hanging the build.
+        Exception first = new Exception("first");
+        Exception second = new Exception("second", first);
+        first.initCause(second);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(10),
+                () -> assertFalse(Utils.hasCause(first, InterruptedException.class)));
     }
 }

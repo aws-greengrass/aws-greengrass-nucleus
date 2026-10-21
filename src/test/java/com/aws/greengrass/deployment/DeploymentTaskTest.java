@@ -318,7 +318,38 @@ class DeploymentTaskTest {
         verify(mockMergeConfigFuture, timeout(5000)).cancel(false);
         // Wait for the finally block to run so the cleanup assertion below is not vacuous.
         t.join(5000);
+        assertFalse(t.isAlive());
         verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    @Test
+    void GIVEN_resolved_deployment_WHEN_non_interrupt_failure_with_interrupt_flag_set_THEN_cleanup_skipped(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, PackageLoadingException.class);
+
+        // Resolution succeeds, so desiredPackages is non-null and the unresolved-deployment guard does not apply.
+        when(mockExecutorService.submit(any(Callable.class))).thenReturn(CompletableFuture.completedFuture(
+                Collections.singletonList(new ComponentIdentifier("component1", new Semver("1.0.0")))));
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        // Set the interrupt flag, then exit through a non-interrupt path so deploymentInterrupted stays false.
+        // Only the isInterrupted() check in the finally block can skip cleanup here.
+        when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class)))
+                .thenAnswer(invocation -> {
+                    Thread.currentThread().interrupt();
+                    throw new PackageLoadingException("failed to load package");
+                });
+
+        try {
+            DeploymentResult result = deploymentTask.call();
+            // Returning a result rather than throwing confirms the non-interrupt exit path was taken.
+            assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+            assertTrue(result.getFailureCause() instanceof PackageLoadingException);
+            verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+            verify(mockComponentManager, never()).cleanupStaleVersions();
+        } finally {
+            // Clear the flag so it cannot leak into other tests running on this thread.
+            Thread.interrupted();
+        }
     }
 
     @Test
