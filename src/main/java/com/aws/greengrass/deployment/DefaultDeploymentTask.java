@@ -22,6 +22,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import lombok.Getter;
 import software.amazon.awssdk.http.HttpStatusCode;
@@ -107,13 +108,14 @@ public class DefaultDeploymentTask implements DeploymentTask {
     }
 
     @Override
-    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.PrematureDeclaration"})
+    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.PrematureDeclaration", "PMD.AvoidCatchingGenericException"})
     public DeploymentResult call() throws InterruptedException {
         Future<List<ComponentIdentifier>> resolveDependenciesFuture = null;
         Future<Void> preparePackagesFuture = null;
         Future<DeploymentResult> deploymentMergeFuture = null;
         DeploymentResult deploymentResult = null;
         List<ComponentIdentifier> desiredPackages = null;
+        boolean deploymentInterrupted = false;
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         try {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
@@ -233,32 +235,57 @@ public class DefaultDeploymentTask implements DeploymentTask {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
             Throwable t = e.getCause();
             if (t instanceof InterruptedException) {
+                deploymentInterrupted = true;
                 throw (InterruptedException) t;
+            } else if (Utils.hasCause(t, InterruptedException.class)) {
+                // A shutdown interrupt can arrive wrapped in another exception. Report it as an interrupt
+                // rather than a deployment failure.
+                deploymentInterrupted = true;
+                Thread.currentThread().interrupt();
+                InterruptedException interrupted = new InterruptedException("Deployment task is interrupted");
+                interrupted.initCause(t);
+                throw interrupted;
             } else {
                 deploymentResult = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, t);
                 return deploymentResult;
             }
         } catch (InterruptedException e) {
             // DeploymentTask got interrupted while performing a blocking step.
+            deploymentInterrupted = true;
             cancelDeploymentTask(resolveDependenciesFuture, preparePackagesFuture, deploymentMergeFuture);
             // Populate the exception up to the stack
             throw e;
         } finally {
-            // Clean up stale artifacts from previous deployments after downloading deployment document
-            // if we have desiredPackages then the artifact download has started
-            Map<String, String> currentDeploymentComponentVersions = null;
-            if (desiredPackages != null) {
-                currentDeploymentComponentVersions = desiredPackages.stream()
-                        .collect(Collectors.toMap(
-                                ComponentIdentifier::getName,
-                                ci -> ci.getVersion().getValue()));
-                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
-                        .kv("Current deployment map", currentDeploymentComponentVersions.toString())
-                        .log("Found current deployment artifacts, will preserve.");
+            if (deploymentInterrupted || Thread.currentThread().isInterrupted()) {
+                // Interrupted deployment — skip cleanup to preserve in-progress artifacts.
+                logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
+                        .log("Skipping stale artifact cleanup; deployment was interrupted");
+            } else if (desiredPackages == null) {
+                // Exited before resolving components — skip cleanup. The versions staged for this
+                // deployment are unknown here, so they would not be protected from deletion.
+                logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
+                        .log("Skipping stale artifact cleanup; deployment exited before resolving components");
+            } else {
+                try {
+                    // Clean up stale artifacts from previous deployments after downloading deployment document
+                    // Deduplicate defensively; duplicates should not occur in practice.
+                    Map<String, String> currentDeploymentComponentVersions = desiredPackages.stream()
+                            .collect(Collectors.toMap(
+                                    ComponentIdentifier::getName,
+                                    ci -> ci.getVersion().getValue(),
+                                    (first, second) -> first));
+                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                            .kv("Current deployment map", currentDeploymentComponentVersions.toString())
+                            .log("Found current deployment artifacts, will preserve.");
+                    boolean isDeploymentAborted = deploymentResult == null
+                            || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
+                    componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
+                } catch (RuntimeException e) {
+                    // Best-effort cleanup; do not mask the propagating result or exception.
+                    logger.atWarn(DEPLOYMENT_TASK_EVENT_TYPE).setCause(e)
+                            .log("Failed to clean up stale component versions");
+                }
             }
-            boolean isDeploymentAborted = deploymentResult == null
-                    || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
-            componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
         }
     }
 
@@ -292,6 +319,15 @@ public class DefaultDeploymentTask implements DeploymentTask {
         } catch (InterruptedException e) {
             throw e;
         } catch (Exception e) {
+            if (Utils.hasCause(e, InterruptedException.class)) {
+                // A shutdown interrupt can reach here wrapped in another exception (e.g. TLSAuthException
+                // from key-manager loading). Report it as an interrupt, not a deployment failure.
+                Thread.currentThread().interrupt();
+                InterruptedException interrupted =
+                        new InterruptedException("Interrupted while fetching thing group information");
+                interrupted.initCause(e);
+                throw interrupted;
+            }
             if (isLocalDeployment && ThingGroupHelper.RETRYABLE_EXCEPTIONS.contains(e.getClass())) {
                 logger.atWarn().setCause(e).log("Failed to get thing group hierarchy, local deployment will proceed");
                 groupsForDeviceOpt = getPersistedMembershipInfo();

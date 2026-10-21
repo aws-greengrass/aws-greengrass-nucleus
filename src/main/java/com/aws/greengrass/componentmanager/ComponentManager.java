@@ -585,6 +585,13 @@ public class ComponentManager implements InjectionActions {
                 removeVersions.removeAll(versionsToKeep.get(compName));
             }
             for (String compVersion : removeVersions) {
+                if (Thread.currentThread().isInterrupted()) {
+                    // A cancel can land after the caller decided to clean up. Stop deleting so this sweep
+                    // cannot remove versions a subsequent deployment has already staged.
+                    logger.atInfo("cleanup-stale-versions-interrupted")
+                            .log("Stopping stale version cleanup; thread was interrupted");
+                    return;
+                }
                 try {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
                     removeRecipeDigestIfExists(identifier);
