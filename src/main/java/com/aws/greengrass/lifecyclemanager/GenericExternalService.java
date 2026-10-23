@@ -6,7 +6,6 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -39,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -297,8 +297,9 @@ public class GenericExternalService extends GreengrassService {
         }
         Node serviceOldBootstrap = getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                 Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
-        boolean bootstrapStepChanged = serviceOldBootstrap == null || !serviceLifecycleBootstrapEquals(
-                serviceOldBootstrap.toPOJO(), newServiceLifecycle.get(lifecycleKey));
+        boolean bootstrapStepChanged = serviceOldBootstrap == null
+                || !Objects.equals(normalizeBootstrap(serviceOldBootstrap.toPOJO()),
+                        normalizeBootstrap(newServiceLifecycle.get(lifecycleKey)));
         if (bootstrapStepChanged) {
             logger.atDebug().kv("before",
                     (Supplier<Object>) () -> serviceOldBootstrap == null ? null : serviceOldBootstrap.toPOJO())
@@ -310,31 +311,21 @@ public class GenericExternalService extends GreengrassService {
         return bootstrapStepChanged;
     }
 
-    private boolean serviceLifecycleBootstrapEquals(Object before, Object after) {
-        if (!(before instanceof Map) || !(after instanceof Map)) {
-            return Objects.equals(before, after);
+    /**
+     * Canonical form for comparing bootstrap steps: nested maps become case-insensitive sorted maps and
+     * leaves become strings, so key order, key case and value type ("120" vs 120) are not treated as a
+     * change. The stored step is a case-insensitive TreeMap (Topics.toPOJO) while the incoming step is a
+     * HashMap (KernelConfigResolver.interpolate); normalizing both lets a plain Objects.equals compare them
+     * by content, so an unchanged redeployment no longer reruns Bootstrap and restarts the device.
+     */
+    @SuppressWarnings("unchecked")
+    private static Object normalizeBootstrap(Object value) {
+        if (value instanceof Map) {
+            Map<String, Object> normalized = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+            ((Map<String, Object>) value).forEach((k, v) -> normalized.put(k, normalizeBootstrap(v)));
+            return normalized;
         }
-        Map<String, Object> beforeMap = (Map<String, Object>) before;
-        Map<String, Object> afterMap = (Map<String, Object>) after;
-        if (beforeMap.size() != afterMap.size()) {
-            return false;
-        }
-        for (Map.Entry<String, Object> beforeEntry : beforeMap.entrySet()) {
-            CaseInsensitiveString key = new CaseInsensitiveString(beforeEntry.getKey());
-            boolean keyFound = false;
-            for (Map.Entry<String, Object> entry : afterMap.entrySet()) {
-                if (key.equals(new CaseInsensitiveString(entry.getKey())) && Objects.nonNull(entry.getValue())) {
-                    keyFound = true;
-                    if (!Objects.equals(entry.getValue().toString(), beforeEntry.getValue().toString())) {
-                        return false;
-                    }
-                }
-            }
-            if (!keyFound) {
-                return false;
-            }
-        }
-        return true;
+        return value == null ? null : value.toString();
     }
 
     @SuppressWarnings("PMD.NullAssignment")
