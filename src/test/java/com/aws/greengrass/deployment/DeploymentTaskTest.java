@@ -14,6 +14,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
+import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -21,6 +22,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,10 +53,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -176,6 +180,40 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_thingGroupHelper_interrupted_THEN_deployment_task_interrupted() throws Exception {
         when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(InterruptedException.class);
         assertThrows(InterruptedException.class, deploymentTask::call);
+    }
+
+    @Test
+    void GIVEN_deployment_task_interrupted_WHEN_fetching_thing_groups_THEN_stale_versions_not_cleaned_up()
+            throws Exception {
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(InterruptedException.class);
+
+        assertThrows(InterruptedException.class, deploymentTask::call);
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    @Test
+    void GIVEN_deployment_task_interrupted_WHEN_resolving_dependencies_THEN_stale_versions_not_cleaned_up(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
+        when(mockResolveDependencyFuture.get()).thenThrow(new ExecutionException(new InterruptedException()));
+
+        assertThrows(InterruptedException.class, deploymentTask::call);
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    @Test
+    void GIVEN_thing_group_fetch_fails_with_wrapped_interrupt_WHEN_call_THEN_stale_versions_not_cleaned_up(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                new TLSAuthException("Get key managers interrupted", new InterruptedException()));
+
+        DeploymentResult result = deploymentTask.call();
+
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        assertTrue(result.getFailureCause() instanceof DeploymentTaskFailureException);
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test
