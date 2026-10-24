@@ -245,8 +245,9 @@ public class DefaultDeploymentTask implements DeploymentTask {
             throw e;
         } finally {
             // Without resolved desiredPackages the cleanup cannot know which versions this deployment targets, so it
-            // would delete them (e.g. a locally preloaded component the resumed deployment needs). Nothing has been
-            // downloaded for this deployment yet, so there is nothing of its own to clean up either.
+            // would delete them (e.g. a locally preloaded component the resumed deployment needs). This applies to
+            // every exit before resolution completes, not only interrupts. Recipes and metadata already saved by a
+            // partial resolution stay until the next deployment that resolves runs the cleanup.
             if (desiredPackages != null) {
                 Map<String, String> currentDeploymentComponentVersions = desiredPackages.stream()
                         .collect(Collectors.toMap(
