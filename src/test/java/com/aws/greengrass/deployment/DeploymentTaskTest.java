@@ -217,6 +217,20 @@ class DeploymentTaskTest {
     }
 
     @Test
+    void GIVEN_thing_group_fetch_fails_without_interrupt_WHEN_call_THEN_stale_versions_not_cleaned_up(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                GreengrassV2DataException.builder().statusCode(HttpStatusCode.INTERNAL_SERVER_ERROR).build());
+
+        DeploymentResult result = deploymentTask.call();
+
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        assertTrue(result.getFailureCause() instanceof DeploymentTaskFailureException);
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    @Test
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, PackagingException.class);
@@ -231,6 +245,7 @@ class DeploymentTaskTest {
         verify(mockComponentManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test

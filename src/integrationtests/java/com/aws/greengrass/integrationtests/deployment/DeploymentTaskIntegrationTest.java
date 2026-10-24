@@ -42,6 +42,7 @@ import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -127,6 +128,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @SuppressWarnings("PMD.ExcessiveClassLength")
@@ -1464,8 +1468,33 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
 
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    @Order(106)
+    void GIVEN_preloaded_target_WHEN_deployment_fails_before_resolving_components_THEN_target_not_deleted(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        ComponentIdentifier target = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ThingGroupHelper failingThingGroupHelper = mock(ThingGroupHelper.class);
+        when(failingThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                new TLSAuthException("Get key managers interrupted", new InterruptedException()));
+
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis(), failingThingGroupHelper);
+
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                result.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+        assertRecipeArtifactExists(target);
+    }
+
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
+        return submitSampleJobDocument(uri, timestamp, thingGroupHelper);
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp,
+                                                             ThingGroupHelper helper) throws Exception {
         kernel.getContext().get(DeploymentDirectoryManager.class)
                 .createNewDeploymentDirectory("testFleetConfigArn" + deploymentCount.getAndIncrement());
 
@@ -1476,7 +1505,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class));
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, helper, kernel.getContext().get(DeviceConfiguration.class));
         return executorService.submit(deploymentTask);
     }
 }
