@@ -244,21 +244,21 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // Populate the exception up to the stack
             throw e;
         } finally {
-            // Clean up stale artifacts from previous deployments after downloading deployment document
-            // if we have desiredPackages then the artifact download has started
-            Map<String, String> currentDeploymentComponentVersions = null;
+            // Without resolved desiredPackages the cleanup cannot know which versions this deployment targets, so it
+            // would delete them (e.g. a locally preloaded component the resumed deployment needs). Nothing has been
+            // downloaded for this deployment yet, so there is nothing of its own to clean up either.
             if (desiredPackages != null) {
-                currentDeploymentComponentVersions = desiredPackages.stream()
+                Map<String, String> currentDeploymentComponentVersions = desiredPackages.stream()
                         .collect(Collectors.toMap(
                                 ComponentIdentifier::getName,
                                 ci -> ci.getVersion().getValue()));
                 logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
                         .kv("Current deployment map", currentDeploymentComponentVersions.toString())
                         .log("Found current deployment artifacts, will preserve.");
+                boolean isDeploymentAborted = deploymentResult == null
+                        || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
+                componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
             }
-            boolean isDeploymentAborted = deploymentResult == null
-                    || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
-            componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
         }
     }
 
