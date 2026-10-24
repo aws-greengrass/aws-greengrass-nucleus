@@ -5,8 +5,12 @@
 
 package com.aws.greengrass.mqttclient;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,12 +19,20 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -40,11 +52,16 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings("PMD.CloseResource")
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class StandaloneMqttConnectorTest {
+    private static final int TLS_HANDSHAKE_RECORD = 0x16;
 
     @Mock
     AwsIotMqttConnectionBuilder builder;
     @Mock
     MqttClientConnection mqttConnection;
+    @Mock
+    SecurityService securityService;
+    @Mock
+    DeviceConfiguration deviceConfiguration;
 
     @BeforeEach
     void beforeEach() {
@@ -247,5 +264,46 @@ class StandaloneMqttConnectorTest {
                 () -> conn.publish("test/topic", "hello".getBytes(StandardCharsets.UTF_8),
                         QualityOfService.AT_LEAST_ONCE, 30_000));
         assertTrue(ex.getMessage().contains("publish failed"));
+    }
+
+    // --- proxy wire tests: a listener on 127.0.0.1 records the first byte the connector sends to the proxy ---
+
+    @Test
+    void GIVEN_https_proxy_WHEN_connect_THEN_proxy_connection_starts_with_tls_handshake(
+            ExtensionContext extContext) throws Exception {
+        assertEquals(TLS_HANDSHAKE_RECORD, firstByteSentToProxy(extContext, "https"));
+    }
+
+    @Test
+    void GIVEN_http_proxy_WHEN_connect_THEN_proxy_connection_starts_with_plaintext_connect(
+            ExtensionContext extContext) throws Exception {
+        assertEquals('C', firstByteSentToProxy(extContext, "http"));
+    }
+
+    private int firstByteSentToProxy(ExtensionContext extContext, String proxyScheme) throws Exception {
+        ignoreExceptionOfType(extContext, ExecutionException.class);
+        ignoreExceptionOfType(extContext, MqttException.class);
+        try (Context context = new Context();
+             ServerSocket proxy = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            CompletableFuture<Integer> firstByte = CompletableFuture.supplyAsync(() -> {
+                try (Socket s = proxy.accept(); InputStream in = s.getInputStream()) {
+                    return in.read();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            when(securityService.getDeviceIdentityMqttConnectionBuilder())
+                    .thenReturn(AwsIotMqttConnectionBuilder.newDefaultBuilder());
+            when(deviceConfiguration.getMQTTNamespace())
+                    .thenReturn(new Configuration(context).lookupTopics("mqtt"));
+            when(deviceConfiguration.getProxyUrl())
+                    .thenReturn(proxyScheme + "://127.0.0.1:" + proxy.getLocalPort());
+
+            try (StandaloneMqttConnector conn = StandaloneMqttConnector.forEndpointSwitch(securityService,
+                    deviceConfiguration, "endpoint.iot.us-east-1.amazonaws.com")) {
+                assertThrows(DeploymentException.class, () -> conn.connect(2000));
+            }
+            return firstByte.get(5, TimeUnit.SECONDS);
+        }
     }
 }
