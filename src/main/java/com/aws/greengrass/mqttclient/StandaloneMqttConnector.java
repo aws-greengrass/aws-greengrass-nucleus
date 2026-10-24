@@ -16,6 +16,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
@@ -73,7 +74,8 @@ public class StandaloneMqttConnector implements Closeable {
      * @param endpoint            the IoT data endpoint to connect to
      * @param clientIdSuffix      suffix appended to thing name for the MQTT client ID
      * @return a configured StandaloneMqttConnector ready to call {@link #connect(long)}
-     * @throws MqttConnectionProviderException if the device identity builder cannot be created
+     * @throws MqttConnectionProviderException if the device identity builder or the proxy TLS context cannot be
+     *                                         created
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public static StandaloneMqttConnector of(SecurityService securityService,
@@ -102,7 +104,8 @@ public class StandaloneMqttConnector implements Closeable {
      * @param deviceConfiguration provides endpoint, proxy, port, and CA configuration
      * @param endpoint            the IoT data endpoint to connect to
      * @return a configured StandaloneMqttConnector ready to call {@link #connect(long)}
-     * @throws MqttConnectionProviderException if the device identity builder cannot be created
+     * @throws MqttConnectionProviderException if the device identity builder or the proxy TLS context cannot be
+     *                                         created
      */
     public static StandaloneMqttConnector forEndpointSwitch(SecurityService securityService,
                                                             DeviceConfiguration deviceConfiguration,
@@ -112,8 +115,10 @@ public class StandaloneMqttConnector implements Closeable {
                 ENDPOINT_SWITCH_CLIENT_SUFFIX);
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private static ClientTlsContext configureProxy(AwsIotMqttConnectionBuilder mqttBuilder,
-                                                   DeviceConfiguration deviceConfiguration, String endpoint) {
+                                                   DeviceConfiguration deviceConfiguration, String endpoint)
+            throws MqttConnectionProviderException {
         if (Utils.isEmpty(deviceConfiguration.getProxyUrl())) {
             return null;
         }
@@ -122,14 +127,27 @@ public class StandaloneMqttConnector implements Closeable {
                 && Arrays.stream(noProxy.split(",")).anyMatch(endpoint::matches)) {
             return null;
         }
-        String rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-        ClientTlsContext proxyTlsContext;
-        try (TlsContextOptions tlsOptions = Utils.isEmpty(rootCaPath) ? TlsContextOptions.createDefaultClient()
-                : TlsContextOptions.createDefaultClient().withCertificateAuthorityFromPath(null, rootCaPath)) {
-            proxyTlsContext = new ClientTlsContext(tlsOptions);
+        ClientTlsContext proxyTlsContext = createProxyTlsContext(
+                Coerce.toString(deviceConfiguration.getRootCAFilePath()));
+        try {
+            mqttBuilder.withHttpProxyOptions(ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext));
+        } catch (RuntimeException e) {
+            proxyTlsContext.close();
+            throw e;
         }
-        mqttBuilder.withHttpProxyOptions(ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext));
         return proxyTlsContext;
+    }
+
+    private static ClientTlsContext createProxyTlsContext(String rootCaPath) throws MqttConnectionProviderException {
+        try (TlsContextOptions tlsOptions = TlsContextOptions.createDefaultClient()) {
+            if (Utils.isNotEmpty(rootCaPath)) {
+                tlsOptions.withCertificateAuthorityFromPath(null, rootCaPath);
+            }
+            return new ClientTlsContext(tlsOptions);
+        } catch (CrtRuntimeException e) {
+            throw new MqttConnectionProviderException("Unable to create proxy TLS context with root CA "
+                    + rootCaPath, e);
+        }
     }
 
     /**

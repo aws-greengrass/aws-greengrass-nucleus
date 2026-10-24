@@ -6,18 +6,22 @@
 package com.aws.greengrass.mqttclient;
 
 import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.security.SecurityService;
+import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
+import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
@@ -29,6 +33,7 @@ import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -46,6 +51,7 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +59,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class StandaloneMqttConnectorTest {
     private static final int TLS_HANDSHAKE_RECORD = 0x16;
+    private static final String REMOTE_ENDPOINT = "endpoint.iot.us-east-1.amazonaws.com";
+    private static final String LOOPBACK = InetAddress.getLoopbackAddress().getHostAddress();
 
     @Mock
     AwsIotMqttConnectionBuilder builder;
@@ -266,44 +274,158 @@ class StandaloneMqttConnectorTest {
         assertTrue(ex.getMessage().contains("publish failed"));
     }
 
-    // --- proxy wire tests: a listener on 127.0.0.1 records the first byte the connector sends to the proxy ---
+    // --- proxy wire tests: loopback listeners stand in for the proxy and the IoT endpoint ---
 
     @Test
     void GIVEN_https_proxy_WHEN_connect_THEN_proxy_connection_starts_with_tls_handshake(
             ExtensionContext extContext) throws Exception {
-        assertEquals(TLS_HANDSHAKE_RECORD, firstByteSentToProxy(extContext, "https"));
+        try (ServerSocket proxy = loopbackListener()) {
+            assertEquals(TLS_HANDSHAKE_RECORD, connectAndCapture(extContext,
+                    "https://" + LOOPBACK + ":" + proxy.getLocalPort(), REMOTE_ENDPOINT, proxy,
+                    StandaloneMqttConnectorTest::firstByte));
+        }
     }
 
     @Test
     void GIVEN_http_proxy_WHEN_connect_THEN_proxy_connection_starts_with_plaintext_connect(
             ExtensionContext extContext) throws Exception {
-        assertEquals('C', firstByteSentToProxy(extContext, "http"));
+        try (ServerSocket proxy = loopbackListener()) {
+            assertEquals('C', connectAndCapture(extContext, "http://" + LOOPBACK + ":" + proxy.getLocalPort(),
+                    REMOTE_ENDPOINT, proxy, StandaloneMqttConnectorTest::firstByte));
+        }
     }
 
-    private int firstByteSentToProxy(ExtensionContext extContext, String proxyScheme) throws Exception {
+    @Test
+    void GIVEN_proxy_url_with_credentials_WHEN_connect_THEN_proxy_receives_basic_auth(
+            ExtensionContext extContext) throws Exception {
+        try (ServerSocket proxy = loopbackListener()) {
+            String request = connectAndCapture(extContext, "http://user:pass@" + LOOPBACK + ":" + proxy.getLocalPort(),
+                    REMOTE_ENDPOINT, proxy, StandaloneMqttConnectorTest::readHttpHead);
+            assertTrue(request.startsWith("CONNECT " + REMOTE_ENDPOINT + ":"), request);
+            // base64("user:pass")
+            assertTrue(request.contains("Proxy-Authorization: Basic dXNlcjpwYXNz\r\n"), request);
+        }
+    }
+
+    @Test
+    void GIVEN_endpoint_in_no_proxy_WHEN_connect_THEN_connects_directly_without_proxy(
+            ExtensionContext extContext) throws Exception {
+        try (ServerSocket proxy = loopbackListener(); ServerSocket endpoint = loopbackListenerBelowPort32768()) {
+            when(deviceConfiguration.getNoProxyAddresses()).thenReturn(LOOPBACK);
+            assertEquals(TLS_HANDSHAKE_RECORD, connectAndCapture(extContext,
+                    "http://" + LOOPBACK + ":" + proxy.getLocalPort(), LOOPBACK, endpoint.getLocalPort(), endpoint,
+                    StandaloneMqttConnectorTest::firstByte));
+            proxy.setSoTimeout(200);
+            assertThrows(SocketTimeoutException.class, proxy::accept);
+        }
+    }
+
+    @Test
+    void GIVEN_unparseable_proxy_url_WHEN_create_THEN_throws_and_closes_proxy_tls_context() throws Exception {
+        try (Context context = new Context();
+             MockedConstruction<ClientTlsContext> tlsContexts = mockConstruction(ClientTlsContext.class)) {
+            stubDeviceIdentity(context);
+            when(deviceConfiguration.getProxyUrl()).thenReturn("https://proxy host:8080");
+
+            assertThrows(IllegalArgumentException.class, () -> StandaloneMqttConnector.forEndpointSwitch(
+                    securityService, deviceConfiguration, REMOTE_ENDPOINT));
+            assertEquals(1, tlsContexts.constructed().size());
+            verify(tlsContexts.constructed().get(0)).close();
+        }
+    }
+
+    @Test
+    void GIVEN_proxy_and_unreadable_root_ca_WHEN_create_THEN_throws_connection_provider_exception()
+            throws Exception {
+        try (Context context = new Context()) {
+            stubDeviceIdentity(context);
+            when(deviceConfiguration.getProxyUrl()).thenReturn("http://" + LOOPBACK + ":3128");
+            when(deviceConfiguration.getRootCAFilePath()).thenReturn(
+                    new Configuration(context).lookup("rootCaPath").withValue("/nonexistent/AmazonRootCA1.pem"));
+
+            assertThrows(MqttConnectionProviderException.class, () -> StandaloneMqttConnector.forEndpointSwitch(
+                    securityService, deviceConfiguration, REMOTE_ENDPOINT));
+        }
+    }
+
+    private static ServerSocket loopbackListener() throws IOException {
+        return new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+    }
+
+    // The factory narrows the MQTT port to a short, so the endpoint listener cannot use an ephemeral port above 32767.
+    private static ServerSocket loopbackListenerBelowPort32768() throws IOException {
+        for (int port = 20_000; port < 32_768; port++) {
+            try {
+                return new ServerSocket(port, 1, InetAddress.getLoopbackAddress());
+            } catch (IOException e) {
+                // in use, try the next one
+            }
+        }
+        throw new IOException("No free loopback port below 32768");
+    }
+
+    private void stubDeviceIdentity(Context context) throws Exception {
+        stubDeviceIdentity(context, MqttClient.DEFAULT_MQTT_PORT);
+    }
+
+    private void stubDeviceIdentity(Context context, int mqttPort) throws Exception {
+        when(securityService.getDeviceIdentityMqttConnectionBuilder())
+                .thenReturn(AwsIotMqttConnectionBuilder.newDefaultBuilder());
+        Topics mqtt = new Configuration(context).lookupTopics("mqtt");
+        mqtt.lookup(MqttClient.MQTT_PORT_KEY).withValue(mqttPort);
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqtt);
+    }
+
+    /**
+     * Runs the real factory and connect() and returns what {@code reader} read from the first connection that
+     * {@code listener} accepted.
+     */
+    private <T> T connectAndCapture(ExtensionContext extContext, String proxyUrl, String endpoint,
+                                    ServerSocket listener, IoFunction<T> reader) throws Exception {
+        return connectAndCapture(extContext, proxyUrl, endpoint, MqttClient.DEFAULT_MQTT_PORT, listener, reader);
+    }
+
+    private <T> T connectAndCapture(ExtensionContext extContext, String proxyUrl, String endpoint, int mqttPort,
+                                    ServerSocket listener, IoFunction<T> reader) throws Exception {
         ignoreExceptionOfType(extContext, ExecutionException.class);
         ignoreExceptionOfType(extContext, MqttException.class);
-        try (Context context = new Context();
-             ServerSocket proxy = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
-            CompletableFuture<Integer> firstByte = CompletableFuture.supplyAsync(() -> {
-                try (Socket s = proxy.accept(); InputStream in = s.getInputStream()) {
-                    return in.read();
+        try (Context context = new Context()) {
+            CompletableFuture<T> captured = CompletableFuture.supplyAsync(() -> {
+                try (Socket s = listener.accept(); InputStream in = s.getInputStream()) {
+                    return reader.apply(in);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
             });
-            when(securityService.getDeviceIdentityMqttConnectionBuilder())
-                    .thenReturn(AwsIotMqttConnectionBuilder.newDefaultBuilder());
-            when(deviceConfiguration.getMQTTNamespace())
-                    .thenReturn(new Configuration(context).lookupTopics("mqtt"));
-            when(deviceConfiguration.getProxyUrl())
-                    .thenReturn(proxyScheme + "://127.0.0.1:" + proxy.getLocalPort());
+            stubDeviceIdentity(context, mqttPort);
+            when(deviceConfiguration.getProxyUrl()).thenReturn(proxyUrl);
 
             try (StandaloneMqttConnector conn = StandaloneMqttConnector.forEndpointSwitch(securityService,
-                    deviceConfiguration, "endpoint.iot.us-east-1.amazonaws.com")) {
+                    deviceConfiguration, endpoint)) {
                 assertThrows(DeploymentException.class, () -> conn.connect(2000));
             }
-            return firstByte.get(5, TimeUnit.SECONDS);
+            return captured.get(5, TimeUnit.SECONDS);
         }
+    }
+
+    private static Integer firstByte(InputStream in) throws IOException {
+        return in.read();
+    }
+
+    private static String readHttpHead(InputStream in) throws IOException {
+        StringBuilder head = new StringBuilder();
+        while (head.indexOf("\r\n\r\n") < 0) {
+            int b = in.read();
+            if (b == -1) {
+                break;
+            }
+            head.append((char) b);
+        }
+        return head.toString();
+    }
+
+    @FunctionalInterface
+    private interface IoFunction<T> {
+        T apply(InputStream in) throws IOException;
     }
 }
