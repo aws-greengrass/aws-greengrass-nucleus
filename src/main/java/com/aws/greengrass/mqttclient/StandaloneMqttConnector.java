@@ -16,7 +16,8 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
-import software.amazon.awssdk.crt.http.HttpProxyOptions;
+import software.amazon.awssdk.crt.io.ClientTlsContext;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
@@ -43,6 +44,7 @@ public class StandaloneMqttConnector implements Closeable {
 
     private final AwsIotMqttConnectionBuilder builder;
     private final String clientId;
+    private ClientTlsContext proxyTlsContext;
     private MqttClientConnection connection;
 
     /**
@@ -52,17 +54,19 @@ public class StandaloneMqttConnector implements Closeable {
      * @param clientId MQTT client ID
      */
     public StandaloneMqttConnector(AwsIotMqttConnectionBuilder builder, String clientId) {
+        this(builder, clientId, null);
+    }
+
+    private StandaloneMqttConnector(AwsIotMqttConnectionBuilder builder, String clientId,
+                                    ClientTlsContext proxyTlsContext) {
         this.builder = builder;
         this.clientId = clientId;
+        this.proxyTlsContext = proxyTlsContext;
     }
 
     /**
      * Build a StandaloneMqttConnector configured with device identity, proxy, and the given endpoint.
      * Extracts builder setup from the deployment layer so callers don't need to know about proxy/TLS details.
-     *
-     * <p>Proxy options are built directly rather than via {@code ProxyUtils.getHttpProxyOptions()} because
-     * that method requires a {@code @NonNull ClientTlsContext} for HTTPS proxy tunneling. Standalone
-     * connections use HTTP CONNECT tunneling (the common case for MQTT) which works without a TLS context.</p>
      *
      * @param securityService     provides the MQTT connection builder with device certs
      * @param deviceConfiguration provides endpoint, proxy, port, and CA configuration
@@ -86,8 +90,8 @@ public class StandaloneMqttConnector implements Closeable {
                         Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                 .withPort((short) mqttPort)
                 .withCleanSession(true);
-        configureProxy(mqttBuilder, deviceConfiguration, endpoint);
-        return new StandaloneMqttConnector(mqttBuilder, clientId);
+        return new StandaloneMqttConnector(mqttBuilder, clientId,
+                configureProxy(mqttBuilder, deviceConfiguration, endpoint));
     }
 
     /**
@@ -108,28 +112,24 @@ public class StandaloneMqttConnector implements Closeable {
                 ENDPOINT_SWITCH_CLIENT_SUFFIX);
     }
 
-    private static void configureProxy(AwsIotMqttConnectionBuilder mqttBuilder,
-                                       DeviceConfiguration deviceConfiguration, String endpoint) {
-        String proxyUrl = deviceConfiguration.getProxyUrl();
-        if (Utils.isEmpty(proxyUrl)) {
-            return;
-        }
-        HttpProxyOptions httpProxyOptions = new HttpProxyOptions();
-        httpProxyOptions.setHost(ProxyUtils.getHostFromProxyUrl(proxyUrl));
-        httpProxyOptions.setPort(ProxyUtils.getPortFromProxyUrl(proxyUrl));
-        httpProxyOptions.setConnectionType(HttpProxyOptions.HttpProxyConnectionType.Tunneling);
-        String proxyUsername = deviceConfiguration.getProxyUsername();
-        if (Utils.isNotEmpty(proxyUsername)) {
-            httpProxyOptions.setAuthorizationType(HttpProxyOptions.HttpProxyAuthorizationType.Basic);
-            httpProxyOptions.setAuthorizationUsername(proxyUsername);
-            httpProxyOptions.setAuthorizationPassword(deviceConfiguration.getProxyPassword());
+    private static ClientTlsContext configureProxy(AwsIotMqttConnectionBuilder mqttBuilder,
+                                                   DeviceConfiguration deviceConfiguration, String endpoint) {
+        if (Utils.isEmpty(deviceConfiguration.getProxyUrl())) {
+            return null;
         }
         String noProxy = Coerce.toString(deviceConfiguration.getNoProxyAddresses());
         if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)
                 && Arrays.stream(noProxy.split(",")).anyMatch(endpoint::matches)) {
-            return;
+            return null;
         }
-        mqttBuilder.withHttpProxyOptions(httpProxyOptions);
+        String rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
+        ClientTlsContext proxyTlsContext;
+        try (TlsContextOptions tlsOptions = Utils.isEmpty(rootCaPath) ? TlsContextOptions.createDefaultClient()
+                : TlsContextOptions.createDefaultClient().withCertificateAuthorityFromPath(null, rootCaPath)) {
+            proxyTlsContext = new ClientTlsContext(tlsOptions);
+        }
+        mqttBuilder.withHttpProxyOptions(ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext));
+        return proxyTlsContext;
     }
 
     /**
@@ -249,6 +249,10 @@ public class StandaloneMqttConnector implements Closeable {
             } finally {
                 connectionCleanup();
             }
+        }
+        if (proxyTlsContext != null) {
+            proxyTlsContext.close();
+            proxyTlsContext = null;
         }
     }
 
