@@ -14,8 +14,11 @@ import software.amazon.awssdk.http.apache.internal.net.SdkSslSocket;
 import software.amazon.awssdk.utils.Logger;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
+import java.net.NoRouteToHostException;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.Arrays;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -74,7 +77,24 @@ public class SdkTlsSocketFactory extends SSLConnectionSocketFactory {
             final HttpContext context) throws IOException {
         log.trace(() -> String.format("Connecting to %s:%s", remoteAddress.getAddress(), remoteAddress.getPort()));
 
-        Socket connectedSocket = super.connectSocket(connectTimeout, socket, host, remoteAddress, localAddress, context);
+        Socket connectedSocket;
+        // BEGIN GG MODIFICATIONS
+        try {
+            connectedSocket = super.connectSocket(connectTimeout, socket, host, remoteAddress, localAddress, context);
+        } catch (SocketException e) {
+            // Apache HttpClient tries the next resolved address only after a ConnectException,
+            // NoRouteToHostException or SocketTimeoutException. Since JDK 13 a connect to an address family the
+            // host cannot route (an AAAA record on an IPv4-only host) fails with a plain SocketException,
+            // so rethrow any TCP connect failure as a ConnectException to let the IPv4 address be tried.
+            if (socket == null || socket.isConnected() || e instanceof ConnectException
+                    || e instanceof NoRouteToHostException) {
+                throw e;
+            }
+            ConnectException connectException = new ConnectException(e.getMessage());
+            connectException.initCause(e);
+            throw connectException;
+        }
+        // END GG MODIFICATIONS
 
         if (connectedSocket instanceof SSLSocket) {
             return new SdkSslSocket((SSLSocket) connectedSocket);
