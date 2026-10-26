@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util.platforms.unix.linux;
 
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,8 +13,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.zeroturnaround.process.PidUtil;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,8 +24,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -35,6 +42,9 @@ class LinuxSystemResourceControllerTest {
     
     @Mock
     private GreengrassService mockService;
+
+    @Mock
+    private Context mockContext;
 
     @InjectMocks
     @Spy
@@ -286,6 +296,114 @@ class LinuxSystemResourceControllerTest {
             // verify freeze writes "FROZEN" and thaw writes "THAWED" (CgroupV1 format)
             assertEquals("FROZEN", new String(contentCaptor.getAllValues().get(0))); // freeze
             assertEquals("THAWED", new String(contentCaptor.getAllValues().get(1))); // thaw
+        }
+    }
+
+    @Test
+    void GIVEN_cgroupV1_and_short_lived_pid_WHEN_addComponentProcess_THEN_remaining_pids_added_and_readd_scheduled()
+            throws Exception {
+        int deadPid = 100;      // e.g. sh/sudo wrapper that exits before its pid is written
+        int livePid1 = 6808;
+        int livePid2 = 6823;
+        int rootPid = 6800;
+        Path memoryProcs = CgroupV1.Memory.getCgroupProcsPath(TEST_COMPONENT);
+        Path cpuProcs = CgroupV1.CPU.getCgroupProcsPath(TEST_COMPONENT);
+        Map<Path, List<Integer>> written = new HashMap<>();
+        Process process = mock(Process.class);
+        ScheduledExecutorService ses = mock(ScheduledExecutorService.class);
+        when(mockService.getContext()).thenReturn(mockContext);
+        when(mockContext.get(ScheduledExecutorService.class)).thenReturn(ses);
+        // Dead pid is iterated first, as in the arbitrary HashSet order seen on device
+        when(mockPlatform.getChildPids(process))
+                .thenAnswer(i -> new LinkedHashSet<>(Arrays.asList(deadPid, livePid1, livePid2)));
+
+        try (MockedStatic<Files> filesMock = mockStatic(Files.class);
+             MockedStatic<PidUtil> pidMock = mockStatic(PidUtil.class)) {
+            filesMock.when(() -> Files.exists(Paths.get(CONTROLLER_PATH))).thenReturn(false);
+            filesMock.when(() -> Files.exists(argThat(path -> !path.equals(Paths.get(CONTROLLER_PATH)))))
+                    .thenReturn(true);
+            filesMock.when(() -> Files.readAllLines(any(Path.class))).thenReturn(Collections.emptyList());
+            // Dead pid's write throws ESRCH on the memory pass; the remaining live pids must still be added
+            filesMock.when(() -> Files.write(any(Path.class), any(byte[].class))).thenAnswer(i -> {
+                Path path = i.getArgument(0);
+                int pid = pidFromBytes(i.getArgument(1));
+                if (pid == deadPid && path.equals(memoryProcs)) {
+                    throw new IOException("No such process");
+                }
+                written.computeIfAbsent(path, p -> new ArrayList<>()).add(pid);
+                return path;
+            });
+            pidMock.when(() -> PidUtil.getPid(process)).thenReturn(rootPid);
+
+            controller = new LinuxSystemResourceController(mockPlatform);
+            controller.addComponentProcess(mockService, process);
+
+            assertTrue(written.getOrDefault(cpuProcs, Collections.emptyList())
+                    .containsAll(Arrays.asList(livePid1, livePid2, rootPid)), "cpu cgroup pids: " + written.get(cpuProcs));
+            assertTrue(written.getOrDefault(memoryProcs, Collections.emptyList())
+                    .containsAll(Arrays.asList(livePid1, livePid2, rootPid)),
+                    "memory cgroup pids: " + written.get(memoryProcs));
+            // 1s re-add must be scheduled for both memory and cpu cgroups
+            verify(ses, times(2)).schedule(any(Runnable.class), eq(1L), eq(TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void GIVEN_cgroupV1_and_non_ESRCH_write_error_WHEN_addComponentProcess_THEN_error_propagates_and_loop_aborts(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, IOException.class);
+        int deadPid = 100;
+        int livePid1 = 6808;
+        int livePid2 = 6823;
+        int rootPid = 6800;
+        Path memoryProcs = CgroupV1.Memory.getCgroupProcsPath(TEST_COMPONENT);
+        Path cpuProcs = CgroupV1.CPU.getCgroupProcsPath(TEST_COMPONENT);
+        Map<Path, List<Integer>> written = new HashMap<>();
+        Process process = mock(Process.class);
+        ScheduledExecutorService ses = mock(ScheduledExecutorService.class);
+        when(mockService.getContext()).thenReturn(mockContext);
+        when(mockContext.get(ScheduledExecutorService.class)).thenReturn(ses);
+        when(mockPlatform.getChildPids(process))
+                .thenAnswer(i -> new LinkedHashSet<>(Arrays.asList(deadPid, livePid1, livePid2)));
+
+        try (MockedStatic<Files> filesMock = mockStatic(Files.class);
+             MockedStatic<PidUtil> pidMock = mockStatic(PidUtil.class)) {
+            filesMock.when(() -> Files.exists(Paths.get(CONTROLLER_PATH))).thenReturn(false);
+            filesMock.when(() -> Files.exists(argThat(path -> !path.equals(Paths.get(CONTROLLER_PATH)))))
+                    .thenReturn(true);
+            filesMock.when(() -> Files.readAllLines(any(Path.class))).thenReturn(Collections.emptyList());
+            // A non-ESRCH write failure on the memory pass must abort the loop, not be skipped per-pid
+            filesMock.when(() -> Files.write(any(Path.class), any(byte[].class))).thenAnswer(i -> {
+                Path path = i.getArgument(0);
+                int pid = pidFromBytes(i.getArgument(1));
+                if (pid == deadPid && path.equals(memoryProcs)) {
+                    throw new IOException("Permission denied");
+                }
+                written.computeIfAbsent(path, p -> new ArrayList<>()).add(pid);
+                return path;
+            });
+            pidMock.when(() -> PidUtil.getPid(process)).thenReturn(rootPid);
+
+            controller = new LinuxSystemResourceController(mockPlatform);
+            controller.addComponentProcess(mockService, process);
+
+            // Non-ESRCH error propagated out of the write loop, so live pids were not added to the memory cgroup
+            assertFalse(written.getOrDefault(memoryProcs, Collections.emptyList()).contains(livePid1),
+                    "memory cgroup pids: " + written.get(memoryProcs));
+            // cpu pass had no error, so its pids were added normally
+            assertTrue(written.getOrDefault(cpuProcs, Collections.emptyList()).contains(livePid1),
+                    "cpu cgroup pids: " + written.get(cpuProcs));
+            verify(ses, times(2)).schedule(any(Runnable.class), eq(1L), eq(TimeUnit.SECONDS));
+        }
+    }
+
+    // Test stub helper: written content is always Integer.toString(pid), so NFE is unreachable here.
+    private static int pidFromBytes(byte[] bytes) {
+        String s = new String(bytes, StandardCharsets.UTF_8);
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("unexpected cgroup.procs write: " + s, e);
         }
     }
 }
