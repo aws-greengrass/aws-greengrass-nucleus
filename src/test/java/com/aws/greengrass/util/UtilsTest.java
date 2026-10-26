@@ -8,11 +8,16 @@ package com.aws.greengrass.util;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.collection.IsMapWithSize;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.nio.CharBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -178,5 +183,26 @@ class UtilsTest {
         assertEquals("abcdefghi", Utils.truncate("abcdefghij", 9));
         assertEquals("abcdef", Utils.truncate("abcdefghij", 6));
         assertEquals("", Utils.truncate("abcdefghij", 0));
+    }
+
+    @Test
+    void GIVEN_tree_with_symlink_to_outside_dir_WHEN_deleteFileRecursively_THEN_symlink_target_is_not_followed(
+            @TempDir Path tmp) throws IOException {
+        // A directory tree that contains a symlink pointing at a directory OUTSIDE the tree.
+        Path outside = Files.createDirectory(tmp.resolve("outside"));
+        Path outsideFile = Files.write(outside.resolve("keep.txt"), "keep".getBytes(StandardCharsets.UTF_8));
+
+        Path tree = Files.createDirectory(tmp.resolve("tree"));
+        Files.write(tree.resolve("inside.txt"), "inside".getBytes(StandardCharsets.UTF_8));
+        Path link = tree.resolve("link");
+        Files.createSymbolicLink(link, outside);
+
+        Utils.deleteFileRecursively(tree.toFile());
+
+        // The tree (including the symlink entry itself) is gone...
+        assertFalse(Files.exists(tree, java.nio.file.LinkOption.NOFOLLOW_LINKS));
+        // ...but the symlink was NOT followed: the outside directory and its contents survive.
+        assertTrue(Files.exists(outside));
+        assertTrue(Files.exists(outsideFile));
     }
 }
