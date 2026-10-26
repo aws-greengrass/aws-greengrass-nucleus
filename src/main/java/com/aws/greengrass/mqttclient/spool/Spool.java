@@ -21,6 +21,7 @@ import com.aws.greengrass.util.LockScope;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -138,7 +139,13 @@ public class Spool {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
             persistenceSpool.initializeSpooler();
             try {
-                persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
+                List<SpoolMessageMetadata> messageMetadata = persistenceSpool.getAllMessageMetadata();
+                if (messageMetadata == null) {
+                    // Older spooler plugins do not implement the metadata API, so read each message instead
+                    persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
+                } else {
+                    persistentQueueSync(messageMetadata);
+                }
             } catch (SpoolerStoreException e) {
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
@@ -327,29 +334,86 @@ public class Spool {
         }
         long highestId = -1;
         int numMessages = 0;
-        int queueOfMessageIdInitSize = queueOfMessageId.size();
         for (long currentId : diskQueueOfIds) {
+            highestId = Math.max(highestId, currentId);
             numMessages++;
-            //Check for queue space and remove if necessary
-            SpoolMessage message = persistenceSpool.getMessageById(currentId);
-            Publish request = message.getRequest();
-            queueCapacityCheck(request, false);
-
-            queueOfMessageId.putLast(currentId);
-            if (QOS.AT_MOST_ONCE.equals(request.getQos())) {
-                qos0MessageCheckRequired.set(true);
-            }
-            if (currentId > highestId) {
-                highestId = currentId;
-            }
         }
-        logger.atInfo()
-                .kv("numSpoolerMessages", numMessages)
-                .kv("numMessagesAdded", queueOfMessageId.size() - queueOfMessageIdInitSize)
-                .log("Messages added to spool runtime queue");
-        nextId.set(Math.max(nextId.get(), highestId + 1));
+        setIdForNextMessage(highestId);
+
+        int queueOfMessageIdInitSize = queueOfMessageId.size();
+        try {
+            for (long currentId : diskQueueOfIds) {
+                //Check for queue space and remove if necessary
+                SpoolMessage message = persistenceSpool.getMessageById(currentId);
+                Publish request = message.getRequest();
+                queueCapacityCheck(request, false);
+
+                queueOfMessageId.putLast(currentId);
+                if (QOS.AT_MOST_ONCE.equals(request.getQos())) {
+                    qos0MessageCheckRequired.set(true);
+                }
+            }
+        } finally {
+            logger.atInfo()
+                    .kv("numSpoolerMessages", numMessages)
+                    .kv("numMessagesAdded", queueOfMessageId.size() - queueOfMessageIdInitSize)
+                    .log("Messages added to spool runtime queue");
+        }
     }
 
+    /**
+     * Extract message metadata from the persistence spooler and account for each message without loading its
+     * payload. This function is only used in Disk storage mode.
+     *
+     * @param diskQueueMetadata list of persisted message metadata, ordered by id ascending
+     * @throws InterruptedException  If interrupted
+     * @throws SpoolerStoreException if a message is larger than the configured spool, the spool is full, or the
+     *                               metadata is invalid
+     */
+    void persistentQueueSync(List<SpoolMessageMetadata> diskQueueMetadata)
+            throws InterruptedException, SpoolerStoreException {
+        if (diskQueueMetadata.isEmpty()) {
+            return;
+        }
+        long highestId = -1;
+        for (SpoolMessageMetadata metadata : diskQueueMetadata) {
+            if (metadata != null) {
+                highestId = Math.max(highestId, metadata.getId());
+            }
+        }
+        setIdForNextMessage(highestId);
+
+        int numMessagesAdded = 0;
+        try {
+            for (SpoolMessageMetadata metadata : diskQueueMetadata) {
+                if (metadata == null || metadata.getPayloadSizeInBytes() < 0) {
+                    throw new SpoolerStoreException("Invalid message metadata returned by persistence spooler.");
+                }
+                queueCapacityCheck(metadata.getPayloadSizeInBytes(), false);
+                queueOfMessageId.putLast(metadata.getId());
+                numMessagesAdded++;
+                // Unknown QoS may be QoS 0
+                if (metadata.getQos() == null || QOS.AT_MOST_ONCE.equals(metadata.getQos())) {
+                    qos0MessageCheckRequired.set(true);
+                }
+            }
+        } finally {
+            logger.atInfo()
+                    .kv("numSpoolerMessages", diskQueueMetadata.size())
+                    .kv("numMessagesAdded", numMessagesAdded)
+                    .log("Messages added to spool runtime queue");
+        }
+    }
+
+    /**
+     * Move nextId past the highest persisted id before the runtime queue is synced, so that new messages never
+     * reuse the id of a persisted message, even if the sync stops early.
+     *
+     * @param highestPersistedId highest persisted message id, or -1 if there is none
+     */
+    private void setIdForNextMessage(long highestPersistedId) {
+        nextId.set(Math.max(nextId.get(), highestPersistedId + 1));
+    }
 
     /**
      * This method checks if the max size of the queue will be reached if we add the current request.
@@ -359,8 +423,11 @@ public class Spool {
      * @throws SpoolerStoreException : thrown if message too large or spooler capacity exceeded
      */
     private void queueCapacityCheck(Publish request, boolean shouldReplaceOldMessage) throws SpoolerStoreException {
+        queueCapacityCheck(request.getPayload().length, shouldReplaceOldMessage);
+    }
 
-        int messageSizeInBytes = request.getPayload().length;
+    private void queueCapacityCheck(long messageSizeInBytes, boolean shouldReplaceOldMessage)
+            throws SpoolerStoreException {
         if (messageSizeInBytes > getSpoolConfig().getSpoolSizeInBytes()) {
             throw new SpoolerStoreException("Message is larger than the size of message spool.");
         }
