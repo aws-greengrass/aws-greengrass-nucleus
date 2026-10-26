@@ -20,8 +20,14 @@ import com.aws.greengrass.util.LockFactory;
 import com.aws.greengrass.util.LockScope;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -42,6 +48,7 @@ public class Spool {
     private final CloudMessageSpool spooler;
     private final InMemorySpool inMemorySpooler;
     private final Kernel kernel;
+    private final ExecutorService executorService;
     private final AtomicLong nextId = new AtomicLong(0);
     private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
     /**
@@ -62,19 +69,27 @@ public class Spool {
     private final Lock lock = LockFactory.newReentrantLock(this);
 
     /**
+     * Signals when the background disk load is complete. The persisted ids are already in the deque before the
+     * load starts, but their sizes are not yet counted. Anything that removes from the deque (popId, the QoS 0
+     * prune) must wait for, or skip until, the load completes. addMessage() only appends and never waits.
+     */
+    private CompletableFuture<Void> diskQueueLoaded;
+
+    /**
      * Constructor.
      *
      * @param deviceConfiguration the device configuration
      * @param kernel              a kernel instance
+     * @param executorService     executor for running background tasks
      */
-    public Spool(DeviceConfiguration deviceConfiguration, Kernel kernel) {
+    public Spool(DeviceConfiguration deviceConfiguration, Kernel kernel, ExecutorService executorService) {
         inMemorySpooler = new InMemorySpool();
         this.deviceConfiguration = deviceConfiguration;
-        Topics topics = this.deviceConfiguration.getSpoolerNamespace();
         this.kernel = kernel;
+        this.executorService = executorService;
+        Topics topics = this.deviceConfiguration.getSpoolerNamespace();
         setSpoolerConfigFromDeviceConfig(topics);
-        spooler = setupSpooler();
-        // To subscribe to the topics of spooler configuration
+        spooler = setupSpooler(executorService);
         topics.subscribe((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null) {
                 setSpoolerConfigFromDeviceConfig(topics);
@@ -110,53 +125,96 @@ public class Spool {
      *
      * @return CloudMessageSpool    spooler instance
      */
-    private CloudMessageSpool setupSpooler() {
+    private CloudMessageSpool setupSpooler(ExecutorService executorService) {
         if (config.getStorageType() == SpoolerStorageType.Disk) {
             try {
-                return getPersistenceSpoolGGService();
+                return setupDiskSpooler(executorService);
             } catch (ServiceLoadException | IOException e) {
-                //log and use InMemorySpool
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
                         .cause(e).log("Persistence spool set up failed, defaulting to InMemory Spooler");
             }
         }
         logger.atInfo().log("Memory Spooler has been set up");
+        diskQueueLoaded = CompletableFuture.completedFuture(null);
         return inMemorySpooler;
     }
 
     /**
      * This function looks for the Greengrass service associated with the persistence spooler plugin.
-     *
+     * @param executorService executor service
      * @return CloudMessageSpool instance
      * @throws ServiceLoadException thrown if the service cannot be located
      */
-    private CloudMessageSpool getPersistenceSpoolGGService()
+    private CloudMessageSpool setupDiskSpooler(ExecutorService executorService)
             throws ServiceLoadException, IOException {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
-        if (locatedService instanceof CloudMessageSpool) {
-            CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
-            persistenceSpool.initializeSpooler();
+        if (!(locatedService instanceof CloudMessageSpool)) {
+            throw new ServiceLoadException(
+                    "The Greengrass service located was not an instance of CloudMessageSpool");
+        }
+        CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
+        persistenceSpool.initializeSpooler();
+
+        // Fetch the persisted ids and advance nextId synchronously, before spawning the background
+        // load. Reading the id list is cheap (no per-message body reads); the slow part that motivated
+        // issue #1832 is the per-message getMessageById() loop, which stays on the background thread.
+        //
+        // Advancing nextId here guarantees a later addMessage() always allocates an id above every id
+        // still on disk, so it cannot collide with a persisted row. If getAllMessageIds() fails, the
+        // IOException propagates to setupSpooler() and we fall back to InMemorySpool, matching the
+        // pre-async behavior instead of retaining a disk spooler with nextId=0 over a populated DB.
+        List<Long> diskQueueOfIds = new ArrayList<>();
+        long highestId = -1;
+        for (long id : persistenceSpool.getAllMessageIds()) {
+            diskQueueOfIds.add(id);
+            highestId = Math.max(highestId, id);
+        }
+        nextId.set(highestId + 1);
+
+        // Deliver oldest first. getAllMessageIds() does not guarantee an order, and persistentQueueSync()
+        // relies on ascending ids to clean up after a partial load.
+        Collections.sort(diskQueueOfIds);
+
+        // Enqueue the persisted ids now, ahead of anything addMessage() appends, so delivery order is
+        // preserved without making addMessage() wait for the load.
+        queueOfMessageId.addAll(diskQueueOfIds);
+
+        // Read each message on a background thread to account for its size and QoS without blocking kernel
+        // startup (issue #1832). popId() will wait for this to complete before draining messages.
+        diskQueueLoaded = CompletableFuture.runAsync(() -> {
             try {
-                persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
+                persistentQueueSync(diskQueueOfIds, persistenceSpool);
+                logger.atInfo().kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
+                        .log("Persistent Spooler background load complete");
             } catch (SpoolerStoreException e) {
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
                         .cause(e).log("Persistence spool queue sync was not completed, continuing with"
                                 + " Persistent Spooler anyways");
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.atWarn()
-                        .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .log("Persistence spool queue sync was interrupted, continuing with"
-                                + " Persistent Spooler anyways");
             }
-            logger.atInfo().log("Persistent Spooler has been set up");
-            return persistenceSpool;
-        } else {
-            throw new ServiceLoadException(
-                    "The Greengrass service located was not an instance of CloudMessageSpool"
-            );
+        }, executorService);
+
+        // Note: this fires after the background load is *scheduled*, not after it finishes. The
+        // "background load complete" log above marks actual completion.
+        logger.atInfo().log("Persistent Spooler set up; message load running in background");
+        return persistenceSpool;
+    }
+
+    /**
+     * Blocks until all persisted message IDs have been loaded from disk into the in-memory deque.
+     * Returns immediately if already complete or if using Memory storage.
+     *
+     * <p>Must be called by any method that consumes from or iterates the deque to guarantee
+     * all persisted messages are present and ordered correctly.</p>
+     */
+    private void awaitDiskQueueLoaded() throws InterruptedException {
+        try {
+            diskQueueLoaded.get();
+        } catch (ExecutionException e) {
+            // Background load already logged the specific failure; surface it here too at WARN so a
+            // partially-loaded queue is visible to fleet monitoring. Proceed with whatever was loaded.
+            logger.atWarn().cause(e).log("Disk queue load completed with an error");
         }
     }
 
@@ -205,11 +263,14 @@ public class Spool {
 
     /**
      * Pop the id of the oldest PublishRequest.
+     * Waits for disk-to-memory sync to complete before draining to ensure
+     * all persisted messages are available and ordered correctly.
      *
      * @return message id
      * @throws InterruptedException the thread is interrupted while popping the first id from the queue
      */
     public long popId() throws InterruptedException {
+        awaitDiskQueueLoaded();
         SpoolMessage message;
         long id;
         while (true) {
@@ -261,18 +322,43 @@ public class Spool {
         }
     }
 
+    /**
+     * Remove the oldest QoS 0 messages from the spooler to make room for new messages.
+     */
     public void removeOldestMessage() {
         removeMessagesWithQosZero(true);
     }
 
+    /**
+     * Remove all QoS 0 messages from the spooler queue. Called when the device goes offline and the
+     * spooler is configured to not keep QoS 0 messages while disconnected.
+     *
+     * <p>This is invoked on the MQTT connection-event (CRT event-loop) thread, so it must not block.
+     * The prune reads every queued message and may also have to wait for the disk-to-memory load, so
+     * it always runs on the spool executor, after the load completes.</p>
+     */
     public void popOutMessagesWithQosZero() {
-        removeMessagesWithQosZero(false);
+        diskQueueLoaded.thenRunAsync(() -> removeMessagesWithQosZero(false), executorService)
+                .whenComplete((unused, t) -> {
+                    if (t != null) {
+                        logger.atWarn().cause(t).log("QoS 0 offline prune failed");
+                    }
+                });
     }
 
     private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
         if (!qos0MessageCheckRequired.get()) {
             return;
         }
+        // While the disk load runs, the deque holds persisted ids whose sizes are not counted yet, so removing
+        // one would corrupt the size counter. Skip rather than wait: this is also reached from addMessage() with
+        // the lock held. The offline prune is only scheduled after the load completes.
+        if (!diskQueueLoaded.isDone()) {
+            return;
+        }
+        // Not done under the lock: the scan reads every message from disk, and holding the lock for it would
+        // block every addMessage() caller for the duration. The deque iterator is weakly consistent and the
+        // size counter is atomic, so this is safe to run alongside addMessage(), as it always has been.
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
         while (messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
             long id = messageIdIterator.next();
@@ -297,57 +383,73 @@ public class Spool {
         return curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes();
     }
 
+    /**
+     * Get the current number of message ids in the spooler queue.
+     *
+     * @return current message count
+     */
     public int getCurrentMessageCount() {
         return queueOfMessageId.size();
     }
 
+    /**
+     * Get the current total size of messages in the spooler queue in bytes.
+     *
+     * @return current spooler size in bytes
+     */
     public long getCurrentSpoolerSize() {
         return curMessageQueueSizeInBytes.get();
     }
 
+    /**
+     * Get the current spooler configuration.
+     *
+     * @return spooler config
+     */
     public SpoolerConfig getSpoolConfig() {
         return config;
     }
 
     /**
-     * Extract message ids from the persistenceSpool plugin's disk database and insert the message
-     * ids into queueOfMessageId, this function is only used in Disk storage mode. If Sync fails midway,
-     * we continue anyway with that DiskSpooler. If we fail to get all Message IDs from Disk Spooler Database,
-     * we default to InMemory spooler.
+     * Account for the size and QoS of persisted messages whose ids are already in queueOfMessageId. Runs on a
+     * background thread to avoid blocking kernel startup (issue #1832).
      *
-     * @param diskQueueOfIds   list of messageIds to sync
+     * <p>If the spool fills up, the remaining (newer) persisted ids are taken back out of the queue, since their
+     * sizes are not counted. A message that cannot be read is taken out of the queue on its own and the load
+     * continues. Ids whose message is missing stay in the queue: nothing is counted for them and every reader
+     * skips them.</p>
+     *
+     * @param diskQueueOfIds   messageIds to sync, in ascending order
      * @param persistenceSpool instance of CloudMessageSpool
-     * @throws InterruptedException  If interrupted
      * @throws SpoolerStoreException thrown if message too large or spooler capacity exceeded
      */
-    public void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
-            throws InterruptedException, SpoolerStoreException {
-        if (!diskQueueOfIds.iterator().hasNext()) {
-            return;
-        }
-        long highestId = -1;
-        int numMessages = 0;
-        int queueOfMessageIdInitSize = queueOfMessageId.size();
-        for (long currentId : diskQueueOfIds) {
-            numMessages++;
-            //Check for queue space and remove if necessary
-            SpoolMessage message = persistenceSpool.getMessageById(currentId);
-            Publish request = message.getRequest();
-            queueCapacityCheck(request, false);
-
-            queueOfMessageId.putLast(currentId);
-            if (QOS.AT_MOST_ONCE.equals(request.getQos())) {
-                qos0MessageCheckRequired.set(true);
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public void persistentQueueSync(List<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
+            throws SpoolerStoreException {
+        for (long id : diskQueueOfIds) {
+            try {
+                SpoolMessage message = persistenceSpool.getMessageById(id);
+                if (message == null) {
+                    continue;
+                }
+                Publish request = message.getRequest();
+                // Lock only around the accounting, not the disk read, so addMessage() is never held up for long.
+                try (LockScope ls = LockScope.lock(lock)) {
+                    queueCapacityCheck(request, false);
+                }
+                if (QOS.AT_MOST_ONCE.equals(request.getQos())) {
+                    qos0MessageCheckRequired.set(true);
+                }
+            } catch (SpoolerStoreException e) {
+                long last = diskQueueOfIds.get(diskQueueOfIds.size() - 1);
+                queueOfMessageId.removeIf(queued -> queued >= id && queued <= last);
+                throw e;
+            } catch (RuntimeException e) {
+                // Nothing was counted for this message, so drop only it and keep loading the rest.
+                logger.atWarn().kv("id", id).cause(e).log("Failed to load persisted spool message, dropping it");
+                queueOfMessageId.remove(id);
             }
-            if (currentId > highestId) {
-                highestId = currentId;
-            }
         }
-        logger.atInfo()
-                .kv("numSpoolerMessages", numMessages)
-                .kv("numMessagesAdded", queueOfMessageId.size() - queueOfMessageIdInitSize)
-                .log("Messages added to spool runtime queue");
-        nextId.set(Math.max(nextId.get(), highestId + 1));
     }
 
 
