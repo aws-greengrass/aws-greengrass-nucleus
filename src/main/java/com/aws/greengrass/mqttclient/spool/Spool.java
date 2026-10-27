@@ -375,13 +375,12 @@ public class Spool {
         if (diskQueueMetadata.isEmpty()) {
             return;
         }
-        long highestId = -1;
-        for (SpoolMessageMetadata metadata : diskQueueMetadata) {
-            if (metadata != null) {
-                highestId = Math.max(highestId, metadata.getId());
-            }
+        // Metadata is ordered by id ascending, so the highest id is the last element
+        SpoolMessageMetadata lastMetadata = diskQueueMetadata.get(diskQueueMetadata.size() - 1);
+        if (lastMetadata == null) {
+            throw new SpoolerStoreException("Invalid message metadata returned by persistence spooler.");
         }
-        setIdForNextMessage(highestId);
+        setIdForNextMessage(lastMetadata.getId());
 
         int numMessagesAdded = 0;
         try {
