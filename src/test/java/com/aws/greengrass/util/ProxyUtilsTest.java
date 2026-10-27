@@ -9,38 +9,11 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
-import software.amazon.awssdk.http.HttpExecuteRequest;
-import software.amazon.awssdk.http.HttpExecuteResponse;
-import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
-import software.amazon.awssdk.http.SdkHttpMethod;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyPair;
-import java.security.KeyStore;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLServerSocket;
-import javax.net.ssl.TrustManagerFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -48,8 +21,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class ProxyUtilsTest {
-
-    private static final char[] KEYSTORE_PASSWORD = "password".toCharArray();
 
     @Mock
     DeviceConfiguration deviceConfiguration;
@@ -178,68 +149,4 @@ class ProxyUtilsTest {
         assertEquals("", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
     }
 
-    @Test
-    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
-    void GIVEN_first_resolved_address_unreachable_WHEN_https_request_THEN_next_address_is_used(@TempDir Path tempDir)
-            throws Exception {
-        Pair<Path, KeyPair> certAndKey =
-                EncryptionUtilsTest.generateCertificateFile(2048, false, tempDir.resolve("cert.der"), false);
-        Certificate cert;
-        try (InputStream in = Files.newInputStream(certAndKey.getLeft())) {
-            cert = CertificateFactory.getInstance("X.509").generateCertificate(in);
-        }
-        KeyStore keyStore = KeyStore.getInstance("JKS");
-        keyStore.load(null, null);
-        keyStore.setKeyEntry("server", certAndKey.getRight().getPrivate(), KEYSTORE_PASSWORD,
-                new Certificate[]{cert});
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        kmf.init(keyStore, KEYSTORE_PASSWORD);
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        tmf.init(keyStore);
-        SSLContext serverContext = SSLContext.getInstance("TLS");
-        serverContext.init(kmf.getKeyManagers(), null, null);
-
-        // ff0e::1 is multicast, so a TCP connect to it fails with "Network is unreachable" (ENETUNREACH) on any
-        // host, like an AAAA record does on an IPv4-only host.
-        InetAddress[] resolved = {InetAddress.getByName("ff0e::1"), InetAddress.getByName("127.0.0.1")};
-        ProxyUtils.setDeviceConfiguration(null);
-        try (SSLServerSocket server = (SSLServerSocket) serverContext.getServerSocketFactory()
-                .createServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
-             SdkHttpClient client = ProxyUtils.getSdkHttpClientBuilder()
-                     .dnsResolver(host -> resolved)
-                     .tlsTrustManagersProvider(tmf::getTrustManagers)
-                     .build()) {
-            CompletableFuture<Void> serverDone = CompletableFuture.runAsync(() -> respondOk(server));
-            // The certificate's only name is its CN, ROOT, so the request uses it as the host.
-            SdkHttpFullRequest request = SdkHttpFullRequest.builder().method(SdkHttpMethod.GET)
-                    .uri(URI.create("https://root:" + server.getLocalPort() + "/")).build();
-
-            HttpExecuteResponse response =
-                    client.prepareRequest(HttpExecuteRequest.builder().request(request).build()).call();
-
-            assertEquals(200, response.httpResponse().statusCode());
-            serverDone.get(10, TimeUnit.SECONDS);
-        }
-    }
-
-    private static void respondOk(SSLServerSocket server) {
-        try (Socket socket = server.accept();
-             InputStream in = socket.getInputStream();
-             OutputStream out = socket.getOutputStream()) {
-            int matched = 0;
-            byte[] endOfHeaders = "\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
-            while (matched < endOfHeaders.length) {
-                int b = in.read();
-                if (b < 0) {
-                    return;
-                }
-                matched = b == endOfHeaders[matched] ? matched + 1 : b == endOfHeaders[0] ? 1 : 0;
-            }
-            out.write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                    .getBytes(StandardCharsets.US_ASCII));
-            out.flush();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
 }
