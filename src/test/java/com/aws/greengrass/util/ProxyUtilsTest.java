@@ -11,12 +11,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -147,6 +152,55 @@ class ProxyUtilsTest {
     @Test
     void testGetNoProxyEnvVarValue_noProxyConfigured() {
         assertEquals("", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    void testGetHttpProxyOptions_httpProxyWithoutTlsContext() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("http://myproxy:3128");
+
+        HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration, null);
+
+        assertEquals("myproxy", httpProxyOptions.getHost());
+        assertNull(httpProxyOptions.getTlsContext());
+    }
+
+    @Test
+    void testGetHttpProxyOptions_httpsProxyWithoutTlsContext_throws() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:8080");
+
+        assertThrows(NullPointerException.class, () -> ProxyUtils.getHttpProxyOptions(deviceConfiguration, null));
+    }
+
+    @Test
+    void testIsHttpsProxy() {
+        assertTrue(ProxyUtils.isHttpsProxy("https://myproxy:8080"));
+        assertTrue(ProxyUtils.isHttpsProxy("HTTPS://myproxy:8080"));
+        assertFalse(ProxyUtils.isHttpsProxy("http://myproxy:3128"));
+    }
+
+    @Test
+    void testNewProxyTlsContext_unreadableRootCa_throws() {
+        assertThrows(CrtRuntimeException.class, () -> ProxyUtils.newProxyTlsContext("/nonexistent/AmazonRootCA1.pem"));
+    }
+
+    @Test
+    void testNewProxyTlsContext_noRootCa_usesSystemTrustStore() {
+        try (ClientTlsContext context = ProxyUtils.newProxyTlsContext("")) {
+            assertNotEquals(0, context.getNativeHandle());
+        }
+    }
+
+    @Test
+    void testIsProxyBypassed_endpointMatchesAnEntry() {
+        when(deviceConfiguration.getNoProxyAddresses()).thenReturn("localhost,.*\\.amazonaws\\.com");
+        assertTrue(ProxyUtils.isProxyBypassed(deviceConfiguration, "a1-ats.iot.us-east-1.amazonaws.com"));
+        assertFalse(ProxyUtils.isProxyBypassed(deviceConfiguration, "a1-ats.iot.example.com"));
+        assertFalse(ProxyUtils.isProxyBypassed(deviceConfiguration, ""));
+    }
+
+    @Test
+    void testIsProxyBypassed_noEntries() {
+        assertFalse(ProxyUtils.isProxyBypassed(deviceConfiguration, "a1-ats.iot.us-east-1.amazonaws.com"));
     }
 
 }

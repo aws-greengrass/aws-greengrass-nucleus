@@ -233,6 +233,26 @@ class MqttClientTest {
         verify(identityBuilder).withPort(40_000);
     }
 
+    @ParameterizedTest
+    @CsvSource({"localhost,true", "localhost|.*\\.amazonaws\\.com,false", "'',true"})
+    void GIVEN_proxy_and_no_proxy_addresses_WHEN_connection_built_THEN_proxy_used_unless_endpoint_bypassed(
+            String noProxyAddresses, boolean proxyUsed) throws Exception {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("http://myproxy:3128");
+        when(deviceConfiguration.getNoProxyAddresses()).thenReturn(noProxyAddresses.replace('|', ','));
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(
+                config.lookup("iotDataEndpoint").withValue("a1-ats.iot.us-east-1.amazonaws.com"));
+        AwsIotMqttConnectionBuilder identityBuilder = mock(AwsIotMqttConnectionBuilder.class, Answers.RETURNS_SELF);
+        lenient().when(identityBuilder.build()).thenThrow(new MqttException("stop after configuration"));
+        lenient().when(identityBuilder.toAwsIotMqtt5ClientBuilder())
+                .thenThrow(new MqttException("stop after configuration"));
+        SecurityService securityService = mock(SecurityService.class);
+        when(securityService.getDeviceIdentityMqttConnectionBuilder()).thenReturn(identityBuilder);
+        MqttClient mqttClient = new MqttClient(deviceConfiguration, ses, executorService, securityService, kernel);
+
+        assertThrows(ExecutionException.class, () -> mqttClient.getNewMqttClient().connect().get());
+        verify(identityBuilder, times(proxyUsed ? 1 : 0)).withHttpProxyOptions(any());
+    }
+
     @Test
     void GIVEN_device_not_configured_to_talk_to_cloud_WHEN_publish_THEN_throws_exception()
             throws InterruptedException {
