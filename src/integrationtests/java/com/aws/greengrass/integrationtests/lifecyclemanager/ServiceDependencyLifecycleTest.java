@@ -49,6 +49,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
@@ -198,7 +199,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         DeploymentDocument doc1 = mock(DeploymentDocument.class);
         when(doc1.getTimestamp()).thenReturn(System.currentTimeMillis());
         when(doc1.getDeploymentId()).thenReturn("removeHardDep");
-        when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
+        lenient().when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(TEST_ROUTINE_LONG_TIMEOUT, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep, System.currentTimeMillis()).get(60,
@@ -216,7 +217,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
         when(doc2.getDeploymentId()).thenReturn("addHardDep");
-        when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
+        lenient().when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(60, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep, System.currentTimeMillis()).get(10, TimeUnit.SECONDS),
@@ -311,7 +312,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         DeploymentDocument doc1 = mock(DeploymentDocument.class);
         when(doc1.getTimestamp()).thenReturn(System.currentTimeMillis());
         when(doc1.getDeploymentId()).thenReturn("removeSoftDep");
-        when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
+        lenient().when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep, System.currentTimeMillis()).get(30,
@@ -330,7 +331,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
         when(doc2.getDeploymentId()).thenReturn("addSoftDep");
-        when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
+        lenient().when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(TEST_ROUTINE_LONG_TIMEOUT, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep, System.currentTimeMillis()).get(60, TimeUnit.SECONDS),
@@ -399,7 +400,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
         when(doc2.getDeploymentId()).thenReturn("typeSoftToHard");
-        when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
+        lenient().when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(5, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), depTypeSoftToHard, System.currentTimeMillis()).get(10, TimeUnit.SECONDS),
@@ -413,7 +414,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         DeploymentDocument doc1 = mock(DeploymentDocument.class);
         when(doc1.getTimestamp()).thenReturn(System.currentTimeMillis());
         when(doc1.getDeploymentId()).thenReturn("typeHardToSoft");
-        when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
+        lenient().when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(5, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), depTypeHardToSoft, System.currentTimeMillis()).get(10, TimeUnit.SECONDS),

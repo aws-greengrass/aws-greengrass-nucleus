@@ -10,6 +10,7 @@ import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -41,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
@@ -50,10 +53,12 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -88,11 +93,16 @@ class KernelUpdateActivatorTest {
     ConfigurationWriter tlog;
     @Mock
     KernelLifecycle lifecycle;
+    @Mock
+    DeviceConfiguration deviceConfiguration;
 
     KernelUpdateActivator kernelUpdateActivator;
 
     @BeforeEach
     void beforeEach() {
+        // A deployment directory exists for every deployment DeploymentService submits.
+        lenient().doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
+        lenient().doReturn(true).when(deploymentDirectoryManager).isOngoingDeployment("testId");
         doReturn(deploymentDirectoryManager).when(context).get(eq(DeploymentDirectoryManager.class));
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
         doReturn(nucleusPaths).when(kernel).getNucleusPaths();
@@ -103,14 +113,41 @@ class KernelUpdateActivatorTest {
                 .when(deployment).getDeploymentDocumentObj();
         lenient().doReturn(tlog).when(lifecycle).getTlog();
         lenient().doReturn(lifecycle).when(context).get(eq(KernelLifecycle.class));
+        lenient().doReturn(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS).when(deviceConfiguration)
+                .getEffectiveMaxInterruptedDeploymentAttempts();
+        lenient().doReturn(deviceConfiguration).when(context).get(eq(DeviceConfiguration.class));
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_takeConfigSnapshot_fails_THEN_deployment_fails(ExtensionContext context) throws Exception{
+    void GIVEN_deployment_activate_WHEN_attempt_cannot_be_recorded_THEN_deployment_fails_before_any_change(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, IOException.class);
+        IOException mockIOE = new IOException("disk full");
+        doThrow(mockIOE).when(deploymentDirectoryManager).recordProcessingAttempt(any(), anyInt(), anyBoolean());
+
+        kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
+
+        ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
+        verify(totallyCompleteFuture).complete(captor.capture());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, captor.getValue().getDeploymentStatus());
+        assertEquals(mockIOE, captor.getValue().getFailureCause().getCause());
+        // Counted only after the snapshot, and nothing is shut down or merged without the count.
+        InOrder inOrder = inOrder(deploymentDirectoryManager);
+        inOrder.verify(deploymentDirectoryManager).takeRollbackSnapshot("testId");
+        // A failed Nucleus update is always rolled back, so that is what the attempt records.
+        inOrder.verify(deploymentDirectoryManager).recordProcessingAttempt("testId",
+                DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS,
+                true);
+        verify(lifecycle, never()).softShutdown(anyInt());
+        verify(kernelAlternatives, never()).validateLaunchDirSetupVerbose();
+    }
+
+    @Test
+    void GIVEN_deployment_activate_WHEN_takeRollbackSnapshot_fails_THEN_deployment_fails(ExtensionContext context) throws Exception{
         ignoreExceptionOfType(context, IOException.class);
 
         IOException mockIOE = new IOException();
-        doThrow(mockIOE).when(deploymentDirectoryManager).takeConfigSnapshot(any());
+        doThrow(mockIOE).when(deploymentDirectoryManager).takeRollbackSnapshot("testId");
         kernelUpdateActivator.activate(newConfig, deployment, System.currentTimeMillis(), totallyCompleteFuture);
         ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
         verify(totallyCompleteFuture).complete(captor.capture());

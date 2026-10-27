@@ -52,6 +52,7 @@ import org.apache.commons.io.FileUtils;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -86,6 +87,9 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
+// This class already sat at PMD's 1000-line class limit before the interrupted-deployment attempt cap was
+// added. Splitting it up is worth doing on its own, not as part of a bug fix.
+@SuppressWarnings("PMD.ExcessiveClassLength")
 public class DeploymentService extends GreengrassService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
@@ -130,6 +134,13 @@ public class DeploymentService extends GreengrassService {
     @Inject
     private Kernel kernel;
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
+    /**
+     * What the deployment directory recorded about the current DEFAULT-stage deployment when it was delivered,
+     * before this attempt applied anything: whether an earlier attempt applied it, whether it carried an unfinished
+     * deployment's rollback snapshot, and what a launch did about it. Null for other deployments; reset when the
+     * current deployment finishes, which happens before the next one is created.
+     */
+    private DeploymentDirectoryManager.ProcessingState processingStateAtDelivery = null;
 
     /**
      * The deployment to execute next, i.e. when the current deployment has finished
@@ -344,6 +355,12 @@ public class DeploymentService extends GreengrassService {
                     //Add the root packages of successful deployment to the configuration
                     persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
 
+                    // Recorded before the status is published, because the deployment directory moves off the
+                    // ongoing link only afterwards: a crash in between must not leave this deployment looking
+                    // unfinished, or the next one would carry its stale rollback snapshot forward.
+                    // Both act only when the ongoing link names this deployment, see persistLastFailedDeployment.
+                    deploymentDirectoryManager.recordTerminalStatus(ggDeploymentId,
+                            DeploymentDirectoryManager.TerminalOutcome.SUCCEEDED);
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
                             configurationArn, type, JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages);
 
@@ -354,7 +371,7 @@ public class DeploymentService extends GreengrassService {
                             logger.atError().log("Failed to reset Nucleus activate directory", e);
                         }
                     }
-                    deploymentDirectoryManager.persistLastSuccessfulDeployment();
+                    deploymentDirectoryManager.persistLastSuccessfulDeployment(ggDeploymentId);
                 } else if (DeploymentStatus.REJECTED.equals(deploymentStatus)) {
                     if (result.getFailureCause() != null) {
                         updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
@@ -369,22 +386,30 @@ public class DeploymentService extends GreengrassService {
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
                             configurationArn, type, JobStatus.REJECTED.toString(), statusDetails, rootPackages);
                 } else {
+                    // A deployment applied by an earlier attempt can fail again before applying anything, in which
+                    // case "no state change" would be false: the device still holds what that attempt applied.
+                    DeploymentStatus reportedStatus = failureStatusToReport(deploymentStatus);
+                    statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, reportedStatus.name());
                     if (result.getFailureCause() != null) {
                         updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
                                 currentDeploymentTaskMetadata.getDeploymentType());
                         logger.atError().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
                                 .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId)
-                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
+                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, reportedStatus)
                                 .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
                                 .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
                                 .log("Deployment task failed with following errors");
                     }
 
-                    if (FAILED_ROLLBACK_NOT_REQUESTED.equals(result.getDeploymentStatus())) {
+                    if (FAILED_ROLLBACK_NOT_REQUESTED.equals(reportedStatus)) {
                         // Update the groupToRootComponents mapping in config for the case where there is no rollback
                         // and now the components deployed for the current group are not the same as before deployment
                         persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
                     }
+                    // Whether the directory stays the next deployment's baseline follows the outcome decided here,
+                    // not a read-back of the record, whose write can fail on the disk that failed the deployment.
+                    DeploymentDirectoryManager.TerminalOutcome outcome = deploymentDirectoryManager
+                            .recordTerminalStatus(ggDeploymentId, terminalFailureOutcome(reportedStatus));
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
                             configurationArn, type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
 
@@ -395,7 +420,7 @@ public class DeploymentService extends GreengrassService {
                             logger.atError().log("Failed to reset Nucleus rollback directory", e);
                         }
                     }
-                    deploymentDirectoryManager.persistLastFailedDeployment();
+                    deploymentDirectoryManager.persistLastFailedDeployment(ggDeploymentId, outcome);
                 }
             }
         } catch (ExecutionException e) {
@@ -413,9 +438,12 @@ public class DeploymentService extends GreengrassService {
                         .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
                         .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY)).setCause(t)
                         .log("Deployment task throws unknown exception");
+                // How far it got is unknown, so it is treated as one that could not roll back.
+                DeploymentDirectoryManager.TerminalOutcome outcome = deploymentDirectoryManager.recordTerminalStatus(
+                        ggDeploymentId, terminalFailureOutcome(DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK));
                 deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId, configurationArn,
                         type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
-                deploymentDirectoryManager.persistLastFailedDeployment();
+                deploymentDirectoryManager.persistLastFailedDeployment(ggDeploymentId, outcome);
             }
         } catch (CancellationException e) {
             logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
@@ -424,6 +452,43 @@ public class DeploymentService extends GreengrassService {
         // Setting this to null to indicate there is no current deployment being processed
         // Did not use optionals over null due to performance
         currentDeploymentTaskMetadata = null;
+        processingStateAtDelivery = null;
+    }
+
+    /**
+     * The detailed status to report for a failed deployment. A deployment that started from configuration an
+     * earlier attempt of it applied and never verified cannot have left the device unchanged, even if this
+     * attempt failed before applying anything: report that it was not rolled back, as its failure handling
+     * would have it.
+     */
+    private DeploymentStatus failureStatusToReport(DeploymentStatus status) {
+        DeploymentDirectoryManager.ProcessingState delivered = processingStateAtDelivery;
+        if (!DeploymentStatus.FAILED_NO_STATE_CHANGE.equals(status) || delivered == null
+                || delivered.attemptsMade() == 0) {
+            return status;
+        }
+        return Boolean.FALSE.equals(delivered.getRollbackOnFailure()) ? FAILED_ROLLBACK_NOT_REQUESTED
+                : DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK;
+    }
+
+    /**
+     * What to record about a failed deployment. One that started from configuration that was never verified, and
+     * whose failure neither rolled that back nor was meant to keep it, leaves the device as unverified as it found
+     * it: its rollback snapshot is still the last verified configuration, so it stays the baseline for the next
+     * deployment. A deployment whose terminal status the launch decided because of an explicit configuration or an
+     * unusable snapshot has nothing worth carrying.
+     */
+    private DeploymentDirectoryManager.TerminalOutcome terminalFailureOutcome(DeploymentStatus reportedStatus) {
+        DeploymentDirectoryManager.ProcessingState delivered = processingStateAtDelivery;
+        boolean notUndone = DeploymentStatus.FAILED_NO_STATE_CHANGE.equals(reportedStatus)
+                || DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK.equals(reportedStatus);
+        boolean nothingToCarry = delivered == null || !delivered.startedFromUnverifiedConfiguration()
+                || DeploymentDirectoryManager.LaunchRecovery.EXPLICIT_CONFIGURATION.equals(
+                        delivered.getLaunchRecovery())
+                || DeploymentDirectoryManager.LaunchRecovery.ROLLBACK_SNAPSHOT_UNUSABLE.equals(
+                        delivered.getLaunchRecovery());
+        return notUndone && !nothingToCarry ? DeploymentDirectoryManager.TerminalOutcome.FAILED_UNVERIFIED
+                : DeploymentDirectoryManager.TerminalOutcome.FAILED;
     }
 
     private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
@@ -525,6 +590,7 @@ public class DeploymentService extends GreengrassService {
                                 + "Make a new deployment to revert the update");
 
                 currentDeploymentTaskMetadata.cancel(true);
+                recordCancellation();
                 DeploymentType deploymentType = currentDeploymentTaskMetadata.getDeploymentType();
                 if (DeploymentType.SHADOW.equals(deploymentType) || DeploymentType.LOCAL.equals(deploymentType)) {
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(
@@ -538,6 +604,27 @@ public class DeploymentService extends GreengrassService {
                         .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                         .log("Deployment was cancelled");
             }
+        }
+    }
+
+    /**
+     * Record that the current deployment was cancelled, before CANCELED is published, and also when nothing is
+     * published because an IoT job's cancellation is the cloud's own. A cancelled deployment is settled rather than
+     * unfinished: no launch may re-process it, which would re-apply a deployment reported cancelled, or restore the
+     * device behind the back of whoever cancelled it. The cancel may have landed after its changes were merged, so its
+     * directory stays on the ongoing link and the next deployment carries its rollback snapshot forward.
+     *
+     * <p>Only a cancel that took effect is recorded: a deployment whose result arrived first is finished by that
+     * result. This is never reached for an attempt the nucleus interrupted, whose future is created cancelled
+     * (leaveInterruptedDeployment) and stays re-processable. The record names the deployment, so it is written only
+     * if the ongoing link names that deployment's directory.
+     */
+    private void recordCancellation() {
+        Deployment deployment = currentDeploymentTaskMetadata.getDeployment();
+        if (DEFAULT.equals(deployment.getDeploymentStage())
+                && currentDeploymentTaskMetadata.getDeploymentResultFuture().isCancelled()) {
+            deploymentDirectoryManager.recordTerminalStatus(deployment.getGreengrassDeploymentId(),
+                    DeploymentDirectoryManager.TerminalOutcome.CANCELLED);
         }
     }
 
@@ -585,6 +672,22 @@ public class DeploymentService extends GreengrassService {
             return;
         }
 
+        DeploymentDirectoryManager.ProcessingState refused = DEFAULT.equals(deployment.getDeploymentStage())
+                ? deploymentDirectoryManager.findExhaustedFailure(deployment.getGreengrassDeploymentId()) : null;
+        if (refused != null) {
+            // Treating a re-delivery that was in flight when the failure was reported as a new request
+            // would hand it a fresh allowance and re-apply the version just backed out. Rejecting rather
+            // than failing it leaves the last-failed record intact, so a further re-delivery is recognised
+            // too, while a new revision is accepted normally.
+            logger.atWarn().kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
+                    .kv("launchRecovery", refused.getLaunchRecovery())
+                    .log("Rejecting a deployment that already used up its processing attempts");
+            updateDeploymentResultAsRejected(deployment, deploymentTask, new DeploymentRejectedException(
+                    refusedForExhaustedAttemptsMessage(refused.getLaunchRecovery()),
+                    DeploymentErrorCode.DEPLOYMENT_INTERRUPTED));
+            return;
+        }
+
         // Assign currentDeploymentTaskMetadata before persisting IN_PROGRESS and before submitting
         // the task to the executor. This ensures that any concurrent reader (e.g. ShadowDeploymentListener,
         // IotJobsHelper) that observes a side-effect of deployment processing will also observe
@@ -603,12 +706,63 @@ public class DeploymentService extends GreengrassService {
             try {
                 context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
                 deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getGreengrassDeploymentId());
-                deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+                // Captured as soon as the directory is ready, before anything else can fail: the directory now holds
+                // whatever was carried forward or kept from an earlier attempt, and how a failure of this deployment
+                // is reported, and whether its directory stays the next deployment's baseline, both depend on it.
+                processingStateAtDelivery =
+                        deploymentDirectoryManager.findProcessingState(deployment.getGreengrassDeploymentId());
+                if (processingStateAtDelivery == null || !processingStateAtDelivery.hasUsedUpAttempts()) {
+                    // A deployment that used up its attempts is failed below without being applied, with what the
+                    // launch decided about it, so it needs no metadata, and a failure to write that must not stand
+                    // in for that decision.
+                    deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+                }
+            } catch (InterruptedIOException e) {
+                leaveInterruptedDeployment(e);
+                return;
+            } catch (DeploymentDirectoryManager.UnusableRollbackSnapshotException e) {
+                // The same deployment re-delivered is still the ongoing one, and how it is reported depends on
+                // what its earlier attempts applied, as read for the check that failed. A superseded one has been set
+                // aside, so this one has nothing.
+                if (e.isSameDeployment()) {
+                    processingStateAtDelivery = e.getProcessingState();
+                }
+                updateDeploymentResultAsFailed(deployment, deploymentTask, false,
+                        unusableRollbackSnapshotFailure(e));
+                return;
             } catch (IOException ioException) {
+                if (Thread.currentThread().isInterrupted()) {
+                    // A file write fails on an interrupted thread; that says nothing about the directory.
+                    leaveInterruptedDeployment(ioException);
+                    return;
+                }
+                if (processingStateAtDelivery == null) {
+                    // Re-processing a deployment in its own directory can fail after the ongoing link was found to
+                    // name it, e.g. clearing its reported outcome on a full disk. Its directory then still holds its
+                    // earlier attempts and snapshot, which its failure must keep. The read is identity-checked, so it
+                    // finds nothing for a deployment whose directory never became the ongoing one.
+                    processingStateAtDelivery =
+                            deploymentDirectoryManager.findProcessingState(deployment.getGreengrassDeploymentId());
+                }
                 logger.atError().log("Unable to create deployment directory", ioException);
                 updateDeploymentResultAsFailed(deployment, deploymentTask, false,
                         new DeploymentException("Unable to create deployment directory", ioException)
                                 .withErrorContext(ioException, DeploymentErrorCode.IO_WRITE_ERROR));
+                return;
+            }
+            DeploymentDirectoryManager.ProcessingState delivered = processingStateAtDelivery;
+
+            if (delivered != null && delivered.hasUsedUpAttempts()) {
+                // How the device was left is whatever the launch that found this deployment unfinished decided:
+                // restored from the rollback snapshot, or not. Reporting a terminal status stops the cloud
+                // re-delivering the deployment and releases the device to accept a newer one.
+                logger.atError().kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
+                        .kv("attempts", delivered.attemptsMade()).kv("launchRecovery", delivered.getLaunchRecovery())
+                        .log("Deployment was interrupted before completing on every allowed attempt. Failing it "
+                                + "so the device can accept a newer deployment");
+                updateDeploymentResultAsFailed(deployment, deploymentTask, new DeploymentException(
+                        exhaustedAttemptsMessage(delivered), DeploymentErrorCode.DEPLOYMENT_INTERRUPTED),
+                        exhaustedAttemptsStatus(delivered));
                 return;
             }
 
@@ -729,6 +883,116 @@ public class DeploymentService extends GreengrassService {
         }
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1));
+    }
+
+    private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask, Throwable e,
+                                                DeploymentStatus status) {
+        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deployment, deploymentTask,
+                CompletableFuture.completedFuture(new DeploymentResult(status, e)), new AtomicInteger(1));
+    }
+
+    /**
+     * Why a deployment fails when an unfinished deployment's rollback snapshot, or its own from an earlier attempt,
+     * is unusable. Applying it would snapshot live configuration, which may hold unverified changes, so a failure
+     * of it could roll back onto them; it is failed before anything changes instead.
+     */
+    private DeploymentException unusableRollbackSnapshotFailure(
+            DeploymentDirectoryManager.UnusableRollbackSnapshotException e) {
+        if (e.isSameDeployment()) {
+            logger.atError().log("The rollback snapshot this deployment kept from an earlier delivery is unusable. Not "
+                    + "applying the deployment again", e);
+            return new DeploymentException("The rollback snapshot this deployment kept from an earlier delivery is "
+                    + "not usable, so it was not applied again. The device's configuration may include unverified "
+                    + "changes that cannot be rolled back. Deploy a new revision to change it", e)
+                    .withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
+        }
+        logger.atError().log("The rollback snapshot of a deployment that did not complete is unusable. Not applying "
+                + "the deployment", e);
+        return new DeploymentException("The rollback snapshot of a deployment that did not complete is not usable, so "
+                + "this deployment was not applied. That deployment was set aside, and the device's configuration may "
+                + "include its unverified changes. Deploy again to apply this deployment to the current configuration",
+                e).withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
+    }
+
+    /**
+     * How a deployment that used up its attempts left the device, as a detailed status. A rollback was wanted but
+     * not done unless the launch restored the device or the deployment's failure handling does not roll back.
+     */
+    private static DeploymentStatus exhaustedAttemptsStatus(DeploymentDirectoryManager.ProcessingState state) {
+        DeploymentDirectoryManager.LaunchRecovery recovery = state.getLaunchRecovery();
+        if (DeploymentDirectoryManager.LaunchRecovery.RESTORED.equals(recovery)) {
+            return DeploymentStatus.FAILED_ROLLBACK_COMPLETE;
+        }
+        if (DeploymentDirectoryManager.LaunchRecovery.ROLLBACK_NOT_REQUESTED.equals(recovery)
+                || recovery == null && Boolean.FALSE.equals(state.getRollbackOnFailure())) {
+            return FAILED_ROLLBACK_NOT_REQUESTED;
+        }
+        return DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK;
+    }
+
+    /**
+     * The nucleus is stopping while the deployment directory is prepared. Nothing was applied and an unfinished
+     * deployment's directory is left as it was, so leave this attempt the way a cancelled one is left: nothing
+     * reported and the ongoing link where it is, for the deployment to be processed again after the restart.
+     */
+    private void leaveInterruptedDeployment(IOException cause) {
+        logger.atInfo().kv("reason", cause.getMessage())
+                .log("Interrupted while preparing the deployment directory. Not processing the deployment");
+        Thread.currentThread().interrupt();
+        CompletableFuture<DeploymentResult> interrupted = new CompletableFuture<>();
+        interrupted.cancel(true);
+        currentDeploymentTaskMetadata.setDeploymentResultFuture(interrupted);
+    }
+
+    /**
+     * Why a deployment that used up its attempts is failed, saying the device was restored only if it was.
+     */
+    private static String exhaustedAttemptsMessage(DeploymentDirectoryManager.ProcessingState state) {
+        DeploymentDirectoryManager.LaunchRecovery recovery = state.getLaunchRecovery();
+        String interrupted = "Deployment was interrupted before completing on every allowed attempt. ";
+        if (DeploymentDirectoryManager.LaunchRecovery.RESTORED.equals(recovery)) {
+            return interrupted + "The device has been restored to the configuration from before the deployment. "
+                    + "Deploy a new revision to change it.";
+        }
+        if (DeploymentDirectoryManager.LaunchRecovery.ROLLBACK_NOT_REQUESTED.equals(recovery)
+                || recovery == null && Boolean.FALSE.equals(state.getRollbackOnFailure())) {
+            return interrupted + "Its failure handling policy does not roll back, so the device keeps the "
+                    + "configuration the deployment applied. Deploy a new revision to change it.";
+        }
+        if (DeploymentDirectoryManager.LaunchRecovery.EXPLICIT_CONFIGURATION.equals(recovery)) {
+            return interrupted + "The device was not restored to the configuration from before the deployment, "
+                    + "because Greengrass was started with an explicit configuration, which takes precedence. "
+                    + "Deploy a new revision to change it.";
+        }
+        if (DeploymentDirectoryManager.LaunchRecovery.ROLLBACK_SNAPSHOT_UNUSABLE.equals(recovery)) {
+            return interrupted + "Its rollback configuration was missing or invalid, so the device was not "
+                    + "restored and may still have configuration from the deployment that was never verified. "
+                    + "Deploy a new revision to change it.";
+        }
+        if (DeploymentDirectoryManager.LaunchRecovery.RESTORE_FAILED.equals(recovery)) {
+            return interrupted + "Restoring the configuration from before the deployment failed, so the device may "
+                    + "still have configuration from the deployment that was never verified. Deploy a new revision "
+                    + "to change it.";
+        }
+        if (DeploymentDirectoryManager.LaunchRecovery.UNRECOGNIZED.equals(recovery)) {
+            return interrupted + "A newer version of Greengrass decided how to deal with it, in a way this version "
+                    + "does not recognize, so the device may still have configuration from the deployment that was "
+                    + "never verified. Deploy a new revision to change it.";
+        }
+        return interrupted + "The device was not restored, so it may still have configuration from the deployment "
+                + "that was never verified. Deploy a new revision to change it.";
+    }
+
+    private static String refusedForExhaustedAttemptsMessage(DeploymentDirectoryManager.LaunchRecovery recovery) {
+        if (DeploymentDirectoryManager.LaunchRecovery.RESTORED.equals(recovery)) {
+            return "Deployment was interrupted before completing on every allowed attempt, and the device has "
+                    + "been restored to the configuration from before it. Deploy a new revision to change "
+                    + "the device's configuration.";
+        }
+        // Not "reported as failed": the device records the failure before it publishes it, so it may have stopped
+        // in between.
+        return "Deployment was interrupted before completing on every allowed attempt, and the device has already "
+                + "failed it. Deploy a new revision to change the device's configuration.";
     }
 
     private void updateStatusDetailsFromException(Map<String, Object> statusDetails, Throwable failureCause,
@@ -889,7 +1153,7 @@ public class DeploymentService extends GreengrassService {
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                 deploymentConfigMerger, logger.createChild(), deployment, config, executorService,
-                deploymentDocumentDownloader, thingGroupHelper, deviceConfiguration);
+                deploymentDocumentDownloader, thingGroupHelper, deviceConfiguration, deploymentDirectoryManager);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {

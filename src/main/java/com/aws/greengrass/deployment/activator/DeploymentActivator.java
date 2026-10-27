@@ -8,6 +8,7 @@ package com.aws.greengrass.deployment.activator;
 import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -21,6 +22,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +30,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
 import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -45,13 +49,48 @@ public abstract class DeploymentActivator {
     public abstract void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
                                   CompletableFuture<DeploymentResult> totallyCompleteFuture);
 
-    protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture) {
+    /**
+     * Make the rollback snapshot of this deployment durable before anything changes. A deployment applied without
+     * a directory of its own has nothing to snapshot into and nothing tracking it: one whose failure would not be
+     * rolled back proceeds, as before, but one that must be rolled back on failure cannot be applied safely.
+     *
+     * @param totallyCompleteFuture completed with a failure when the snapshot cannot be made durable, or with no
+     *                              result when the nucleus is stopping
+     * @param deploymentId          the deployment being applied
+     * @param rollbackOnFailure     whether a failure of this deployment rolls it back
+     * @return true if the deployment may proceed
+     */
+    protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                                         String deploymentId, boolean rollbackOnFailure) {
          if (totallyCompleteFuture.isCancelled()) {
             return false;
         }
-        try {
-            deploymentDirectoryManager.takeConfigSnapshot(deploymentDirectoryManager.getSnapshotFilePath());
+        if (!deploymentDirectoryManager.isOngoingDeployment(deploymentId)) {
+            if (deploymentDirectoryManager.hasUnfinishedDeployment()) {
+                // The ongoing link names another deployment's directory: a superseding deployment overtook this
+                // activation, which must not write into that deployment's directory or apply anything.
+                failBeforeChanging(totallyCompleteFuture, "Deployment is no longer the ongoing deployment",
+                        new IOException("The ongoing deployment directory belongs to another deployment"));
+                return false;
+            }
+            if (rollbackOnFailure) {
+                failBeforeChanging(totallyCompleteFuture, "Failed to take a snapshot for rollback",
+                        new IOException("There is no deployment directory to take the rollback snapshot in"));
+                return false;
+            }
+            // No deployment directory, so there is nowhere to put a snapshot and nothing tracking this
+            // deployment that could use one. Proceed rather than failing: requiring a snapshot here would
+            // fail deployments that are applied without a directory having been created for them.
+            logger.atDebug().setEventType(MERGE_CONFIG_EVENT_KEY)
+                    .log("No deployment directory; skipping rollback snapshot");
             return true;
+        }
+        try {
+            deploymentDirectoryManager.takeRollbackSnapshot(deploymentId);
+            return true;
+        } catch (InterruptedIOException e) {
+            leaveInterrupted(totallyCompleteFuture, e, "Interrupted before the rollback snapshot was taken");
+            return false;
         } catch (IOException e) {
             // Failed to record snapshot hence did not execute merge, no rollback needed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
@@ -62,6 +101,93 @@ public abstract class DeploymentActivator {
                                     .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR)));
             return false;
         }
+    }
+
+    /**
+     * Record that this deployment is about to be applied. Call it once the rollback snapshot is durable and before
+     * the merge: a crash in between then counts an attempt that changed nothing, and never leaves an applied
+     * attempt uncounted. The count is what caps a deployment that keeps being interrupted, so failing to record it
+     * fails the deployment before anything changes rather than applying it uncounted.
+     *
+     * @param rollbackOnFailure     whether a failure of this deployment rolls it back
+     * @param totallyCompleteFuture completed with a failure when the attempt cannot be recorded
+     * @param deploymentId          the deployment being applied
+     * @return true if the attempt was recorded, or there is no deployment directory to record it in
+     */
+    protected boolean recordProcessingAttempt(boolean rollbackOnFailure,
+                                              CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                                              String deploymentId) {
+        if (totallyCompleteFuture.isCancelled()) {
+            // Cancelled while the snapshot was taken, e.g. superseded: stop before counting or applying anything.
+            logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                    .log("Deployment cancelled: will not record an attempt or apply it");
+            return false;
+        }
+        if (!deploymentDirectoryManager.hasUnfinishedDeployment()) {
+            // Nothing is tracking this deployment, so there is nowhere to keep a count.
+            return true;
+        }
+        try {
+            int attempt = deploymentDirectoryManager.recordProcessingAttempt(deploymentId, kernel.getContext()
+                    .get(DeviceConfiguration.class).getEffectiveMaxInterruptedDeploymentAttempts(), rollbackOnFailure);
+            logger.atDebug().setEventType(MERGE_CONFIG_EVENT_KEY).kv("attempt", attempt)
+                    .log("Recorded the deployment attempt");
+            return true;
+        } catch (InterruptedIOException e) {
+            // The nucleus is stopping or the deployment was cancelled; nothing has been applied.
+            leaveInterrupted(totallyCompleteFuture, e,
+                    "Interrupted before recording the deployment attempt. Not applying the deployment");
+            return false;
+        } catch (IOException e) {
+            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                    .log("Failed to record the deployment attempt");
+            failBeforeChanging(totallyCompleteFuture, "Failed to record the deployment attempt", e);
+            return false;
+        }
+    }
+
+    /**
+     * Check once more, right before the merge and after the attempt is counted, that this deployment is still the one
+     * to apply: recording the attempt takes a write and its read-back, during which a cancel can land or a superseding
+     * deployment can take over the ongoing link. Either way the configuration belongs to another deployment now, and
+     * merging this one's over it must not happen. Only the window between this check and the merge itself remains.
+     *
+     * @param totallyCompleteFuture completed with a failure if another deployment's directory is the ongoing one
+     * @param deploymentId          the deployment being applied
+     * @return true if the deployment may be merged
+     */
+    protected boolean stillToBeApplied(CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                                       String deploymentId) {
+        if (totallyCompleteFuture.isCancelled()) {
+            logger.atInfo().setEventType(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                    .log("Deployment cancelled once its attempt was recorded: will not apply it");
+            return false;
+        }
+        if (deploymentDirectoryManager.hasUnfinishedDeployment()
+                && !deploymentDirectoryManager.isOngoingDeployment(deploymentId)) {
+            failBeforeChanging(totallyCompleteFuture, "Deployment is no longer the ongoing deployment",
+                    new IOException("The ongoing deployment directory belongs to another deployment"));
+            return false;
+        }
+        return true;
+    }
+
+    private static void failBeforeChanging(CompletableFuture<DeploymentResult> totallyCompleteFuture, String reason,
+                                           IOException cause) {
+        totallyCompleteFuture.complete(
+                new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                        new DeploymentException(reason, cause)
+                                .withErrorContext(cause, DeploymentErrorCode.IO_WRITE_ERROR)));
+    }
+
+    /**
+     * Leave an attempt the nucleus interrupted before it applied anything without a result, as an interrupted
+     * activation is left: nothing is reported, and the deployment is processed again after the restart.
+     */
+    private static void leaveInterrupted(CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                                         InterruptedIOException e, String message) {
+        logger.atWarn().setEventType(MERGE_CONFIG_EVENT_KEY).kv("reason", e.getMessage()).log(message);
+        totallyCompleteFuture.complete(null);
     }
 
     protected long rollbackConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture, Throwable failureCause) {

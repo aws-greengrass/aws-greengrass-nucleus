@@ -158,6 +158,7 @@ services:
       awsRegion: "us-east-1"
       componentStoreMaxSizeBytes: 10000000000
       deploymentPollingFrequencySeconds: 15
+      maxInterruptedDeploymentAttempts: 3
       interpolateComponentConfiguration: false
       iotCredEndpoint: "xxxxxx.credentials.iot.us-east-1.amazonaws.com"
       iotDataEndpoint: "xxxxxx-ats.iot.us-east-1.amazonaws.com"
@@ -196,6 +197,18 @@ services:
         periodicAggregateMetricsIntervalSeconds: 3600
         periodicPublishMetricsIntervalSeconds: 86400
 ```
+
+### Interrupted Deployment Configuration
+
+`maxInterruptedDeploymentAttempts` (default: `3`) — How many times a deployment may be applied while the Nucleus
+keeps being interrupted (restarted, crashed or powered off) before it reports a terminal status. A deployment that
+does not complete is re-processed when it is delivered again, and its rollback snapshot is kept as the rollback target.
+Once it has been applied this many times, the next launch restores the configuration from before the deployment, if
+a failure of the deployment would have been rolled back (`ROLLBACK` failure handling policy, endpoint switch, or
+Nucleus update) and Greengrass was not started with an explicit `--config`/`--init-config`; the deployment is then
+reported as failed, and a re-delivery of it is rejected until another deployment completes. Attempts are counted when
+the deployment is applied, not at every restart. A value below `1` disables the limit. A value that is not a number is
+ignored and the default is used.
 
 ### Endpoint Switch Configuration
 

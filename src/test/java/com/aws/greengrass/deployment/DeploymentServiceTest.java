@@ -35,6 +35,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.verification.VerificationWithTimeout;
@@ -43,6 +44,8 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.InterruptedIOException;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
@@ -60,6 +63,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
@@ -71,6 +75,7 @@ import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverte
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
@@ -81,19 +86,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"})
+// The interrupted-deployment cases take this class past PMD's 1000-line limit. Splitting it up is worth doing on
+// its own, not as part of a bug fix.
+@SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases", "PMD.ExcessiveClassLength"})
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentServiceTest extends GGServiceTestUtil {
 
@@ -436,6 +449,16 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any(), any());
+        // The terminal status is recorded in the deployment directory before it is published, and the directory
+        // moves off the ongoing link only after, so a crash in between cannot leave the deployment looking
+        // unfinished.
+        verify(deploymentDirectoryManager, timeout(2000)).persistLastSuccessfulDeployment(expectedUuid);
+        InOrder terminalOrder = inOrder(deploymentDirectoryManager, deploymentStatusKeeper);
+        terminalOrder.verify(deploymentDirectoryManager).recordTerminalStatus(expectedUuid,
+                DeploymentDirectoryManager.TerminalOutcome.SUCCEEDED);
+        terminalOrder.verify(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any(), any());
+        terminalOrder.verify(deploymentDirectoryManager).persistLastSuccessfulDeployment(expectedUuid);
         ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(mockComponentsToGroupPackages).replaceAndWait(mapCaptor.capture());
         Map<String, Object> groupToRootPackages = mapCaptor.getValue();
@@ -507,6 +530,352 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_STACK_KEY));
         assertListEquals(Arrays.asList("DEVICE_ERROR"),
                 (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_TYPES_KEY));
+    }
+
+    @Test
+    void GIVEN_deployment_interrupted_repeatedly_WHEN_attempt_limit_exceeded_THEN_report_failed_job_status(
+            ExtensionContext extContext)
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessage(extContext,
+                "Deployment was interrupted before completing on every allowed attempt. The device has been "
+                        + "restored to the configuration from before the deployment. Deploy a new revision to "
+                        + "change it.");
+
+        // The launch that found this deployment unfinished restored the device from its rollback snapshot.
+        when(deploymentDirectoryManager.findProcessingState(TEST_UUID)).thenReturn(
+                usedUpAttempts(DeploymentDirectoryManager.LaunchRecovery.RESTORED));
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        verify(mockExecutorService, times(0)).submit(any(DefaultDeploymentTask.class));
+        // Attempts are counted when a deployment is applied, not when it is received: the same deployment
+        // can be delivered several times while only some deliveries reach the point of changing anything.
+        verify(deploymentDirectoryManager, never()).recordProcessingAttempt(any(), anyInt(), anyBoolean());
+    }
+
+    @Test
+    void GIVEN_attempts_used_up_and_device_not_restored_WHEN_redelivered_THEN_status_does_not_claim_a_restore(
+            ExtensionContext extContext) throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessageSubstring(extContext, "on every allowed attempt");
+        // No launch dealt with it: the attempts ran out within one run of the nucleus.
+        when(deploymentDirectoryManager.findProcessingState(TEST_UUID)).thenReturn(usedUpAttempts(null));
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        assertEquals("Deployment was interrupted before completing on every allowed attempt. The device was not "
+                        + "restored, so it may still have configuration from the deployment that was never "
+                        + "verified. Deploy a new revision to change it.",
+                failureCauseOf(JobStatus.FAILED));
+    }
+
+    @Test
+    void GIVEN_attempts_used_up_by_deployment_that_does_not_roll_back_WHEN_redelivered_THEN_status_says_so(
+            ExtensionContext extContext) throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        // The device keeps what the deployment applied, so the group's root components are recorded too.
+        Topics allGroupTopics = mock(Topics.class);
+        when(allGroupTopics.lookupTopics(EXPECTED_GROUP_NAME)).thenReturn(mock(Topics.class));
+        when(config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS)).thenReturn(groupToLastDeploymentTopics);
+        when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(mock(Topics.class));
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
+        when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
+        ignoreExceptionUltimateCauseWithMessageSubstring(extContext, "on every allowed attempt");
+        when(deploymentDirectoryManager.findProcessingState(TEST_UUID)).thenReturn(
+                usedUpAttempts(DeploymentDirectoryManager.LaunchRecovery.ROLLBACK_NOT_REQUESTED));
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        assertEquals("Deployment was interrupted before completing on every allowed attempt. Its failure handling "
+                        + "policy does not roll back, so the device keeps the configuration the deployment applied. "
+                        + "Deploy a new revision to change it.",
+                failureCauseOf(JobStatus.FAILED));
+    }
+
+    @Test
+    void GIVEN_deployment_already_used_up_its_attempts_WHEN_redelivered_THEN_reject_it(ExtensionContext extContext)
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessage(extContext,
+                "Deployment was interrupted before completing on every allowed attempt, and the device has "
+                        + "been restored to the configuration from before it. Deploy a new revision to change the "
+                        + "device's configuration.");
+
+        when(deploymentDirectoryManager.findExhaustedFailure(any())).thenReturn(
+                usedUpAttempts(DeploymentDirectoryManager.LaunchRecovery.RESTORED));
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.REJECTED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        // Nothing is applied and no new deployment directory is created, so the record of the refusal
+        // survives for any further re-delivery.
+        verify(mockExecutorService, times(0)).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentDirectoryManager, never()).createNewDeploymentDirectory(any());
+    }
+
+    @Test
+    void GIVEN_refused_deployment_not_restored_WHEN_redelivered_THEN_rejection_does_not_claim_a_restore(
+            ExtensionContext extContext) throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessageSubstring(extContext, "on every allowed attempt");
+        when(deploymentDirectoryManager.findExhaustedFailure(any())).thenReturn(
+                usedUpAttempts(DeploymentDirectoryManager.LaunchRecovery.EXPLICIT_CONFIGURATION));
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        assertEquals("Deployment was interrupted before completing on every allowed attempt, and the device has "
+                        + "already failed it. Deploy a new revision to change the device's configuration.",
+                failureCauseOf(JobStatus.REJECTED));
+    }
+
+    @Test
+    void GIVEN_unfinished_deployment_snapshot_cannot_be_carried_WHEN_deployment_received_THEN_failed_before_applying(
+            ExtensionContext extContext) throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseOfType(extContext, DeploymentDirectoryManager.UnusableRollbackSnapshotException.class);
+        when(deploymentDirectoryManager.createNewDeploymentDirectory(any())).thenThrow(
+                new DeploymentDirectoryManager.UnusableRollbackSnapshotException("snapshot is not a valid tlog", false));
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        ArgumentCaptor<Map<String, Object>> statusDetails = ArgumentCaptor.forClass(Map.class);
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), statusDetails.capture(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        assertEquals("The rollback snapshot of a deployment that did not complete is not usable, so this deployment "
+                        + "was not applied. That deployment was set aside, and the device's configuration may include "
+                        + "its unverified changes. Deploy again to apply this deployment to the current configuration. "
+                        + "snapshot is not a valid tlog",
+                statusDetails.getValue().get(DEPLOYMENT_FAILURE_CAUSE_KEY));
+        assertEquals(DeploymentStatus.FAILED_NO_STATE_CHANGE.name(),
+                statusDetails.getValue().get(DEPLOYMENT_DETAILED_STATUS_KEY));
+        assertListEquals(Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR", "IO_READ_ERROR"),
+                (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_STACK_KEY));
+        verify(mockExecutorService, times(0)).submit(any(DefaultDeploymentTask.class));
+    }
+
+    @Test
+    void GIVEN_nucleus_stopping_WHEN_deployment_directory_being_prepared_THEN_nothing_reported_or_applied()
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        when(deploymentDirectoryManager.createNewDeploymentDirectory(any())).thenThrow(
+                new InterruptedIOException("Interrupted while validating the rollback snapshot"));
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+
+        startDeploymentServiceInAnotherThread();
+
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        // Left like a cancelled attempt: no terminal status, and the unfinished deployment stays on the ongoing link
+        // for the re-delivery after the restart.
+        verify(deploymentStatusKeeper, after(2000).never()).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        verify(mockExecutorService, never()).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentDirectoryManager, never()).recordTerminalStatus(any(), any());
+        verify(deploymentDirectoryManager, never()).persistLastFailedDeployment(any(), any());
+    }
+
+    @Test
+    void GIVEN_nucleus_stopping_WHEN_deployment_metadata_write_interrupted_THEN_nothing_reported_or_applied()
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        // A channel write on an interrupted thread fails with ClosedByInterruptException, which is not an
+        // InterruptedIOException; the thread's interrupt status is what tells it apart from a real failure.
+        doAnswer(invocation -> {
+            Thread.currentThread().interrupt();
+            throw new ClosedByInterruptException();
+        }).when(deploymentDirectoryManager).writeDeploymentMetadata(any());
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+
+        startDeploymentServiceInAnotherThread();
+
+        verify(deploymentDirectoryManager, WAIT_FOUR_SECONDS).writeDeploymentMetadata(any());
+        verify(deploymentStatusKeeper, after(2000).never()).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        verify(mockExecutorService, never()).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentDirectoryManager, never()).persistLastFailedDeployment(any(), any());
+    }
+
+    @Test
+    void GIVEN_deployment_fails_WHEN_finished_THEN_terminal_status_recorded_before_published_and_directory_moved()
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        mockFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_COMPLETE, null));
+        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+
+        startDeploymentServiceInAnotherThread();
+
+        verify(deploymentDirectoryManager, WAIT_FOUR_SECONDS).persistLastFailedDeployment(eq(TEST_UUID), any());
+        InOrder inOrder = inOrder(deploymentDirectoryManager, deploymentStatusKeeper);
+        inOrder.verify(deploymentDirectoryManager).recordTerminalStatus(TEST_UUID,
+                DeploymentDirectoryManager.TerminalOutcome.FAILED);
+        inOrder.verify(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        inOrder.verify(deploymentDirectoryManager).persistLastFailedDeployment(eq(TEST_UUID), any());
+    }
+
+    @Test
+    void GIVEN_deployment_rejected_WHEN_finished_THEN_no_terminal_status_recorded(ExtensionContext extContext)
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessageSubstring(extContext, "on every allowed attempt");
+        when(deploymentDirectoryManager.findExhaustedFailure(any())).thenReturn(usedUpAttempts(null));
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+
+        startDeploymentServiceInAnotherThread();
+
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.REJECTED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        // A rejection leaves the ongoing link where it was, so whatever it names is still unfinished.
+        verify(deploymentDirectoryManager, never()).recordTerminalStatus(any(), any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DeploymentDirectoryManager.LaunchRecovery.class,
+            names = {"RESTORED", "EXPLICIT_CONFIGURATION", "ROLLBACK_SNAPSHOT_UNUSABLE", "RESTORE_FAILED"})
+    void GIVEN_attempts_used_up_WHEN_failed_THEN_detailed_status_matches_how_the_device_was_left(
+            DeploymentDirectoryManager.LaunchRecovery recovery, ExtensionContext extContext) throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessageSubstring(extContext, "on every allowed attempt");
+        DeploymentDirectoryManager.ProcessingState state = usedUpAttempts(recovery);
+        state.setRollbackOnFailure(true);
+        when(deploymentDirectoryManager.findProcessingState(TEST_UUID)).thenReturn(state);
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        ArgumentCaptor<Map<String, Object>> statusDetails = ArgumentCaptor.forClass(Map.class);
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), statusDetails.capture(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        DeploymentStatus expected = DeploymentDirectoryManager.LaunchRecovery.RESTORED.equals(recovery)
+                ? DeploymentStatus.FAILED_ROLLBACK_COMPLETE : DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK;
+        assertEquals(expected.name(), statusDetails.getValue().get(DEPLOYMENT_DETAILED_STATUS_KEY));
+    }
+
+    @Test
+    void GIVEN_attempts_used_up_without_restore_WHEN_failed_THEN_unable_to_rollback(
+            ExtensionContext extContext) throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        ignoreExceptionUltimateCauseWithMessageSubstring(extContext, "on every allowed attempt");
+        DeploymentDirectoryManager.ProcessingState state = usedUpAttempts(null);
+        state.setRollbackOnFailure(true);
+        when(deploymentDirectoryManager.findProcessingState(TEST_UUID)).thenReturn(state);
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        ArgumentCaptor<Map<String, Object>> statusDetails = ArgumentCaptor.forClass(Map.class);
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), statusDetails.capture(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        assertEquals(DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK.name(),
+                statusDetails.getValue().get(DEPLOYMENT_DETAILED_STATUS_KEY));
+    }
+
+    @Test
+    void GIVEN_attempts_used_up_by_deployment_that_does_not_roll_back_THEN_status_and_group_roots_persisted(
+            ExtensionContext extContext) throws Exception {
+        ignoreExceptionUltimateCauseWithMessageSubstring(extContext, "on every allowed attempt");
+        Topics allGroupTopics = mock(Topics.class);
+        Topics groupMembershipTopics = mock(Topics.class);
+        Topics deploymentGroupTopics = mock(Topics.class);
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(allGroupTopics.lookupTopics(EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
+        when(config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS)).thenReturn(groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+        when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(groupMembershipTopics);
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
+        when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
+        when(deploymentDirectoryManager.findProcessingState(TEST_UUID)).thenReturn(
+                usedUpAttempts(DeploymentDirectoryManager.LaunchRecovery.ROLLBACK_NOT_REQUESTED));
+
+        deploymentQueue.offer(new Deployment(getTestDeploymentDocument(),
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+        startDeploymentServiceInAnotherThread();
+
+        ArgumentCaptor<Map<String, Object>> statusDetails = ArgumentCaptor.forClass(Map.class);
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.FAILED.toString()), statusDetails.capture(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        assertEquals(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED.name(),
+                statusDetails.getValue().get(DEPLOYMENT_DETAILED_STATUS_KEY));
+        // The device keeps the configuration the deployment applied, so the group now has its root components.
+        ArgumentCaptor<Map<String, Object>> groupRoots = ArgumentCaptor.forClass(Map.class);
+        verify(deploymentGroupTopics).replaceAndWait(groupRoots.capture());
+        assertThat(groupRoots.getValue(), hasKey(EXPECTED_ROOT_PACKAGE_NAME));
+    }
+
+    private static DeploymentDirectoryManager.ProcessingState usedUpAttempts(
+            DeploymentDirectoryManager.LaunchRecovery launchRecovery) {
+        DeploymentDirectoryManager.ProcessingState state = new DeploymentDirectoryManager.ProcessingState();
+        state.setProcessingAttempts(DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS);
+        state.setLaunchRecovery(launchRecovery);
+        return state;
+    }
+
+    private String failureCauseOf(JobStatus status) {
+        ArgumentCaptor<Map<String, Object>> statusDetails = ArgumentCaptor.forClass(Map.class);
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(status.toString()), statusDetails.capture(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        verify(mockExecutorService, times(0)).submit(any(DefaultDeploymentTask.class));
+        return String.valueOf(statusDetails.getValue().get(DEPLOYMENT_FAILURE_CAUSE_KEY));
     }
 
     @Test

@@ -34,8 +34,12 @@ import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataEx
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -47,7 +51,9 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -98,6 +104,8 @@ class DeploymentTaskTest {
     private ThingGroupHelper mockThingGroupHelper;
     @Mock
     private DeviceConfiguration mockDeviceConfiguration;
+    @Mock
+    private DeploymentDirectoryManager mockDeploymentDirectoryManager;
 
     @BeforeAll
     static void setupContext() {
@@ -124,7 +132,8 @@ class DeploymentTaskTest {
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger,
                         new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper, mockDeviceConfiguration);
+                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper, mockDeviceConfiguration,
+                        mockDeploymentDirectoryManager);
     }
 
     @Test
@@ -316,7 +325,7 @@ class DeploymentTaskTest {
         
         DeploymentResult result = deploymentTask.call();
         
-        verify(mockComponentManager).cleanupStaleVersions(eq(false), any());
+        verify(mockComponentManager).cleanupStaleVersions(eq(false), any(), any());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
     }
 
@@ -332,8 +341,91 @@ class DeploymentTaskTest {
         
         DeploymentResult result = deploymentTask.call();
         
-        verify(mockComponentManager).cleanupStaleVersions(eq(true), any());
+        verify(mockComponentManager).cleanupStaleVersions(eq(true), any(), any());
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+    }
+
+    @Test
+    void GIVEN_deployment_fails_before_activation_WHEN_cleaned_up_THEN_versions_its_rollback_snapshot_names_kept()
+            throws Exception {
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class))).thenReturn(
+                CompletableFuture.completedFuture(new DeploymentResult(
+                        DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, null)));
+        // A carried or kept snapshot names versions live config may no longer name.
+        Map<String, Set<String>> baseline = Collections.singletonMap(COMPONENT_2_ROOT_PACKAGE_NAME,
+                new HashSet<>(Arrays.asList("1.0.0", "0.9.0")));
+        when(mockDeploymentDirectoryManager.findRollbackBaselineVersions()).thenReturn(baseline);
+
+        deploymentTask.call();
+
+        verify(mockComponentManager).cleanupStaleVersions(eq(true), any(), eq(baseline));
+    }
+
+    @Test
+    void GIVEN_deployment_succeeds_WHEN_cleaned_up_THEN_rollback_snapshot_not_consulted() throws Exception {
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class))).thenReturn(
+                CompletableFuture.completedFuture(new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL,
+                        null)));
+
+        deploymentTask.call();
+
+        // Verified, so live config is what is kept and the snapshot is nothing to return to any more.
+        verify(mockComponentManager).cleanupStaleVersions(eq(false), any(), eq(Collections.emptyMap()));
+        verify(mockDeploymentDirectoryManager, times(0)).findRollbackBaselineVersions();
+    }
+
+    @Test
+    void GIVEN_rollback_snapshot_unreadable_WHEN_deployment_failed_THEN_stale_versions_not_cleaned_up(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionWithMessage(context, "snapshot unreadable");
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class))).thenReturn(
+                CompletableFuture.completedFuture(new DeploymentResult(
+                        DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, null)));
+        when(mockDeploymentDirectoryManager.findRollbackBaselineVersions())
+                .thenThrow(new IOException("snapshot unreadable"));
+
+        deploymentTask.call();
+
+        // Without knowing what the snapshot needs, nothing is deleted.
+        verify(mockComponentManager, times(0)).cleanupStaleVersions(any(Boolean.class), any(), any());
+    }
+
+    @Test
+    void GIVEN_merge_ends_without_result_WHEN_task_finishes_THEN_stale_versions_not_cleaned_up() throws Exception {
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        // DefaultActivator completes the merge with no result when the nucleus interrupts it mid-activation. The
+        // deployment carrying this one's rollback snapshot forward may need versions live config no longer names.
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        assertNull(deploymentTask.call());
+
+        verify(mockComponentManager, times(0)).cleanupStaleVersions(any(Boolean.class), any(), any());
+    }
+
+    @Test
+    void GIVEN_deployment_task_interrupted_WHEN_merge_in_progress_THEN_stale_versions_not_cleaned_up()
+            throws Exception {
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class))).thenReturn(mockMergeConfigFuture);
+        when(mockMergeConfigFuture.get()).thenThrow(new InterruptedException("interrupted mid-activation"));
+
+        assertThrows(InterruptedException.class, () -> deploymentTask.call());
+
+        verify(mockComponentManager, times(0)).cleanupStaleVersions(any(Boolean.class), any(), any());
     }
 
     @Test
@@ -346,6 +438,6 @@ class DeploymentTaskTest {
         
         assertThrows(RuntimeException.class, () -> deploymentTask.call());
         
-        verify(mockComponentManager).cleanupStaleVersions(eq(true), any());
+        verify(mockComponentManager).cleanupStaleVersions(eq(true), any(), any());
     }
 }

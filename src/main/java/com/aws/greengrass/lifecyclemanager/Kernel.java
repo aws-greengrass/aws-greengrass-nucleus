@@ -107,6 +107,7 @@ import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -159,7 +160,7 @@ public class Kernel {
     private final NucleusPaths nucleusPaths;
 
     private Collection<GreengrassService> cachedOD = null;
-    private DeploymentStage deploymentStageAtLaunch = DeploymentStage.DEFAULT;
+    private DeploymentStage deploymentStageAtLaunch = DEFAULT;
     private final Lock odLock = LockFactory.newReentrantLock("ODLock");
 
     /**
@@ -302,10 +303,136 @@ public class Kernel {
                 }
                 // fall through to launch kernel
             default:
+                if (DEFAULT.equals(deploymentStageAtLaunch)) {
+                    requeueAbandonedDeployment(deploymentDirectoryManager);
+                }
                 kernelLifecycle.launch();
                 break;
         }
         return this;
+    }
+
+    /**
+     * Inspect the deployment the ongoing link names before any configuration is loaded, and decide whether the
+     * launch boots from its rollback snapshot. Interrupted mid-activation on every allowed attempt, such a
+     * deployment's merged configuration is durable but was never verified, so when a failure of it would have been
+     * rolled back the device launches from its rollback snapshot instead — the same config override the
+     * kernel-rollback stage uses. Doing it before any service starts is what makes it safe: nothing has to be
+     * reconciled afterwards. DeploymentService then reports the deployment failed. An explicit -i/--config or
+     * --init-config takes precedence over the snapshot, and the decision is recorded once applied so a later
+     * launch does not make it again.
+     *
+     * @return what was found, or null if the deployment directory could not be inspected
+     */
+    // Catching RuntimeException is deliberate: see the catch block.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private DeploymentDirectoryManager.LaunchAssessment assessUnfinishedDeploymentAtLaunch(
+            DeploymentDirectoryManager deploymentDirectoryManager) {
+        boolean explicitConfigurationProvided = Utils.isNotEmpty(kernelCommandLine.getProvidedConfigPathName())
+                || Utils.isNotEmpty(kernelCommandLine.getProvidedInitialConfigPath());
+        try {
+            return deploymentDirectoryManager.assessUnfinishedDeploymentAtLaunch(explicitConfigurationProvided);
+        } catch (IOException | RuntimeException e) {
+            // Restoring is a recovery step; never let it keep the device from starting.
+            logger.atError().setCause(e).log("Unable to inspect the deployment that did not complete, so its "
+                    + "rollback configuration is not considered. Proceed as default");
+            return null;
+        }
+    }
+
+    /**
+     * Restore config.tlog from the rollback snapshot of a deployment that used up its attempts, before the launch
+     * loads any configuration. The snapshot replaces config.tlog all or nothing, so the launch then boots it like
+     * any config.tlog. If it cannot, config.tlog is left as it was and booted instead: restoring is a recovery step
+     * and must never keep the device from starting. The snapshot is kept either way, and the outcome is recorded
+     * once the configuration has loaded, for the deployment's failure status to report.
+     *
+     * @return the assessment the launch acts on: restored, or the restore failed
+     */
+    // Catching RuntimeException is deliberate: see the javadoc.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private DeploymentDirectoryManager.LaunchAssessment restoreRollbackSnapshot(
+            DeploymentDirectoryManager deploymentDirectoryManager,
+            DeploymentDirectoryManager.LaunchAssessment launchAssessment) {
+        boolean restored;
+        try {
+            restored = deploymentDirectoryManager.restoreRollbackSnapshot(launchAssessment.getRollbackSnapshot(),
+                    nucleusPaths.configPath().resolve(DEFAULT_CONFIG_TLOG_FILE));
+        } catch (RuntimeException e) {
+            logger.atError().setCause(e).log("Unable to restore the configuration from before the deployment");
+            restored = false;
+        }
+        if (restored) {
+            return launchAssessment;
+        }
+        logger.atError().kv("rollbackConfigFile", launchAssessment.getRollbackSnapshot())
+                .log("Unable to restore the configuration from before a deployment that was interrupted on every "
+                        + "allowed attempt. Booting the configuration on disk, which may include that deployment's "
+                        + "unverified changes. The rollback configuration is kept");
+        return launchAssessment.restoreFailed();
+    }
+
+    /**
+     * Record how this launch dealt with a deployment that used up its attempts, now that the configuration it
+     * chose has been loaded and written out. Recorded any earlier, a crash in between would leave a restore
+     * recorded as done although it never took effect, and no later launch would make it.
+     */
+    private void recordLaunchRecovery(DeploymentDirectoryManager deploymentDirectoryManager,
+                                      DeploymentDirectoryManager.LaunchAssessment launchAssessment) {
+        if (launchAssessment == null || launchAssessment.getRecovery() == null) {
+            return;
+        }
+        try {
+            deploymentDirectoryManager.recordLaunchRecovery(launchAssessment.getRecovery());
+        } catch (IOException e) {
+            logger.atError().kv("launchRecovery", launchAssessment.getRecovery()).setCause(e)
+                    .log("Unable to record how this launch dealt with a deployment that used up its attempts. A "
+                            + "launch before the deployment is reported failed will decide again");
+        }
+    }
+
+    /**
+     * Re-queue a deployment that was interrupted before it reported a terminal status. A deployment
+     * requiring no nucleus restart leaves no resumable state behind, unlike the bootstrap and
+     * kernel-update stages, so without this it is silently abandoned while its merged, never verified
+     * configuration survives as the durable current state. Re-processing drives it to a terminal status
+     * instead, and the rollback snapshot that
+     * {@link DeploymentDirectoryManager#createNewDeploymentDirectory} carries forward keeps the
+     * pre-deployment configuration as the rollback target.
+     */
+    // Catching RuntimeException is deliberate: see the catch block.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void requeueAbandonedDeployment(DeploymentDirectoryManager deploymentDirectoryManager) {
+        if (!deploymentDirectoryManager.hasReadableDeploymentMetadata()) {
+            return;
+        }
+        try {
+            Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+            if (!DEFAULT.equals(deployment.getDeploymentStage())) {
+                return;
+            }
+            if (!Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
+                // A cloud deployment that never reported a terminal status is re-delivered by the cloud,
+                // with the document the cloud holds. Re-processing it from disk would only race that, and
+                // resolution from disk can fail where the cloud succeeds — turning a deployment that would
+                // have completed into a failed one. Local deployments get no re-delivery, so they are the
+                // case that needs re-processing here.
+                logger.atInfo().kv("deploymentId", deployment.getGreengrassDeploymentId())
+                        .kv("deploymentType", deployment.getDeploymentType())
+                        .log("Found a cloud deployment that was interrupted before it completed. Not re-processing "
+                                + "it locally; awaiting the cloud to re-deliver it");
+                return;
+            }
+            DeploymentQueue deploymentQueue = context.get(DeploymentQueue.class);
+            deploymentQueue.offer(deployment);
+            logger.atInfo().kv("deploymentId", deployment.getGreengrassDeploymentId())
+                    .log("Found a deployment that was interrupted before it completed. Re-processing it");
+        } catch (IOException | RuntimeException e) {
+            // Re-processing an interrupted deployment is a recovery step, so it must never keep the device
+            // from starting. A corrupt or unreadable metadata file would otherwise fail every launch.
+            logger.atError().setCause(e)
+                    .log("Failed to load information for the interrupted deployment. Proceed as default");
+        }
     }
 
     /**
@@ -699,6 +826,7 @@ public class Kernel {
         DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
 
         String configFileName = "";
+        DeploymentDirectoryManager.LaunchAssessment launchAssessment = null;
         switch (stage) {
             case KERNEL_ACTIVATION:
             case BOOTSTRAP:
@@ -733,6 +861,25 @@ public class Kernel {
                 }
                 break;
             default:
+                launchAssessment = assessUnfinishedDeploymentAtLaunch(deploymentDirectoryManager);
+                if (launchAssessment == null) {
+                    break;
+                }
+                if (DeploymentDirectoryManager.LaunchRecovery.RESTORED.equals(launchAssessment.getRecovery())) {
+                    // The restore replaces config.tlog with the snapshot before anything is loaded, and the launch
+                    // then boots config.tlog as usual. A failure leaves config.tlog as it was and boots that: a
+                    // restore that failed by throwing would fail every launch.
+                    launchAssessment = restoreRollbackSnapshot(deploymentDirectoryManager, launchAssessment);
+                    break;
+                }
+                if (launchAssessment.isUnfinishedDeployment()) {
+                    // The deployment is not resumable, but it is on disk, so reporting no ongoing deployment
+                    // would mislead anyone reading the log. The launch re-processes a local deployment and
+                    // leaves a cloud one for the cloud to re-deliver, and logs which.
+                    logger.atInfo().log("Found a deployment that did not complete. It is not resumable from where "
+                            + "it stopped");
+                    break;
+                }
                 logger.atInfo().log("No ongoing deployment detected. Proceed as default");
         }
         if (Utils.isEmpty(configFileName)) {
@@ -740,6 +887,7 @@ public class Kernel {
         } else {
             kernelLifecycle.initConfigAndTlog(configFileName);
         }
+        recordLaunchRecovery(deploymentDirectoryManager, launchAssessment);
 
         // Create DeviceConfiguration
         DeviceConfiguration deviceConfiguration = getContext().get(DeviceConfiguration.class);

@@ -15,6 +15,7 @@ import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
@@ -52,6 +53,7 @@ import org.mockito.stubbing.Answer;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -74,6 +76,7 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.AdditionalMatchers.not;
@@ -493,6 +496,41 @@ class KernelLifecycleTest {
         verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
                 tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_snapshot_restored_over_an_interrupted_truncation_WHEN_config_loaded_THEN_restored_snapshot_loaded()
+            throws Exception {
+        // What a launch finds after a deployment used up its attempts while a log truncation was interrupted: the
+        // log it was truncating left as config.tlog.old, which the launch takes for the log to load.
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        String snapshot = tlogLine("1.0.0");
+        Files.write(configTlogPath, tlogLine("2.0.0").getBytes(StandardCharsets.UTF_8));
+        Path leftover = configTlogPath.resolveSibling("config.tlog.old");
+        Files.write(leftover, tlogLine("2.0.0-before-truncation").getBytes(StandardCharsets.UTF_8));
+        Path snapshotPath = Files.write(tempRootDir.resolve("rollback_snapshot.tlog"),
+                snapshot.getBytes(StandardCharsets.UTF_8));
+        NucleusPaths deploymentPaths = mock(NucleusPaths.class);
+        when(deploymentPaths.deploymentPath()).thenReturn(tempRootDir.resolve("deployments"));
+        assertTrue(new DeploymentDirectoryManager(mockKernel, deploymentPaths)
+                .restoreRollbackSnapshot(snapshotPath, configTlogPath));
+        List<String> loaded = new ArrayList<>();
+        doAnswer(invocation -> {
+            loaded.add(new String(Files.readAllBytes(invocation.getArgument(0)), StandardCharsets.UTF_8));
+            return null;
+        }).when(mockConfig).read(any(Path.class));
+
+        kernelLifecycle.initConfigAndTlog();
+
+        // The launch's own handling of an interrupted truncation has nothing left to undo the restore with.
+        verify(mockConfig).read(eq(configTlogPath));
+        assertEquals(Collections.singletonList(snapshot), loaded);
+        assertFalse(Files.exists(leftover));
+    }
+
+    private static String tlogLine(String version) {
+        return "{\"TS\":1602000000000,\"TP\":[\"services\",\"com.example.Component\",\"version\"],"
+                + "\"W\":\"changed\",\"V\":\"" + version + "\"}\n";
     }
 
     @Test

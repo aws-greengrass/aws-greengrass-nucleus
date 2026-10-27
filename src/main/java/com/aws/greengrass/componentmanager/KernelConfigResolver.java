@@ -739,8 +739,11 @@ public class KernelConfigResolver {
             Topic existingPrevVersionTopic =
                     kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, compId.getName(), PREV_VERSION_CONFIG_KEY);
             if (existingPrevVersionTopic != null) {
-                String existingPrevVersion = (String) existingVersionTopic.getOnce();
-                newConfig.put(PREV_VERSION_CONFIG_KEY, existingPrevVersion);
+                // A topic that exists without a value has no previous version to keep.
+                String existingPrevVersion = Coerce.toString(existingPrevVersionTopic);
+                if (existingPrevVersion != null) {
+                    newConfig.put(PREV_VERSION_CONFIG_KEY, existingPrevVersion);
+                }
             }
         } else {
             // rotate versions if deploying a different version than the existing one
