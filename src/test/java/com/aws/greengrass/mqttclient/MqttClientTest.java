@@ -7,6 +7,7 @@ package com.aws.greengrass.mqttclient;
 
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.Context;
@@ -42,9 +43,15 @@ import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.MockedConstruction;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.CrtRuntimeException;
+import software.amazon.awssdk.crt.http.HttpProxyOptions;
+import software.amazon.awssdk.crt.io.ClientTlsContext;
+import software.amazon.awssdk.crt.io.TlsContext;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
@@ -63,7 +70,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -103,12 +112,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
@@ -118,7 +130,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-@SuppressWarnings({"PMD.CloseResource", "PMD.ExcessiveClassLength"})
+@SuppressWarnings({"PMD.CloseResource", "PMD.CouplingBetweenObjects", "PMD.ExcessiveClassLength"})
 class MqttClientTest {
 
     private static final int TOPIC_SIZE_LIMIT = 256;
@@ -221,12 +233,8 @@ class MqttClientTest {
     @Test
     void GIVEN_mqtt_port_above_short_range_WHEN_connection_built_THEN_builder_gets_configured_port() throws Exception {
         mqttNamespace.lookup(MqttClient.MQTT_PORT_KEY).withValue(40_000);
-        AwsIotMqttConnectionBuilder identityBuilder = mock(AwsIotMqttConnectionBuilder.class, Answers.RETURNS_SELF);
-        lenient().when(identityBuilder.build()).thenThrow(new MqttException("stop after configuration"));
-        lenient().when(identityBuilder.toAwsIotMqtt5ClientBuilder())
-                .thenThrow(new MqttException("stop after configuration"));
-        SecurityService securityService = mock(SecurityService.class);
-        when(securityService.getDeviceIdentityMqttConnectionBuilder()).thenReturn(identityBuilder);
+        AwsIotMqttConnectionBuilder identityBuilder = identityBuilderThatStopsAfterConfiguration();
+        SecurityService securityService = securityServiceFor(identityBuilder);
         MqttClient mqttClient = new MqttClient(deviceConfiguration, ses, executorService, securityService, kernel);
 
         assertThrows(ExecutionException.class, () -> mqttClient.getNewMqttClient().connect().get());
@@ -241,16 +249,75 @@ class MqttClientTest {
         when(deviceConfiguration.getNoProxyAddresses()).thenReturn(noProxyAddresses.replace('|', ','));
         when(deviceConfiguration.getIotDataEndpoint()).thenReturn(
                 config.lookup("iotDataEndpoint").withValue("a1-ats.iot.us-east-1.amazonaws.com"));
-        AwsIotMqttConnectionBuilder identityBuilder = mock(AwsIotMqttConnectionBuilder.class, Answers.RETURNS_SELF);
-        lenient().when(identityBuilder.build()).thenThrow(new MqttException("stop after configuration"));
-        lenient().when(identityBuilder.toAwsIotMqtt5ClientBuilder())
-                .thenThrow(new MqttException("stop after configuration"));
-        SecurityService securityService = mock(SecurityService.class);
-        when(securityService.getDeviceIdentityMqttConnectionBuilder()).thenReturn(identityBuilder);
+        AwsIotMqttConnectionBuilder identityBuilder = identityBuilderThatStopsAfterConfiguration();
+        SecurityService securityService = securityServiceFor(identityBuilder);
         MqttClient mqttClient = new MqttClient(deviceConfiguration, ses, executorService, securityService, kernel);
 
         assertThrows(ExecutionException.class, () -> mqttClient.getNewMqttClient().connect().get());
         verify(identityBuilder, times(proxyUsed ? 1 : 0)).withHttpProxyOptions(any());
+    }
+
+    @Test
+    void GIVEN_https_proxy_WHEN_root_ca_path_changes_THEN_proxy_tls_context_loads_the_current_root_ca()
+            throws Exception {
+        Topic rootCaPath = config.lookup("system", DEVICE_PARAM_ROOT_CA_PATH).withValue("/certs/old-root-ca.pem");
+        when(deviceConfiguration.getRootCAFilePath()).thenReturn(rootCaPath);
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:3128");
+        ArgumentCaptor<ChildChanged> configChange = ArgumentCaptor.forClass(ChildChanged.class);
+        doNothing().when(deviceConfiguration).onAnyChange(configChange.capture());
+        ScheduledExecutorService reconfigureScheduler = mock(ScheduledExecutorService.class);
+        AwsIotMqttConnectionBuilder identityBuilder = identityBuilderThatStopsAfterConfiguration();
+        Map<TlsContext, TlsContextOptions> optionsByContext = new IdentityHashMap<>();
+        try (MockedStatic<TlsContextOptions> tlsOptions = mockStatic(TlsContextOptions.class);
+             MockedConstruction<ClientTlsContext> tlsContexts = mockConstruction(ClientTlsContext.class,
+                     (tlsContext, construction) -> optionsByContext.put(tlsContext,
+                             (TlsContextOptions) construction.arguments().get(0)))) {
+            tlsOptions.when(TlsContextOptions::createDefaultClient)
+                    .thenAnswer(invocation -> mock(TlsContextOptions.class, Answers.RETURNS_SELF));
+            MqttClient mqttClient = new MqttClient(deviceConfiguration, reconfigureScheduler, executorService,
+                    securityServiceFor(identityBuilder), kernel);
+            mqttNamespace.context.waitForPublishQueueToClear();
+
+            TlsContextOptions firstOptions =
+                    optionsByContext.get(proxyTlsContextOfNewConnection(mqttClient, identityBuilder));
+            assertNotNull(firstOptions);
+            verify(firstOptions).withCertificateAuthorityFromPath(null, "/certs/old-root-ca.pem");
+
+            rootCaPath.withValue("/certs/new-root-ca.pem");
+            configChange.getValue().childChanged(WhatHappened.childChanged, rootCaPath);
+            ArgumentCaptor<Runnable> reconfigure = ArgumentCaptor.forClass(Runnable.class);
+            verify(reconfigureScheduler, timeout(5000)).schedule(reconfigure.capture(), anyLong(), any());
+            reconfigure.getValue().run();
+
+            TlsContextOptions secondOptions =
+                    optionsByContext.get(proxyTlsContextOfNewConnection(mqttClient, identityBuilder));
+            assertNotNull(secondOptions);
+            verify(secondOptions).withCertificateAuthorityFromPath(null, "/certs/new-root-ca.pem");
+            verify(tlsContexts.constructed().get(0)).close();
+            mqttClient.close();
+        }
+    }
+
+    private static TlsContext proxyTlsContextOfNewConnection(MqttClient mqttClient,
+                                                             AwsIotMqttConnectionBuilder identityBuilder) {
+        assertThrows(ExecutionException.class, () -> mqttClient.getNewMqttClient().connect().get());
+        ArgumentCaptor<HttpProxyOptions> proxyOptions = ArgumentCaptor.forClass(HttpProxyOptions.class);
+        verify(identityBuilder, atLeastOnce()).withHttpProxyOptions(proxyOptions.capture());
+        return proxyOptions.getValue().getTlsContext();
+    }
+
+    private static AwsIotMqttConnectionBuilder identityBuilderThatStopsAfterConfiguration() throws Exception {
+        AwsIotMqttConnectionBuilder identityBuilder = mock(AwsIotMqttConnectionBuilder.class, Answers.RETURNS_SELF);
+        lenient().when(identityBuilder.build()).thenThrow(new MqttException("stop after configuration"));
+        lenient().when(identityBuilder.toAwsIotMqtt5ClientBuilder())
+                .thenThrow(new MqttException("stop after configuration"));
+        return identityBuilder;
+    }
+
+    private static SecurityService securityServiceFor(AwsIotMqttConnectionBuilder identityBuilder) throws Exception {
+        SecurityService securityService = mock(SecurityService.class);
+        when(securityService.getDeviceIdentityMqttConnectionBuilder()).thenReturn(identityBuilder);
+        return securityService;
     }
 
     @Test
