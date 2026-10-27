@@ -374,8 +374,6 @@ public class MqttClient implements Closeable {
         this.spool = spool;
         this.mqttOnline.set(mqttOnline);
         this.executorService = executorService;
-        rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-        this.proxyTlsContext = ProxyUtils.newProxyTlsContext(rootCaPath);
         validateAndSetMqttPublishConfiguration();
     }
 
