@@ -81,13 +81,18 @@ public class SdkTlsSocketFactory extends SSLConnectionSocketFactory {
         // BEGIN GG MODIFICATIONS
         try {
             connectedSocket = super.connectSocket(connectTimeout, socket, host, remoteAddress, localAddress, context);
+        } catch (ConnectException | NoRouteToHostException e) {
+            throw e;
         } catch (SocketException e) {
-            // Apache HttpClient tries the next resolved address only after a ConnectException,
-            // NoRouteToHostException or SocketTimeoutException. Since JDK 13 a connect to an address family the
-            // host cannot route (an AAAA record on an IPv4-only host) fails with a plain SocketException,
-            // so rethrow any TCP connect failure as a ConnectException to let the IPv4 address be tried.
-            if (socket == null || socket.isConnected() || e instanceof ConnectException
-                    || e instanceof NoRouteToHostException) {
+            // Apache HttpClient 4.5.13 tries the next resolved address only after a ConnectException,
+            // NoRouteToHostException or SocketTimeoutException (HTTPCLIENT-2288). Since JDK 13 a connect to an
+            // address family the host cannot route (an AAAA record on an IPv4-only host) fails with a plain
+            // SocketException, so rethrow a failed TCP connect as a ConnectException to let the next address be
+            // tried. The unreleased upstream fix (4.5.x commit 54900db465) retries on any SocketException. This is
+            // stricter on purpose and does not retry a failure after the TCP connect, such as a reset during the TLS
+            // handshake. A null socket means super created its own, so its state is unknown.
+            // Remove once httpclient >= 4.5.15 or apache5-client is in use.
+            if (socket == null || socket.isConnected()) {
                 throw e;
             }
             ConnectException connectException = new ConnectException(e.getMessage());
