@@ -131,8 +131,10 @@ public class StandaloneMqttConnector implements Closeable {
      * The timeout controls the number of attempts (timeoutMs / perAttemptTimeout), not a hard wall-clock
      * deadline — actual elapsed time may exceed timeoutMs due to backoff sleep between attempts.
      *
-     * <p>All exceptions are retryable to support JITR/JITP provisioning flows where the first connection
-     * attempt fails and triggers provisioning, then subsequent retries succeed.</p>
+     * <p>All exceptions from the connection attempts are retryable to support JITR/JITP provisioning flows where
+     * the first connection attempt fails and triggers provisioning, then subsequent retries succeed. The proxy setup
+     * runs once before the first attempt, so an unparseable proxy URL or a root CA that the https proxy TLS context
+     * cannot load fails without retries.</p>
      *
      * @param timeoutMs timeout budget in milliseconds used to derive the number of connection attempts
      * @throws DeploymentException with appropriate error code if all attempts fail
@@ -153,10 +155,10 @@ public class StandaloneMqttConnector implements Closeable {
                 .retryableExceptions(Collections.singletonList(Exception.class))
                 .build();
         try {
+            applyProxyOptions();
             RetryUtils.runWithRetry(retryConfig, () -> {
                 connectionCleanup();
                 builder.withClientId(clientId);
-                applyProxyOptions();
                 connection = builder.build();
                 try {
                     connection.connect().get(perAttemptTimeout, TimeUnit.MILLISECONDS);

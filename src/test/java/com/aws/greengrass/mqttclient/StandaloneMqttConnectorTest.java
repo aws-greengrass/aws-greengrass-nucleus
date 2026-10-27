@@ -36,6 +36,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +47,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 
@@ -53,6 +55,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -335,7 +338,7 @@ class StandaloneMqttConnectorTest {
     }
 
     @Test
-    void GIVEN_unparseable_proxy_url_WHEN_connect_THEN_fails_with_connection_error_and_close_releases_builder(
+    void GIVEN_unparseable_proxy_url_WHEN_connect_THEN_fails_at_once_with_connection_error_and_close_releases_builder(
             ExtensionContext extContext) throws Exception {
         ignoreExceptionOfType(extContext, IllegalArgumentException.class);
         try (Context context = new Context()) {
@@ -344,7 +347,7 @@ class StandaloneMqttConnectorTest {
 
             try (StandaloneMqttConnector conn = StandaloneMqttConnector.forEndpointSwitch(securityService,
                     deviceConfiguration, REMOTE_ENDPOINT)) {
-                DeploymentException e = assertThrows(DeploymentException.class, () -> conn.connect(1000));
+                DeploymentException e = connectWithEndpointSwitchBudget(conn);
                 assertEquals(IllegalArgumentException.class, e.getCause().getClass());
                 assertTrue(e.getErrorCodes().contains(DeploymentErrorCode.MQTT_CONNECTION_FAILED));
             }
@@ -361,6 +364,25 @@ class StandaloneMqttConnectorTest {
             DeploymentException viaProxy = connectWithUnreadableRootCa(proxyUrl);
             assertEquals(direct.getCause().getClass(), viaProxy.getCause().getClass(), proxyUrl);
             assertEquals(direct.getErrorCodes(), viaProxy.getErrorCodes(), proxyUrl);
+        }
+    }
+
+    @Test
+    void GIVEN_https_proxy_and_unreadable_root_ca_WHEN_connect_THEN_fails_at_once_without_building_connection(
+            ExtensionContext extContext) throws Exception {
+        ignoreExceptionOfType(extContext, CrtRuntimeException.class);
+        try (Context context = new Context()) {
+            stubMockDeviceIdentity(context);
+            when(deviceConfiguration.getProxyUrl()).thenReturn("https://" + LOOPBACK + ":3128");
+            when(deviceConfiguration.getRootCAFilePath()).thenReturn(
+                    new Configuration(context).lookup("rootCaPath").withValue("/nonexistent/AmazonRootCA1.pem"));
+
+            try (StandaloneMqttConnector conn = StandaloneMqttConnector.forEndpointSwitch(securityService,
+                    deviceConfiguration, REMOTE_ENDPOINT)) {
+                DeploymentException e = connectWithEndpointSwitchBudget(conn);
+                assertEquals(CrtRuntimeException.class, e.getCause().getClass());
+            }
+            verify(identityBuilder, never()).build();
         }
     }
 
@@ -411,6 +433,15 @@ class StandaloneMqttConnectorTest {
                 verify(identityBuilder).withPort(40_000);
             }
         }
+    }
+
+    /**
+     * Connects with the 60-second budget that the endpoint switch uses. Retrying under that budget takes 6 attempts
+     * and 12 to 25 seconds of backoff, so failing within 5 seconds shows that the failure was not retried.
+     */
+    private static DeploymentException connectWithEndpointSwitchBudget(StandaloneMqttConnector conn) {
+        return assertTimeout(Duration.ofSeconds(5),
+                () -> assertThrows(DeploymentException.class, () -> conn.connect(60_000)));
     }
 
     private DeploymentException connectWithUnreadableRootCa(String proxyUrl) throws Exception {
