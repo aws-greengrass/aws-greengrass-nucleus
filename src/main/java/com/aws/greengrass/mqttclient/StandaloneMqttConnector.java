@@ -15,10 +15,7 @@ import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
-import com.aws.greengrass.util.Utils;
-import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
-import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
@@ -26,11 +23,11 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 
 /**
  * A standalone MQTT connection for one-shot operations (pre-flight checks, status reporting)
@@ -45,55 +42,59 @@ public class StandaloneMqttConnector implements Closeable {
 
     private final AwsIotMqttConnectionBuilder builder;
     private final String clientId;
+    @Nullable
+    private final DeviceConfiguration proxyConfiguration;
     private ClientTlsContext proxyTlsContext;
     private MqttClientConnection connection;
+    private boolean closed;
 
     /**
-     * Create a standalone MQTT connection.
+     * Create a standalone MQTT connection that does not use a proxy. The connector takes ownership of the builder.
      *
      * @param builder  configured MQTT connection builder (with certs, CA, endpoint)
      * @param clientId MQTT client ID
      */
-    public StandaloneMqttConnector(AwsIotMqttConnectionBuilder builder, String clientId) {
+    StandaloneMqttConnector(AwsIotMqttConnectionBuilder builder, String clientId) {
         this(builder, clientId, null);
     }
 
     private StandaloneMqttConnector(AwsIotMqttConnectionBuilder builder, String clientId,
-                                    ClientTlsContext proxyTlsContext) {
+                                    DeviceConfiguration proxyConfiguration) {
         this.builder = builder;
         this.clientId = clientId;
-        this.proxyTlsContext = proxyTlsContext;
+        this.proxyConfiguration = proxyConfiguration;
     }
 
     /**
      * Build a StandaloneMqttConnector configured with device identity, proxy, and the given endpoint.
      * Extracts builder setup from the deployment layer so callers don't need to know about proxy/TLS details.
      *
+     * <p>The root CA file and the proxy URL are first used in {@link #connect(long)}, so problems with either
+     * surface there as a {@link DeploymentException}, with or without a proxy.</p>
+     *
      * @param securityService     provides the MQTT connection builder with device certs
      * @param deviceConfiguration provides endpoint, proxy, port, and CA configuration
      * @param endpoint            the IoT data endpoint to connect to
      * @param clientIdSuffix      suffix appended to thing name for the MQTT client ID
      * @return a configured StandaloneMqttConnector ready to call {@link #connect(long)}
-     * @throws MqttConnectionProviderException if the device identity builder or the proxy TLS context cannot be
-     *                                         created
+     * @throws MqttConnectionProviderException if the device identity builder cannot be created
      */
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public static StandaloneMqttConnector of(SecurityService securityService,
                                               DeviceConfiguration deviceConfiguration,
                                               String endpoint, String clientIdSuffix)
             throws MqttConnectionProviderException {
-        String thingName = Coerce.toString(deviceConfiguration.getThingName());
-        String clientId = thingName + clientIdSuffix;
-        AwsIotMqttConnectionBuilder mqttBuilder = securityService.getDeviceIdentityMqttConnectionBuilder();
+        String clientId = Coerce.toString(deviceConfiguration.getThingName()) + clientIdSuffix;
+        String rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
         int mqttPort = Coerce.toInt(deviceConfiguration.getMQTTNamespace()
                 .findOrDefault(MqttClient.DEFAULT_MQTT_PORT, MqttClient.MQTT_PORT_KEY));
+        DeviceConfiguration proxyConfiguration = ProxyUtils.isProxyConfigured(deviceConfiguration)
+                && !ProxyUtils.isProxyBypassed(deviceConfiguration, endpoint) ? deviceConfiguration : null;
+        AwsIotMqttConnectionBuilder mqttBuilder = securityService.getDeviceIdentityMqttConnectionBuilder();
         mqttBuilder.withEndpoint(endpoint)
-                .withCertificateAuthorityFromPath(null,
-                        Coerce.toString(deviceConfiguration.getRootCAFilePath()))
+                .withCertificateAuthorityFromPath(null, rootCaPath)
                 .withPort(mqttPort)
                 .withCleanSession(true);
-        return new StandaloneMqttConnector(mqttBuilder, clientId,
-                configureProxy(mqttBuilder, deviceConfiguration, endpoint));
+        return new StandaloneMqttConnector(mqttBuilder, clientId, proxyConfiguration);
     }
 
     /**
@@ -104,8 +105,7 @@ public class StandaloneMqttConnector implements Closeable {
      * @param deviceConfiguration provides endpoint, proxy, port, and CA configuration
      * @param endpoint            the IoT data endpoint to connect to
      * @return a configured StandaloneMqttConnector ready to call {@link #connect(long)}
-     * @throws MqttConnectionProviderException if the device identity builder or the proxy TLS context cannot be
-     *                                         created
+     * @throws MqttConnectionProviderException if the device identity builder cannot be created
      */
     public static StandaloneMqttConnector forEndpointSwitch(SecurityService securityService,
                                                             DeviceConfiguration deviceConfiguration,
@@ -115,39 +115,15 @@ public class StandaloneMqttConnector implements Closeable {
                 ENDPOINT_SWITCH_CLIENT_SUFFIX);
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private static ClientTlsContext configureProxy(AwsIotMqttConnectionBuilder mqttBuilder,
-                                                   DeviceConfiguration deviceConfiguration, String endpoint)
-            throws MqttConnectionProviderException {
-        if (Utils.isEmpty(deviceConfiguration.getProxyUrl())) {
-            return null;
+    private void applyProxyOptions() {
+        if (proxyConfiguration == null) {
+            return;
         }
-        String noProxy = Coerce.toString(deviceConfiguration.getNoProxyAddresses());
-        if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)
-                && Arrays.stream(noProxy.split(",")).anyMatch(endpoint::matches)) {
-            return null;
+        if (proxyTlsContext == null && ProxyUtils.isHttpsProxy(proxyConfiguration.getProxyUrl())) {
+            proxyTlsContext = ProxyUtils.newProxyTlsContext(
+                    Coerce.toString(proxyConfiguration.getRootCAFilePath()));
         }
-        ClientTlsContext proxyTlsContext = createProxyTlsContext(
-                Coerce.toString(deviceConfiguration.getRootCAFilePath()));
-        try {
-            mqttBuilder.withHttpProxyOptions(ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext));
-        } catch (RuntimeException e) {
-            proxyTlsContext.close();
-            throw e;
-        }
-        return proxyTlsContext;
-    }
-
-    private static ClientTlsContext createProxyTlsContext(String rootCaPath) throws MqttConnectionProviderException {
-        try (TlsContextOptions tlsOptions = TlsContextOptions.createDefaultClient()) {
-            if (Utils.isNotEmpty(rootCaPath)) {
-                tlsOptions.withCertificateAuthorityFromPath(null, rootCaPath);
-            }
-            return new ClientTlsContext(tlsOptions);
-        } catch (CrtRuntimeException e) {
-            throw new MqttConnectionProviderException("Unable to create proxy TLS context with root CA "
-                    + rootCaPath, e);
-        }
+        builder.withHttpProxyOptions(ProxyUtils.getHttpProxyOptions(proxyConfiguration, proxyTlsContext));
     }
 
     /**
@@ -180,6 +156,7 @@ public class StandaloneMqttConnector implements Closeable {
             RetryUtils.runWithRetry(retryConfig, () -> {
                 connectionCleanup();
                 builder.withClientId(clientId);
+                applyProxyOptions();
                 connection = builder.build();
                 try {
                     connection.connect().get(perAttemptTimeout, TimeUnit.MILLISECONDS);
@@ -259,6 +236,10 @@ public class StandaloneMqttConnector implements Closeable {
     @Override
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
         if (connection != null) {
             try {
                 connection.disconnect().get(DISCONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
@@ -270,8 +251,8 @@ public class StandaloneMqttConnector implements Closeable {
         }
         if (proxyTlsContext != null) {
             proxyTlsContext.close();
-            proxyTlsContext = null;
         }
+        builder.close();
     }
 
     private void connectionCleanup() {
