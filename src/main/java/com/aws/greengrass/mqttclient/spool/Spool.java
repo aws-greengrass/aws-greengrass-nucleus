@@ -140,11 +140,12 @@ public class Spool {
             persistenceSpool.initializeSpooler();
             try {
                 List<SpoolMessageMetadata> messageMetadata = persistenceSpool.getAllMessageMetadata();
-                if (messageMetadata == null) {
-                    // Older spooler plugins do not implement the metadata API, so read each message instead
-                    persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
-                } else {
+                if (isUsableMetadata(messageMetadata)) {
                     persistentQueueSync(messageMetadata);
+                } else {
+                    // Older spooler plugins do not implement the metadata API, and invalid metadata cannot
+                    // be trusted to set the next id, so read each message instead
+                    persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
                 }
             } catch (SpoolerStoreException e) {
                 logger.atWarn()
@@ -376,11 +377,7 @@ public class Spool {
             return;
         }
         // Metadata is ordered by id ascending, so the highest id is the last element
-        SpoolMessageMetadata lastMetadata = diskQueueMetadata.get(diskQueueMetadata.size() - 1);
-        if (lastMetadata == null) {
-            throw new SpoolerStoreException("Invalid message metadata returned by persistence spooler.");
-        }
-        setIdForNextMessage(lastMetadata.getId());
+        setIdForNextMessage(diskQueueMetadata.get(diskQueueMetadata.size() - 1).getId());
 
         int numMessagesAdded = 0;
         try {
@@ -402,6 +399,18 @@ public class Spool {
                     .kv("numMessagesAdded", numMessagesAdded)
                     .log("Messages added to spool runtime queue");
         }
+    }
+
+    /**
+     * Check whether the metadata can be used to sync the runtime queue. The highest persisted id is read from the
+     * last element, so if that is missing, the metadata cannot safely move nextId past the persisted ids.
+     *
+     * @param diskQueueMetadata metadata returned by the persistence spooler, or null if not supported
+     * @return true if the metadata can be used
+     */
+    private static boolean isUsableMetadata(List<SpoolMessageMetadata> diskQueueMetadata) {
+        return diskQueueMetadata != null
+                && (diskQueueMetadata.isEmpty() || diskQueueMetadata.get(diskQueueMetadata.size() - 1) != null);
     }
 
     /**

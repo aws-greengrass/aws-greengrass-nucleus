@@ -325,6 +325,25 @@ class InMemorySpoolTest {
         assertEquals(8L, spool.addMessage(request).getId());
     }
 
+    @Test
+    void GIVEN_message_metadata_with_null_last_element_WHEN_setup_spooler_THEN_sync_by_loading_messages()
+            throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
+        CloudMessageSpool persistenceSpool = mockPersistenceSpool(Arrays.asList(
+                new SpoolMessageMetadata(0L, 5L, QOS.AT_LEAST_ONCE), null));
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(Arrays.asList(0L, 1L));
+        lenient().when(persistenceSpool.getMessageById(0L))
+                .thenReturn(SpoolMessage.builder().id(0L).request(request).build());
+        lenient().when(persistenceSpool.getMessageById(1L))
+                .thenReturn(SpoolMessage.builder().id(1L).request(request).build());
+
+        spool = new Spool(deviceConfiguration, kernel);
+
+        assertEquals(2, spool.getCurrentMessageCount());
+        assertEquals(2L, spool.addMessage(request).getId());
+    }
+
     private CloudMessageSpool mockPersistenceSpool(List<SpoolMessageMetadata> metadata)
             throws ServiceLoadException, IOException {
         GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class,

@@ -26,6 +26,11 @@ public interface CloudMessageSpool {
      * When null is returned, the nucleus falls back to {@link #getAllMessageIds()} and reads each message
      * individually with {@link #getMessageById(long)}.</p>
      *
+     * <p>Implementations must return one non-null element per persisted message, ordered by id ascending. The
+     * nucleus relies on this order to dispatch messages oldest first and reads the highest persisted id from the
+     * last element, so that new messages never reuse a persisted id. If the last element is null, the nucleus
+     * does not trust the metadata and uses the per-message fallback instead.</p>
+     *
      * @return list of message metadata ordered by id ascending, or null if not supported
      * @throws IOException if an I/O error occurs
      */
