@@ -19,6 +19,9 @@ import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.endpoints.Endpoint;
+import software.amazon.awssdk.http.ExecutableHttpRequest;
+import software.amazon.awssdk.http.HttpExecuteRequest;
+import software.amazon.awssdk.http.HttpExecuteResponse;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -27,6 +30,7 @@ import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBu
 import software.amazon.awssdk.services.greengrassv2data.endpoints.GreengrassV2DataEndpointParams;
 import software.amazon.awssdk.services.greengrassv2data.endpoints.GreengrassV2DataEndpointProvider;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -183,7 +187,7 @@ public class GreengrassServiceClientFactory {
         logger.atDebug().log("Configuring http client for greengrass v2 data client");
         ApacheHttpClient.Builder httpClientBuilder =
                 ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
-        cachedHttpClient = httpClientBuilder.build();
+        cachedHttpClient = new CloseAwareHttpClient(httpClientBuilder.build());
     }
 
     private void configureClient(DeviceConfiguration deviceConfiguration) throws TLSAuthException {
@@ -228,5 +232,53 @@ public class GreengrassServiceClientFactory {
             }
         }
         this.greengrassV2DataClient = clientBuilder.build();
+    }
+
+    /**
+     * A config change closes the cached client while another thread may be using it. Apache then fails that request
+     * with an {@link IllegalStateException}, which callers treat as a permanent error. Reporting it as an
+     * {@link IOException} makes the SDK raise an {@code SdkClientException}, which callers already retry.
+     */
+    static final class CloseAwareHttpClient implements SdkHttpClient {
+        private final SdkHttpClient delegate;
+        private volatile boolean closed;
+
+        CloseAwareHttpClient(SdkHttpClient delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public ExecutableHttpRequest prepareRequest(HttpExecuteRequest request) {
+            ExecutableHttpRequest prepared = delegate.prepareRequest(request);
+            return new ExecutableHttpRequest() {
+                @Override
+                public HttpExecuteResponse call() throws IOException {
+                    try {
+                        return prepared.call();
+                    } catch (IllegalStateException e) {
+                        if (closed) {
+                            throw new IOException("HTTP client was closed by a device config change", e);
+                        }
+                        throw e;
+                    }
+                }
+
+                @Override
+                public void abort() {
+                    prepared.abort();
+                }
+            };
+        }
+
+        @Override
+        public String clientName() {
+            return delegate.clientName();
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+            delegate.close();
+        }
     }
 }
