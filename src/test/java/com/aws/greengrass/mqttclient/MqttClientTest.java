@@ -219,6 +219,21 @@ class MqttClientTest {
     }
 
     @Test
+    void GIVEN_mqtt_port_above_short_range_WHEN_connection_built_THEN_builder_gets_configured_port() throws Exception {
+        mqttNamespace.lookup(MqttClient.MQTT_PORT_KEY).withValue(40_000);
+        AwsIotMqttConnectionBuilder identityBuilder = mock(AwsIotMqttConnectionBuilder.class, Answers.RETURNS_SELF);
+        lenient().when(identityBuilder.build()).thenThrow(new MqttException("stop after configuration"));
+        lenient().when(identityBuilder.toAwsIotMqtt5ClientBuilder())
+                .thenThrow(new MqttException("stop after configuration"));
+        SecurityService securityService = mock(SecurityService.class);
+        when(securityService.getDeviceIdentityMqttConnectionBuilder()).thenReturn(identityBuilder);
+        MqttClient mqttClient = new MqttClient(deviceConfiguration, ses, executorService, securityService, kernel);
+
+        assertThrows(ExecutionException.class, () -> mqttClient.getNewMqttClient().connect().get());
+        verify(identityBuilder).withPort(40_000);
+    }
+
+    @Test
     void GIVEN_device_not_configured_to_talk_to_cloud_WHEN_publish_THEN_throws_exception()
             throws InterruptedException {
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);

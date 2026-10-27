@@ -238,7 +238,7 @@ public class MqttClient implements Closeable {
             String endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
             builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(endpoint)
-                    .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
+                    .withPort(Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
                     .withCleanSession(false).withBootstrap(clientBootstrap)
                     .withKeepAliveMs(keepAliveMs)
                     .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())

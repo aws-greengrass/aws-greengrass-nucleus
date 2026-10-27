@@ -90,7 +90,7 @@ public class StandaloneMqttConnector implements Closeable {
         mqttBuilder.withEndpoint(endpoint)
                 .withCertificateAuthorityFromPath(null,
                         Coerce.toString(deviceConfiguration.getRootCAFilePath()))
-                .withPort((short) mqttPort)
+                .withPort(mqttPort)
                 .withCleanSession(true);
         return new StandaloneMqttConnector(mqttBuilder, clientId,
                 configureProxy(mqttBuilder, deviceConfiguration, endpoint));

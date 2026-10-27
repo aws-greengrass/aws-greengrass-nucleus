@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -51,6 +52,7 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -281,7 +283,7 @@ class StandaloneMqttConnectorTest {
             ExtensionContext extContext) throws Exception {
         try (ServerSocket proxy = loopbackListener()) {
             assertEquals(TLS_HANDSHAKE_RECORD, connectAndCapture(extContext,
-                    "https://" + LOOPBACK + ":" + proxy.getLocalPort(), REMOTE_ENDPOINT, proxy,
+                    "https://" + LOOPBACK + ":" + proxy.getLocalPort(), REMOTE_ENDPOINT, MqttClient.DEFAULT_MQTT_PORT, proxy,
                     StandaloneMqttConnectorTest::firstByte));
         }
     }
@@ -291,7 +293,7 @@ class StandaloneMqttConnectorTest {
             ExtensionContext extContext) throws Exception {
         try (ServerSocket proxy = loopbackListener()) {
             assertEquals('C', connectAndCapture(extContext, "http://" + LOOPBACK + ":" + proxy.getLocalPort(),
-                    REMOTE_ENDPOINT, proxy, StandaloneMqttConnectorTest::firstByte));
+                    REMOTE_ENDPOINT, MqttClient.DEFAULT_MQTT_PORT, proxy, StandaloneMqttConnectorTest::firstByte));
         }
     }
 
@@ -300,7 +302,7 @@ class StandaloneMqttConnectorTest {
             ExtensionContext extContext) throws Exception {
         try (ServerSocket proxy = loopbackListener()) {
             String request = connectAndCapture(extContext, "http://user:pass@" + LOOPBACK + ":" + proxy.getLocalPort(),
-                    REMOTE_ENDPOINT, proxy, StandaloneMqttConnectorTest::readHttpHead);
+                    REMOTE_ENDPOINT, MqttClient.DEFAULT_MQTT_PORT, proxy, StandaloneMqttConnectorTest::readHttpHead);
             assertTrue(request.startsWith("CONNECT " + REMOTE_ENDPOINT + ":"), request);
             // base64("user:pass")
             assertTrue(request.contains("Proxy-Authorization: Basic dXNlcjpwYXNz\r\n"), request);
@@ -310,7 +312,7 @@ class StandaloneMqttConnectorTest {
     @Test
     void GIVEN_endpoint_in_no_proxy_WHEN_connect_THEN_connects_directly_without_proxy(
             ExtensionContext extContext) throws Exception {
-        try (ServerSocket proxy = loopbackListener(); ServerSocket endpoint = loopbackListenerBelowPort32768()) {
+        try (ServerSocket proxy = loopbackListener(); ServerSocket endpoint = loopbackListener()) {
             when(deviceConfiguration.getNoProxyAddresses()).thenReturn(LOOPBACK);
             assertEquals(TLS_HANDSHAKE_RECORD, connectAndCapture(extContext,
                     "http://" + LOOPBACK + ":" + proxy.getLocalPort(), LOOPBACK, endpoint.getLocalPort(), endpoint,
@@ -324,7 +326,7 @@ class StandaloneMqttConnectorTest {
     void GIVEN_unparseable_proxy_url_WHEN_create_THEN_throws_and_closes_proxy_tls_context() throws Exception {
         try (Context context = new Context();
              MockedConstruction<ClientTlsContext> tlsContexts = mockConstruction(ClientTlsContext.class)) {
-            stubDeviceIdentity(context);
+            stubDeviceIdentity(context, MqttClient.DEFAULT_MQTT_PORT);
             when(deviceConfiguration.getProxyUrl()).thenReturn("https://proxy host:8080");
 
             assertThrows(IllegalArgumentException.class, () -> StandaloneMqttConnector.forEndpointSwitch(
@@ -338,7 +340,7 @@ class StandaloneMqttConnectorTest {
     void GIVEN_proxy_and_unreadable_root_ca_WHEN_create_THEN_throws_connection_provider_exception()
             throws Exception {
         try (Context context = new Context()) {
-            stubDeviceIdentity(context);
+            stubDeviceIdentity(context, MqttClient.DEFAULT_MQTT_PORT);
             when(deviceConfiguration.getProxyUrl()).thenReturn("http://" + LOOPBACK + ":3128");
             when(deviceConfiguration.getRootCAFilePath()).thenReturn(
                     new Configuration(context).lookup("rootCaPath").withValue("/nonexistent/AmazonRootCA1.pem"));
@@ -348,24 +350,24 @@ class StandaloneMqttConnectorTest {
         }
     }
 
-    private static ServerSocket loopbackListener() throws IOException {
-        return new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
-    }
+    @Test
+    void GIVEN_mqtt_port_above_short_range_WHEN_create_THEN_builder_gets_configured_port() throws Exception {
+        AwsIotMqttConnectionBuilder identityBuilder = mock(AwsIotMqttConnectionBuilder.class, Answers.RETURNS_SELF);
+        when(securityService.getDeviceIdentityMqttConnectionBuilder()).thenReturn(identityBuilder);
+        try (Context context = new Context()) {
+            Topics mqtt = new Configuration(context).lookupTopics("mqtt");
+            mqtt.lookup(MqttClient.MQTT_PORT_KEY).withValue(40_000);
+            when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqtt);
 
-    // The factory narrows the MQTT port to a short, so the endpoint listener cannot use an ephemeral port above 32767.
-    private static ServerSocket loopbackListenerBelowPort32768() throws IOException {
-        for (int port = 20_000; port < 32_768; port++) {
-            try {
-                return new ServerSocket(port, 1, InetAddress.getLoopbackAddress());
-            } catch (IOException e) {
-                // in use, try the next one
+            try (StandaloneMqttConnector conn = StandaloneMqttConnector.forEndpointSwitch(securityService,
+                    deviceConfiguration, REMOTE_ENDPOINT)) {
+                verify(identityBuilder).withPort(40_000);
             }
         }
-        throw new IOException("No free loopback port below 32768");
     }
 
-    private void stubDeviceIdentity(Context context) throws Exception {
-        stubDeviceIdentity(context, MqttClient.DEFAULT_MQTT_PORT);
+    private static ServerSocket loopbackListener() throws IOException {
+        return new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
     }
 
     private void stubDeviceIdentity(Context context, int mqttPort) throws Exception {
@@ -380,11 +382,6 @@ class StandaloneMqttConnectorTest {
      * Runs the real factory and connect() and returns what {@code reader} read from the first connection that
      * {@code listener} accepted.
      */
-    private <T> T connectAndCapture(ExtensionContext extContext, String proxyUrl, String endpoint,
-                                    ServerSocket listener, IoFunction<T> reader) throws Exception {
-        return connectAndCapture(extContext, proxyUrl, endpoint, MqttClient.DEFAULT_MQTT_PORT, listener, reader);
-    }
-
     private <T> T connectAndCapture(ExtensionContext extContext, String proxyUrl, String endpoint, int mqttPort,
                                     ServerSocket listener, IoFunction<T> reader) throws Exception {
         ignoreExceptionOfType(extContext, ExecutionException.class);
