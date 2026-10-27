@@ -140,12 +140,11 @@ public class Spool {
             persistenceSpool.initializeSpooler();
             try {
                 List<SpoolMessageMetadata> messageMetadata = persistenceSpool.getAllMessageMetadata();
-                if (isUsableMetadata(messageMetadata)) {
-                    persistentQueueSync(messageMetadata);
-                } else {
-                    // Older spooler plugins do not implement the metadata API, and invalid metadata cannot
-                    // be trusted to set the next id, so read each message instead
+                if (messageMetadata == null) {
+                    // Older spooler plugins do not implement the metadata API, so read each message instead
                     persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
+                } else {
+                    persistentQueueSync(messageMetadata);
                 }
             } catch (SpoolerStoreException e) {
                 logger.atWarn()
@@ -376,8 +375,10 @@ public class Spool {
         if (diskQueueMetadata.isEmpty()) {
             return;
         }
-        // Metadata is ordered by id ascending, so the highest id is the last element
-        setIdForNextMessage(diskQueueMetadata.get(diskQueueMetadata.size() - 1).getId());
+        // Metadata is ordered by id ascending, so the highest id is the last element. If that is missing, the
+        // metadata is invalid and the sync stops below, so find the highest id among the remaining elements first.
+        SpoolMessageMetadata lastMetadata = diskQueueMetadata.get(diskQueueMetadata.size() - 1);
+        setIdForNextMessage(lastMetadata == null ? findHighestId(diskQueueMetadata) : lastMetadata.getId());
 
         int numMessagesAdded = 0;
         try {
@@ -402,15 +403,19 @@ public class Spool {
     }
 
     /**
-     * Check whether the metadata can be used to sync the runtime queue. The highest persisted id is read from the
-     * last element, so if that is missing, the metadata cannot safely move nextId past the persisted ids.
+     * Find the highest id in the metadata, skipping null elements.
      *
-     * @param diskQueueMetadata metadata returned by the persistence spooler, or null if not supported
-     * @return true if the metadata can be used
+     * @param diskQueueMetadata persisted message metadata
+     * @return highest id, or -1 if there is none
      */
-    private static boolean isUsableMetadata(List<SpoolMessageMetadata> diskQueueMetadata) {
-        return diskQueueMetadata != null
-                && (diskQueueMetadata.isEmpty() || diskQueueMetadata.get(diskQueueMetadata.size() - 1) != null);
+    private static long findHighestId(List<SpoolMessageMetadata> diskQueueMetadata) {
+        long highestId = -1;
+        for (SpoolMessageMetadata metadata : diskQueueMetadata) {
+            if (metadata != null) {
+                highestId = Math.max(highestId, metadata.getId());
+            }
+        }
+        return highestId;
     }
 
     /**
