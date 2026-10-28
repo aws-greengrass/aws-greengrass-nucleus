@@ -86,6 +86,9 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
+// This class already sat at PMD's 1000-line class limit before the interrupted-deployment attempt cap was
+// added. Splitting it up is worth doing on its own, not as part of a bug fix.
+@SuppressWarnings("PMD.ExcessiveClassLength")
 public class DeploymentService extends GreengrassService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
@@ -585,6 +588,21 @@ public class DeploymentService extends GreengrassService {
             return;
         }
 
+        if (DEFAULT.equals(deployment.getDeploymentStage()) && deploymentDirectoryManager
+                .wasRefusedForExhaustedAttempts(deployment.getGreengrassDeploymentId())) {
+            // Treating a re-delivery that was in flight when the failure was reported as a new request
+            // would hand it a fresh allowance and re-apply the version just backed out. Rejecting rather
+            // than failing it leaves the last-failed record intact, so a further re-delivery is recognised
+            // too, while a new revision is accepted normally.
+            logger.atWarn().kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
+                    .log("Rejecting a deployment that already used up its processing attempts");
+            updateDeploymentResultAsRejected(deployment, deploymentTask, new DeploymentRejectedException(
+                    "Deployment was interrupted before completing on every allowed attempt, and the device has "
+                            + "been restored to the configuration from before it. Deploy a new revision to change "
+                            + "the device's configuration.", DeploymentErrorCode.DEPLOYMENT_INTERRUPTED));
+            return;
+        }
+
         // Assign currentDeploymentTaskMetadata before persisting IN_PROGRESS and before submitting
         // the task to the executor. This ensures that any concurrent reader (e.g. ShadowDeploymentListener,
         // IotJobsHelper) that observes a side-effect of deployment processing will also observe
@@ -600,15 +618,33 @@ public class DeploymentService extends GreengrassService {
                 deployment.getDeploymentDocumentObj().getRootPackages());
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
+            boolean attemptsExhausted;
             try {
                 context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
                 deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getGreengrassDeploymentId());
+                attemptsExhausted = deploymentDirectoryManager.hasExhaustedProcessingAttempts();
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);
             } catch (IOException ioException) {
                 logger.atError().log("Unable to create deployment directory", ioException);
                 updateDeploymentResultAsFailed(deployment, deploymentTask, false,
                         new DeploymentException("Unable to create deployment directory", ioException)
                                 .withErrorContext(ioException, DeploymentErrorCode.IO_WRITE_ERROR));
+                return;
+            }
+
+            if (attemptsExhausted) {
+                // The launch that re-processed this deployment already restored the configuration from its
+                // rollback snapshot, so the device is back on the last verified configuration. Reporting a
+                // terminal status stops the cloud re-delivering the deployment and releases the device to
+                // accept a newer one.
+                logger.atError().kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
+                        .kv("attempts", deploymentDirectoryManager.getProcessingAttempts())
+                        .log("Deployment was interrupted before completing on every allowed attempt. Failing it "
+                                + "so the device can accept a newer deployment");
+                updateDeploymentResultAsFailed(deployment, deploymentTask, false, new DeploymentException(
+                        "Deployment was interrupted before completing on every allowed attempt. The device has "
+                                + "been restored to the configuration from before the deployment. Deploy a new "
+                                + "revision to change it.", DeploymentErrorCode.DEPLOYMENT_INTERRUPTED));
                 return;
             }
 

@@ -19,8 +19,10 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
@@ -36,6 +38,17 @@ public class DeploymentDirectoryManager {
     static final String ROLLBACK_BOOTSTRAP_TASK_FILE = "rollback_bootstrap_task.json";
     static final String DEPLOYMENT_METADATA_FILE = "deployment_metadata.json";
     static final String CONFIG_SNAPSHOT_ERROR = "config_snapshot_error";
+    static final String PROCESSING_ATTEMPTS_FILE = "processing_attempts";
+
+    /**
+     * The attempt limit is recorded next to the count rather than read when it is needed, because the
+     * launch consults the count before it has loaded any configuration. A deployment is therefore judged
+     * by the limit in force when it was applied, which is also the limit its operator chose.
+     */
+    static final String ATTEMPT_LIMIT_FILE = "processing_attempt_limit";
+
+    // Files preserved from an unfinished deployment are parked here while its directory is cleaned up.
+    private static final String PRESERVED_FILE_PREFIX = ".preserved-";
 
     private static final String LINK_LOG_KEY = "link";
     private static final String FILE_LOG_KEY = "file";
@@ -187,6 +200,48 @@ public class DeploymentDirectoryManager {
     }
 
     /**
+     * Take the rollback snapshot for the ongoing deployment, unless one was carried forward from an
+     * unfinished deployment: that snapshot holds the last verified configuration and live config may
+     * not, so overwriting it would make unverified state the rollback target.
+     *
+     * @throws IOException if write fails
+     */
+    public void takeRollbackSnapshot() throws IOException {
+        Path filepath = getSnapshotFilePath();
+        if (Files.exists(filepath)) {
+            logger.atInfo().kv(FILE_LOG_KEY, filepath)
+                    .log("Keeping the rollback snapshot carried forward from an unfinished deployment");
+            return;
+        }
+        takeConfigSnapshot(filepath);
+    }
+
+    /**
+     * Whether a deployment is recorded as still in progress. The ongoing link is created when a
+     * deployment starts and removed once its result is reported.
+     *
+     * @return true if an unfinished deployment's directory is still linked
+     */
+    public boolean hasUnfinishedDeployment() {
+        return Files.isSymbolicLink(ongoingDir);
+    }
+
+    /**
+     * Whether an unfinished deployment's metadata is on disk and so can be re-processed. A deployment
+     * whose directory exists without metadata cannot be recovered, which is an ordinary state rather than
+     * a failure worth reporting.
+     *
+     * @return true if metadata for an unfinished deployment can be read
+     */
+    public boolean hasReadableDeploymentMetadata() {
+        try {
+            return hasUnfinishedDeployment() && Files.exists(getDeploymentMetadataFilePath());
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
      * Resolve snapshot file path.
      *
      * @return Path to snapshot file
@@ -243,11 +298,24 @@ public class DeploymentDirectoryManager {
     /**
      * Create or return the directory for a given deployment.
      *
+     * <p>An ongoing directory left behind by an unfinished deployment means the live configuration may
+     * hold that deployment's merged but never verified changes, so its rollback snapshot — not live
+     * config — is the last verified configuration. Preserve that snapshot into the new deployment's
+     * directory, whether the same deployment is re-processed or a different one supersedes it. Preserve
+     * the attempt count too when the same deployment is re-processed, so repeated interruptions can be
+     * capped.
+     *
      * @param deploymentId Deployment id
      * @return Path to the deployment directory
      * @throws IOException on I/O errors
      */
     public Path createNewDeploymentDirectory(String deploymentId) throws IOException {
+        final Path preservedSnapshot = stashFileFromUnfinishedDeployment(ROLLBACK_SNAPSHOT_FILE, null);
+        final Path preservedAttempts =
+                stashFileFromUnfinishedDeployment(PROCESSING_ATTEMPTS_FILE, getSafeFileName(deploymentId));
+        final Path preservedLimit =
+                stashFileFromUnfinishedDeployment(ATTEMPT_LIMIT_FILE, getSafeFileName(deploymentId));
+
         cleanupPreviousDeployments(ongoingDir);
         Path path = deploymentsDir.resolve(getSafeFileName(deploymentId));
 
@@ -265,9 +333,170 @@ public class DeploymentDirectoryManager {
         logger.atInfo().kv("directory", path).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).kv(LINK_LOG_KEY, ongoingDir)
                 .log("Create work directory for new deployment");
         Utils.createPaths(path);
+        restorePreservedFile(preservedSnapshot, path.resolve(ROLLBACK_SNAPSHOT_FILE));
+        restorePreservedFile(preservedAttempts, path.resolve(PROCESSING_ATTEMPTS_FILE));
+        restorePreservedFile(preservedLimit, path.resolve(ATTEMPT_LIMIT_FILE));
         Files.createSymbolicLink(ongoingDir, path);
 
         return path;
+    }
+
+    /**
+     * Move a file out of the unfinished (ongoing) deployment's directory so it survives directory
+     * cleanup.
+     *
+     * @param fileName        name of the file to preserve
+     * @param requiredDirName when non-null, preserve only if the unfinished deployment's directory has
+     *                        this name, i.e. the same deployment is being re-processed
+     * @return path the file moved to, or null when there is nothing to preserve
+     */
+    private Path stashFileFromUnfinishedDeployment(String fileName, String requiredDirName) {
+        try {
+            if (!Files.isSymbolicLink(ongoingDir)) {
+                // The previous deployment reached a terminal state; the live configuration is verified.
+                return null;
+            }
+            Path unfinishedDir = Files.readSymbolicLink(ongoingDir).toAbsolutePath();
+            if (requiredDirName != null && !isDirectoryNamed(unfinishedDir, requiredDirName)) {
+                return null;
+            }
+            Path file = unfinishedDir.resolve(fileName);
+            if (!Files.exists(file)) {
+                return null;
+            }
+            Path stash = deploymentsDir.resolve(PRESERVED_FILE_PREFIX + fileName);
+            Files.move(file, stash, StandardCopyOption.REPLACE_EXISTING);
+            logger.atInfo().kv(FILE_LOG_KEY, file)
+                    .log("Preserving file from unfinished deployment for the next deployment");
+            return stash;
+        } catch (IOException e) {
+            logger.atError().kv(FILE_LOG_KEY, fileName)
+                    .log("Unable to preserve file from unfinished deployment", e);
+            return null;
+        }
+    }
+
+    private void restorePreservedFile(Path stash, Path destination) {
+        if (stash == null) {
+            return;
+        }
+        try {
+            Files.move(stash, destination, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            logger.atError().kv(FILE_LOG_KEY, destination)
+                    .log("Unable to restore preserved file into new deployment directory", e);
+        }
+    }
+
+    /**
+     * Record that the ongoing deployment has been applied, and return how many times that has now
+     * happened. The count follows the deployment across re-processing (see
+     * {@link #createNewDeploymentDirectory}), so it counts attempts that never reached a terminal state —
+     * for example because the nucleus was interrupted mid-activation.
+     *
+     * @param attemptLimit how many attempts this deployment is allowed, or below 1 for no limit
+     * @return the attempt number, starting at 1
+     * @throws IOException on I/O errors
+     */
+    public int recordProcessingAttempt(int attemptLimit) throws IOException {
+        if (!hasUnfinishedDeployment()) {
+            // Nothing is tracking this deployment, so there is nowhere to keep a count.
+            return 0;
+        }
+        Path deploymentDir = getDeploymentDirectoryPath();
+        Files.write(deploymentDir.resolve(ATTEMPT_LIMIT_FILE),
+                String.valueOf(attemptLimit).getBytes(StandardCharsets.UTF_8));
+        Path attemptsFile = deploymentDir.resolve(PROCESSING_ATTEMPTS_FILE);
+        int attempts = readNumber(attemptsFile, 0) + 1;
+        Files.write(attemptsFile, String.valueOf(attempts).getBytes(StandardCharsets.UTF_8));
+        return attempts;
+    }
+
+    /**
+     * How many times the ongoing deployment has been applied.
+     *
+     * @return the attempt count, or 0 if none is recorded
+     */
+    public int getProcessingAttempts() {
+        if (!hasUnfinishedDeployment()) {
+            return 0;
+        }
+        try {
+            return readNumber(getDeploymentDirectoryPath().resolve(PROCESSING_ATTEMPTS_FILE), 0);
+        } catch (IOException e) {
+            logger.atError().log("Unable to read the processing attempt count", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Whether the ongoing deployment has used up its attempts. Once it has, applying it again would only
+     * repeat an attempt that never completes, so the caller should restore the device to the deployment's
+     * rollback snapshot and report it failed instead.
+     *
+     * @return true if the deployment has reached its attempt limit, false if it has not or has no limit
+     */
+    public boolean hasExhaustedProcessingAttempts() {
+        if (!hasUnfinishedDeployment()) {
+            return false;
+        }
+        try {
+            return hasExhaustedAttempts(getDeploymentDirectoryPath());
+        } catch (IOException e) {
+            logger.atError().log("Unable to read the processing attempt count", e);
+            return false;
+        }
+    }
+
+    private boolean hasExhaustedAttempts(Path deploymentDir) throws IOException {
+        int limit = readNumber(deploymentDir.resolve(ATTEMPT_LIMIT_FILE), 0);
+        return limit >= 1 && readNumber(deploymentDir.resolve(PROCESSING_ATTEMPTS_FILE), 0) >= limit;
+    }
+
+    private int readNumber(Path file, int fallback) throws IOException {
+        if (!Files.exists(file)) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(new String(Files.readAllBytes(file), StandardCharsets.UTF_8).trim());
+        } catch (NumberFormatException e) {
+            logger.atWarn().kv(FILE_LOG_KEY, file).log("Unreadable number. Treating as absent", e);
+            return fallback;
+        }
+    }
+
+    /**
+     * Whether this deployment is the one most recently failed for using up its processing attempts.
+     * Processing a re-delivery that was already in flight when that failure was reported would hand the
+     * same deployment a fresh allowance and re-apply the configuration the device was just restored
+     * from. Any other deployment reaching a terminal state clears the link and count this reads, so a
+     * new revision is unaffected.
+     *
+     * @param deploymentId Deployment id
+     * @return true if this deployment already used up its processing attempts
+     */
+    public boolean wasRefusedForExhaustedAttempts(String deploymentId) {
+        try {
+            if (!Files.isSymbolicLink(previousFailureDir)) {
+                return false;
+            }
+            Path failedDir = Files.readSymbolicLink(previousFailureDir).toAbsolutePath();
+            return isDirectoryNamed(failedDir, getSafeFileName(deploymentId))
+                    && hasExhaustedAttempts(failedDir);
+        } catch (IOException e) {
+            logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                    .log("Unable to tell whether this deployment already used up its attempts", e);
+            return false;
+        }
+    }
+
+    /**
+     * Whether a directory has the given name. A path has no file name when it is a root, so the name has
+     * to be null-checked before it is compared.
+     */
+    private static boolean isDirectoryNamed(Path directory, String name) {
+        Path fileName = directory.getFileName();
+        return fileName != null && name.equals(fileName.toString());
     }
 
     public static String getSafeFileName(String fleetConfigArn) {
