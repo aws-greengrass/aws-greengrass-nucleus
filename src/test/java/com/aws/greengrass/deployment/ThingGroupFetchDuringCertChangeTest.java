@@ -215,7 +215,7 @@ class ThingGroupFetchDuringCertChangeTest {
      * connection. That is the order seen on a device: the deployment task got the client, a device config write
      * closed it, and the request then went out on the closed client and failed.
      */
-    private class CertChangeOnFirstFetchClientFactory extends GreengrassServiceClientFactory {
+    private static class CertChangeOnFirstFetchClientFactory extends GreengrassServiceClientFactory {
         private final AtomicBoolean changed = new AtomicBoolean();
         private final ChildChanged configListener;
 
