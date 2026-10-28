@@ -65,9 +65,10 @@ class GreengrassServiceClientFactoryTest {
     });
     private final AtomicReference<Runnable> onDelegateClose = new AtomicReference<>(() -> {
     });
+    private final AtomicReference<String> userAgent = new AtomicReference<>();
     private final List<FakeHttpClient> built = new ArrayList<>();
     private final GreengrassServiceClientFactory.SwappableHttpClient client =
-            new GreengrassServiceClientFactory.SwappableHttpClient(() -> {
+            new GreengrassServiceClientFactory.SwappableHttpClient(ApacheHttpClient.CLIENT_NAME, () -> {
                 TLSAuthException failure = nextBuildFailure.getAndSet(null);
                 if (failure != null) {
                     throw failure;
@@ -194,9 +195,10 @@ class GreengrassServiceClientFactoryTest {
         server.start();
         AtomicInteger builds = new AtomicInteger();
         AtomicReference<GreengrassServiceClientFactory.SwappableHttpClient> apache = new AtomicReference<>();
-        apache.set(new GreengrassServiceClientFactory.SwappableHttpClient(() -> builds.incrementAndGet() == 1
-                ? new RetiredBeforeCallHttpClient(ApacheHttpClient.create(), () -> apache.get().retire())
-                : ApacheHttpClient.create()));
+        apache.set(new GreengrassServiceClientFactory.SwappableHttpClient(ApacheHttpClient.CLIENT_NAME,
+                () -> builds.incrementAndGet() == 1
+                        ? new RetiredBeforeCallHttpClient(ApacheHttpClient.create(), () -> apache.get().retire())
+                        : ApacheHttpClient.create()));
         URI endpoint = URI.create("http://localhost:" + server.getAddress().getPort());
 
         try (GreengrassV2DataClient sdkClient = sdkClient(apache.get(), endpoint)) {
@@ -208,6 +210,27 @@ class GreengrassServiceClientFactoryTest {
 
         assertEquals(2, builds.get());
         assertEquals(1, serverRequests.get());
+    }
+
+    @Test
+    void GIVEN_any_delegate_state_WHEN_clientName_THEN_it_is_the_name_given_to_the_handle() throws TLSAuthException {
+        assertEquals(ApacheHttpClient.CLIENT_NAME, client.clientName());
+        client.buildIfAbsent();
+        assertEquals(ApacheHttpClient.CLIENT_NAME, client.clientName());
+        client.retire();
+        assertEquals(ApacheHttpClient.CLIENT_NAME, client.clientName());
+    }
+
+    @Test
+    void GIVEN_client_retired_before_sdk_client_is_built_WHEN_sdk_call_THEN_user_agent_names_the_http_client()
+            throws TLSAuthException {
+        client.buildIfAbsent();
+        client.retire();
+        try (GreengrassV2DataClient sdkClient = sdkClient(client, URI.create("https://localhost"))) {
+            sdkClient.listThingGroupsForCoreDevice(r -> r.coreDeviceThingName("thing"));
+        }
+
+        assertTrue(userAgent.get().contains(" md/http#" + ApacheHttpClient.CLIENT_NAME + " "), userAgent.get());
     }
 
     @Test
@@ -318,6 +341,7 @@ class GreengrassServiceClientFactoryTest {
 
         @Override
         public ExecutableHttpRequest prepareRequest(HttpExecuteRequest request) {
+            userAgent.set(request.httpRequest().firstMatchingHeader("User-Agent").orElse(null));
             return new ExecutableHttpRequest() {
                 @Override
                 public HttpExecuteResponse call() {

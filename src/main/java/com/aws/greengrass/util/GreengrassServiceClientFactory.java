@@ -24,6 +24,7 @@ import software.amazon.awssdk.http.ExecutableHttpRequest;
 import software.amazon.awssdk.http.HttpExecuteRequest;
 import software.amazon.awssdk.http.HttpExecuteResponse;
 import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
@@ -75,7 +76,7 @@ public class GreengrassServiceClientFactory {
     @Inject
     public GreengrassServiceClientFactory(DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
-        this.cachedHttpClient = new SwappableHttpClient(() -> {
+        this.cachedHttpClient = new SwappableHttpClient(ApacheHttpClient.CLIENT_NAME, () -> {
             logger.atDebug().log("Configuring http client for greengrass v2 data client");
             return ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration).build();
         });
@@ -231,12 +232,14 @@ public class GreengrassServiceClientFactory {
      * It retires the Apache client and no request after it builds a new one.
      */
     static final class SwappableHttpClient implements SdkHttpClient {
+        private final String clientName;
         private final CrashableSupplier<SdkHttpClient, TLSAuthException> builder;
         private final Lock lock = LockFactory.newReentrantLock(this);
         private volatile SdkHttpClient delegate;
         private boolean closed;
 
-        SwappableHttpClient(CrashableSupplier<SdkHttpClient, TLSAuthException> builder) {
+        SwappableHttpClient(String clientName, CrashableSupplier<SdkHttpClient, TLSAuthException> builder) {
+            this.clientName = clientName;
             this.builder = builder;
         }
 
@@ -300,11 +303,10 @@ public class GreengrassServiceClientFactory {
             };
         }
 
+        // The SDK reads this once, when it builds its client, and that may be while no delegate exists
         @Override
-        @SuppressWarnings("PMD.CloseResource")
         public String clientName() {
-            SdkHttpClient current = delegate;
-            return current == null ? SdkHttpClient.super.clientName() : current.clientName();
+            return clientName;
         }
 
         @Override
