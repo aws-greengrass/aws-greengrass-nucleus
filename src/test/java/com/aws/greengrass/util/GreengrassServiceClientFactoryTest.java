@@ -123,6 +123,51 @@ class GreengrassServiceClientFactoryTest {
     }
 
     @Test
+    void GIVEN_client_closed_WHEN_next_request_THEN_it_fails_without_building_a_new_client() throws IOException {
+        client.prepareRequest(request()).call();
+        client.close();
+        client.retire();
+
+        assertThrows(IllegalStateException.class, () -> client.prepareRequest(request()));
+        assertEquals(1, built.size());
+        assertTrue(built.get(0).closed);
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_client_closed_WHEN_sdk_call_THEN_it_fails_without_retry() {
+        AtomicInteger attempts = new AtomicInteger();
+        SdkHttpClient counting = new SdkHttpClient() {
+            @Override
+            public ExecutableHttpRequest prepareRequest(HttpExecuteRequest request) {
+                attempts.incrementAndGet();
+                return client.prepareRequest(request);
+            }
+
+            @Override
+            public void close() {
+                client.close();
+            }
+        };
+        client.close();
+
+        try (GreengrassV2DataClient sdkClient = sdkClient(counting, URI.create("https://localhost"))) {
+            assertThrows(IllegalStateException.class,
+                    () -> sdkClient.listThingGroupsForCoreDevice(r -> r.coreDeviceThingName("thing")));
+        }
+
+        assertEquals(1, attempts.get());
+        assertEquals(0, built.size());
+    }
+
+    @Test
+    void GIVEN_sdk_client_closed_WHEN_next_request_THEN_http_client_still_serves_it() throws IOException {
+        sdkClient(client, URI.create("https://localhost")).close();
+
+        assertEquals("initial", servedBy(client.prepareRequest(request()).call()));
+    }
+
+    @Test
     void GIVEN_building_the_client_fails_once_WHEN_sdk_call_THEN_sdk_retries_it_on_a_new_client() {
         nextBuildFailure.set(new TLSAuthException("Failed to get trust manager"));
         try (GreengrassV2DataClient sdkClient = sdkClient(client, URI.create("https://localhost"))) {
@@ -228,8 +273,8 @@ class GreengrassServiceClientFactoryTest {
     }
 
     /**
-     * A real Apache client whose first prepared request runs {@code beforeCall} first, so a retire lands between
-     * prepareRequest and the connection lease.
+     * A real Apache client that runs {@code beforeCall} at the start of every request's call, so a retire lands
+     * between prepareRequest and the connection lease.
      */
     private static class RetiredBeforeCallHttpClient implements SdkHttpClient {
         private final SdkHttpClient delegate;

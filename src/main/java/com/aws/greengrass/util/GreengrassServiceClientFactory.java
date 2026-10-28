@@ -24,7 +24,6 @@ import software.amazon.awssdk.http.ExecutableHttpRequest;
 import software.amazon.awssdk.http.HttpExecuteRequest;
 import software.amazon.awssdk.http.HttpExecuteResponse;
 import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
@@ -177,7 +176,7 @@ public class GreengrassServiceClientFactory {
 
     private GreengrassV2DataClient configuredClient() throws TLSAuthException {
         // Build the http client now, so a bad cert, key or root CA fails here with the TLSAuthException callers expect
-        cachedHttpClient.delegate();
+        cachedHttpClient.buildIfAbsent();
         if (greengrassV2DataClient == null) {
             configureClient(deviceConfiguration);
         }
@@ -228,19 +227,29 @@ public class GreengrassServiceClientFactory {
     /**
      * The http client the SDK client is built with. A cert, key or root CA change retires the Apache client behind it,
      * and the next request builds a new one from the config at that time. A request cut off by the retirement fails
-     * with an {@link IOException}, so the SDK's own retry runs it again on the new client.
+     * with an {@link IOException}, so the SDK's own retry runs it again on the new client. {@link #close()} is final.
+     * It retires the Apache client and no request after it builds a new one.
      */
     static final class SwappableHttpClient implements SdkHttpClient {
         private final CrashableSupplier<SdkHttpClient, TLSAuthException> builder;
         private final Lock lock = LockFactory.newReentrantLock(this);
         private volatile SdkHttpClient delegate;
+        private boolean closed;
 
         SwappableHttpClient(CrashableSupplier<SdkHttpClient, TLSAuthException> builder) {
             this.builder = builder;
         }
 
-        SdkHttpClient delegate() throws TLSAuthException {
+        void buildIfAbsent() throws TLSAuthException {
+            delegate();
+        }
+
+        private SdkHttpClient delegate() throws TLSAuthException {
             try (LockScope ls = LockScope.lock(lock)) {
+                if (closed) {
+                    // Not an IOException or RetryableException, so the SDK fails the request without retrying it
+                    throw new IllegalStateException("HTTP client for Greengrass v2 data client is closed");
+                }
                 if (delegate == null) {
                     delegate = builder.apply();
                 }
@@ -292,13 +301,18 @@ public class GreengrassServiceClientFactory {
         }
 
         @Override
+        @SuppressWarnings("PMD.CloseResource")
         public String clientName() {
-            return ApacheHttpClient.CLIENT_NAME;
+            SdkHttpClient current = delegate;
+            return current == null ? SdkHttpClient.super.clientName() : current.clientName();
         }
 
         @Override
         public void close() {
-            retire();
+            try (LockScope ls = LockScope.lock(lock)) {
+                closed = true;
+                retire();
+            }
         }
     }
 }
