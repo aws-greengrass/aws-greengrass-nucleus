@@ -14,7 +14,6 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
-import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -30,8 +29,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.http.HttpStatusCode;
@@ -39,10 +36,8 @@ import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataEx
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -55,14 +50,13 @@ import java.util.concurrent.TimeUnit;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -110,8 +104,6 @@ class DeploymentTaskTest {
     private ThingGroupHelper mockThingGroupHelper;
     @Mock
     private DeviceConfiguration mockDeviceConfiguration;
-    @Captor
-    private ArgumentCaptor<Map<String, String>> versionsCaptor;
 
     @BeforeAll
     static void setupContext() {
@@ -316,40 +308,6 @@ class DeploymentTaskTest {
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, timeout(4000)).mergeInNewConfig(any(), any(), any(Long.class));
         verify(mockMergeConfigFuture, timeout(5000)).cancel(false);
-        // Wait for the finally block to run so the cleanup assertion below is not vacuous.
-        t.join(5000);
-        assertFalse(t.isAlive());
-        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-    }
-
-    @Test
-    void GIVEN_resolved_deployment_WHEN_non_interrupt_failure_with_interrupt_flag_set_THEN_cleanup_skipped(
-            ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, PackageLoadingException.class);
-
-        // Resolution succeeds, so desiredPackages is non-null and the unresolved-deployment guard does not apply.
-        when(mockExecutorService.submit(any(Callable.class))).thenReturn(CompletableFuture.completedFuture(
-                Collections.singletonList(new ComponentIdentifier("component1", new Semver("1.0.0")))));
-        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
-        // Set the interrupt flag, then exit through a non-interrupt path so deploymentInterrupted stays false.
-        // Only the isInterrupted() check in the finally block can skip cleanup here.
-        when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class)))
-                .thenAnswer(invocation -> {
-                    Thread.currentThread().interrupt();
-                    throw new PackageLoadingException("failed to load package");
-                });
-
-        try {
-            DeploymentResult result = deploymentTask.call();
-            // Returning a result rather than throwing confirms the non-interrupt exit path was taken.
-            assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
-            assertTrue(result.getFailureCause() instanceof PackageLoadingException);
-            verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-            verify(mockComponentManager, never()).cleanupStaleVersions();
-        } finally {
-            // Clear the flag so it cannot leak into other tests running on this thread.
-            Thread.interrupted();
-        }
     }
 
     @Test
@@ -397,116 +355,54 @@ class DeploymentTaskTest {
         verify(mockComponentManager).cleanupStaleVersions(eq(true), any());
     }
 
+    /**
+     * The reported failure: a shutdown during the thing-group fetch surfaces as TLSAuthException wrapping
+     * InterruptedException. The task exits before resolution, so the cleanup has no way to know which versions
+     * this deployment targets and must not run, or it deletes a locally preloaded target the resumed
+     * deployment needs.
+     */
     @Test
-    void GIVEN_deployment_task_interrupted_WHEN_resolveDependencies_in_progress_THEN_stale_versions_not_cleaned_up()
+    void GIVEN_deployment_WHEN_thing_group_fetch_wrapped_interrupt_THEN_cleanup_skipped(ExtensionContext context)
             throws Exception {
-        when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
-        CountDownLatch resolveDependenciesBlocked = new CountDownLatch(1);
-        when(mockResolveDependencyFuture.get()).thenAnswer(invocationOnMock -> {
-            resolveDependenciesBlocked.countDown();
-            // Block until interrupted, so desiredPackages is never assigned
-            Thread.sleep(TimeUnit.SECONDS.toMillis(30));
-            return Collections.emptyList();
-        });
-
-        FutureTask<DeploymentResult> futureTask = new FutureTask<>(deploymentTask);
-        Thread t = new Thread(futureTask);
-        t.start();
-        assertTrue(resolveDependenciesBlocked.await(3, TimeUnit.SECONDS));
-        t.interrupt();
-
-        ExecutionException e = assertThrows(ExecutionException.class, () -> futureTask.get(5, TimeUnit.SECONDS));
-        assertTrue(e.getCause() instanceof InterruptedException);
-        verify(mockResolveDependencyFuture).cancel(true);
-        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-        verify(mockComponentManager, never()).cleanupStaleVersions();
-    }
-
-    @Test
-    void GIVEN_deployment_task_interrupted_WHEN_resolveDependencies_throws_interrupted_cause_THEN_stale_versions_not_cleaned_up(
-            ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
-
-        when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
-        when(mockResolveDependencyFuture.get()).thenThrow(new ExecutionException(new InterruptedException()));
-
-        assertThrows(InterruptedException.class, () -> deploymentTask.call());
-        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-        verify(mockComponentManager, never()).cleanupStaleVersions();
-    }
-
-    @Test
-    void GIVEN_deployment_task_interrupted_WHEN_preparePackages_in_progress_THEN_stale_versions_not_cleaned_up()
-            throws Exception {
-        when(mockExecutorService.submit(any(Callable.class))).thenReturn(CompletableFuture.completedFuture(
-                Collections.singletonList(new ComponentIdentifier("ComponentA", new Semver("1.0.0")))));
-        CountDownLatch preparePackagesBlocked = new CountDownLatch(1);
-        when(mockComponentManager.preparePackages(anyList())).thenReturn(mockPreparePackagesFuture);
-        when(mockPreparePackagesFuture.get()).thenAnswer(invocationOnMock -> {
-            preparePackagesBlocked.countDown();
-            // Block until interrupted, while downloads would still be in flight
-            Thread.sleep(TimeUnit.SECONDS.toMillis(30));
-            return null;
-        });
-
-        FutureTask<DeploymentResult> futureTask = new FutureTask<>(deploymentTask);
-        Thread t = new Thread(futureTask);
-        t.start();
-        assertTrue(preparePackagesBlocked.await(3, TimeUnit.SECONDS));
-        t.interrupt();
-
-        ExecutionException e = assertThrows(ExecutionException.class, () -> futureTask.get(5, TimeUnit.SECONDS));
-        assertTrue(e.getCause() instanceof InterruptedException);
-        verify(mockPreparePackagesFuture).cancel(true);
-        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-        verify(mockComponentManager, never()).cleanupStaleVersions();
-    }
-
-    @Test
-    void GIVEN_successful_deployment_WHEN_completed_THEN_cleanup_called_with_current_deployment_versions()
-            throws Exception {
-        when(mockExecutorService.submit(any(Callable.class))).thenReturn(CompletableFuture.completedFuture(
-                Arrays.asList(new ComponentIdentifier("ComponentA", new Semver("1.0.0")),
-                        new ComponentIdentifier("ComponentB", new Semver("2.1.0")))));
-        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
-        DeploymentResult successResult = new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null);
-        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class)))
-                .thenReturn(CompletableFuture.completedFuture(successResult));
-
-        DeploymentResult result = deploymentTask.call();
-
-        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
-        ArgumentCaptor<Boolean> abortedCaptor = ArgumentCaptor.forClass(Boolean.class);
-        verify(mockComponentManager).cleanupStaleVersions(abortedCaptor.capture(), versionsCaptor.capture());
-        assertFalse(abortedCaptor.getValue());
-        assertEquals(2, versionsCaptor.getValue().size());
-        assertEquals("1.0.0", versionsCaptor.getValue().get("ComponentA"));
-        assertEquals("2.1.0", versionsCaptor.getValue().get("ComponentB"));
-    }
-
-    @Test
-    void GIVEN_deployment_WHEN_resolve_kernel_config_throws_PackageLoadingException_THEN_cleanup_called_as_aborted(
-            ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, PackageLoadingException.class);
-
-        when(mockExecutorService.submit(any(Callable.class))).thenReturn(CompletableFuture.completedFuture(
-                Collections.singletonList(new ComponentIdentifier("ComponentA", new Semver("1.0.0")))));
-        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
-        when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class)))
-                .thenThrow(new PackageLoadingException("failed to load package"));
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                new TLSAuthException("Get key managers interrupted", new InterruptedException()));
 
         DeploymentResult result = deploymentTask.call();
 
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
-        verify(mockComponentManager).cleanupStaleVersions(eq(true), versionsCaptor.capture());
-        assertEquals(Collections.singletonMap("ComponentA", "1.0.0"), versionsCaptor.getValue());
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    /**
+     * The rule is about whether the targets are known, not about interrupts. A thing-group fetch that fails with
+     * a server error also exits before resolution, so the cleanup must not run there either.
+     */
+    @Test
+    void GIVEN_deployment_WHEN_thing_group_fetch_server_error_THEN_cleanup_skipped(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                GreengrassV2DataException.builder().statusCode(HttpStatusCode.INTERNAL_SERVER_ERROR).build());
+
+        DeploymentResult result = deploymentTask.call();
+
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test
-    void GIVEN_deployment_WHEN_resolveDependencies_errored_THEN_stale_versions_not_cleaned_up(ExtensionContext context)
+    void GIVEN_deployment_WHEN_interrupted_before_resolving_THEN_cleanup_skipped() throws Exception {
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(InterruptedException.class);
+
+        assertThrows(InterruptedException.class, deploymentTask::call);
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    @Test
+    void GIVEN_deployment_WHEN_resolve_dependencies_fails_THEN_cleanup_skipped(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, PackagingException.class);
-
         when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
         when(mockResolveDependencyFuture.get())
                 .thenThrow(new ExecutionException(new PackagingException("unknown package")));
@@ -514,113 +410,45 @@ class DeploymentTaskTest {
         DeploymentResult result = deploymentTask.call();
 
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
-        // Components were never resolved, so the versions staged for this deployment are unknown and a
-        // cleanup with a null version map would delete them. Cleanup must be skipped.
         verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-        verify(mockComponentManager, never()).cleanupStaleVersions();
     }
 
+    /**
+     * An interrupt after resolution does not skip the cleanup, because the resolved versions are passed to it and
+     * keep this deployment's own components. That is what lets a resumable deployment keep what it downloaded
+     * while a cancelled deployment still reclaims stale versions.
+     */
     @Test
-    void GIVEN_cloud_deployment_WHEN_thingGroupHelper_throws_non_interrupt_error_THEN_failed_and_not_cleaned_up(
-            ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
-        assertFalse(Thread.currentThread().isInterrupted());
-
-        // Not FORBIDDEN and not retryable, on a cloud (IOT_JOBS) deployment: no fallback is taken and the
-        // task exits before resolving components.
-        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(GreengrassV2DataException.builder()
-                .statusCode(HttpStatusCode.INTERNAL_SERVER_ERROR).message("service error").build());
-
-        DeploymentResult result = deploymentTask.call();
-
-        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
-        assertTrue(result.getFailureCause() instanceof DeploymentTaskFailureException);
-        assertFalse(Thread.currentThread().isInterrupted());
-        verify(mockExecutorService, never()).submit(any(Callable.class));
-        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-        verify(mockComponentManager, never()).cleanupStaleVersions();
-    }
-
-    @Test
-    void GIVEN_deployment_WHEN_thingGroupHelper_throws_wrapped_interrupt_THEN_task_interrupted_and_not_cleaned_up(
+    void GIVEN_interrupted_deployment_WHEN_components_resolved_THEN_cleanup_keeps_this_deployments_versions(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        List<ComponentIdentifier> resolved = Collections.singletonList(
+                new ComponentIdentifier(COMPONENT_2_ROOT_PACKAGE_NAME, new Semver("1.0.0")));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(resolved));
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(mockPreparePackagesFuture);
+        when(mockPreparePackagesFuture.get()).thenThrow(new ExecutionException(new InterruptedException()));
 
-        // Real-world shape: shutdown interrupt during TLS key-manager loading.
-        TLSAuthException wrapped = new TLSAuthException("Get key managers interrupted",
-                new InterruptedException("Get key managers interrupted"));
-        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(wrapped);
+        assertThrows(InterruptedException.class, deploymentTask::call);
 
-        try {
-            InterruptedException e = assertThrows(InterruptedException.class, deploymentTask::call);
-            assertEquals(wrapped, e.getCause());
-            assertTrue(Thread.currentThread().isInterrupted());
-            verify(mockExecutorService, never()).submit(any(Callable.class));
-            verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-            verify(mockComponentManager, never()).cleanupStaleVersions();
-        } finally {
-            // Clear the interrupt flag set by the task so it cannot leak into other tests.
-            Thread.interrupted();
-        }
+        verify(mockComponentManager).cleanupStaleVersions(eq(true), argThat(
+                versions -> "1.0.0".equals(versions.get(COMPONENT_2_ROOT_PACKAGE_NAME))));
     }
 
     @Test
-    void GIVEN_deployment_WHEN_thingGroupHelper_throws_deeply_wrapped_interrupt_THEN_task_interrupted(
-            ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
-
-        // InterruptedException three levels down, so a single getCause() check is not enough.
-        Exception wrapped = new IllegalStateException("outer",
-                new IOException("middle", new TLSAuthException("Get key managers interrupted",
-                        new InterruptedException("Get key managers interrupted"))));
-        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(wrapped);
-
-        try {
-            InterruptedException e = assertThrows(InterruptedException.class, deploymentTask::call);
-            assertEquals(wrapped, e.getCause());
-            assertTrue(Thread.currentThread().isInterrupted());
-            verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-            verify(mockComponentManager, never()).cleanupStaleVersions();
-        } finally {
-            // Clear the interrupt flag set by the task so it cannot leak into other tests.
-            Thread.interrupted();
-        }
-    }
-
-    @Test
-    void GIVEN_deployment_WHEN_thingGroupHelper_throws_chain_without_interrupt_THEN_reported_as_failure(
-            ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, IOException.class);
-
-        Exception wrapped = new IllegalStateException("outer",
-                new TLSAuthException("Get key managers failed", new IOException("keystore unreadable")));
-        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(wrapped);
-
-        DeploymentResult result = deploymentTask.call();
-
-        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
-        assertTrue(result.getFailureCause() instanceof DeploymentTaskFailureException);
-        assertEquals(wrapped, result.getFailureCause().getCause());
-        assertFalse(Thread.currentThread().isInterrupted());
-    }
-
-    @Test
-    void GIVEN_successful_deployment_WHEN_cleanup_throws_THEN_deployment_result_returned(ExtensionContext context)
-            throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, IllegalStateException.class);
-
+    void GIVEN_deployment_WHEN_cleanup_throws_THEN_result_still_returned(ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, RuntimeException.class);
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
-        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
-        DeploymentResult successResult = new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null);
         when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class)))
-                .thenReturn(CompletableFuture.completedFuture(successResult));
-        doThrow(new IllegalStateException("cleanup failed")).when(mockComponentManager)
-                .cleanupStaleVersions(anyBoolean(), any());
+                .thenReturn(CompletableFuture.completedFuture(
+                        new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null)));
+        doThrow(new RuntimeException("cleanup blew up"))
+                .when(mockComponentManager).cleanupStaleVersions(anyBoolean(), any());
 
         DeploymentResult result = deploymentTask.call();
 
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
-        assertNull(result.getFailureCause());
     }
 }

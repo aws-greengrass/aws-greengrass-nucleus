@@ -42,6 +42,7 @@ import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,6 +70,8 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
+import software.amazon.awssdk.http.HttpStatusCode;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
@@ -90,6 +93,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -115,6 +119,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -127,9 +132,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@SuppressWarnings("PMD.ExcessiveClassLength")
+@SuppressWarnings({"PMD.ExcessiveClassLength", "PMD.CouplingBetweenObjects"})
         // This test is essential and verified many details. Could be breakdown.
 class DeploymentTaskIntegrationTest extends BaseITCase {
 
@@ -1464,8 +1480,122 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
 
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    /**
+     * A shutdown interrupt during the thing-group fetch can surface wrapped in another exception, for example
+     * TLSAuthException from key-manager loading. The task exits before resolution, so the cleanup has no way to know
+     * which versions this deployment targets and must not run.
+     */
+    @Test
+    @Order(106)
+    void GIVEN_preloaded_target_WHEN_wrapped_interrupt_before_resolving_THEN_target_not_deleted(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        ComponentIdentifier target = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ThingGroupHelper failingHelper = mock(ThingGroupHelper.class);
+        when(failingHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                new TLSAuthException("Get key managers interrupted", new InterruptedException()));
+        ComponentManager spiedComponentManager = spy(componentManager);
+
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis(), failingHelper, spiedComponentManager);
+
+        // the task exits before resolution, so the targets are unknown and the cleanup must not run
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                result.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+        verify(spiedComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+        assertRecipeArtifactExists(target);
+    }
+
+    /**
+     * Same early exit reached by a plain InterruptedException from the thing-group fetch.
+     */
+    @Test
+    @Order(107)
+    void GIVEN_preloaded_target_WHEN_interrupted_before_resolving_THEN_target_not_deleted(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        ComponentIdentifier target = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ThingGroupHelper failingHelper = mock(ThingGroupHelper.class);
+        when(failingHelper.listThingGroupsForDevice(anyInt())).thenThrow(new InterruptedException());
+        ComponentManager spiedComponentManager = spy(componentManager);
+
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis(), failingHelper, spiedComponentManager);
+
+        ExecutionException thrown =
+                assertThrows(ExecutionException.class, () -> result.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS));
+        assertThat(thrown.getCause(), instanceOf(InterruptedException.class));
+        verify(spiedComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+        assertRecipeArtifactExists(target);
+    }
+
+    /**
+     * The early-exit rule is about whether the targets are known, not about interrupts. A thing-group fetch that
+     * fails with a server error also exits before resolution, so the cleanup must not run there either.
+     */
+    @Test
+    @Order(108)
+    void GIVEN_preloaded_target_WHEN_non_interrupt_failure_before_resolving_THEN_target_not_deleted(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
+        ComponentIdentifier target = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ThingGroupHelper failingHelper = mock(ThingGroupHelper.class);
+        when(failingHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                GreengrassV2DataException.builder().statusCode(HttpStatusCode.INTERNAL_SERVER_ERROR).build());
+        ComponentManager spiedComponentManager = spy(componentManager);
+
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis(), failingHelper, spiedComponentManager);
+
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                result.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS).getDeploymentStatus());
+        verify(spiedComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+        assertRecipeArtifactExists(target);
+    }
+
+    /**
+     * An interrupt can also arrive after resolution. The targets are known by then, so the cleanup still runs and
+     * reclaims stale versions, and the resolved versions passed to it keep this deployment's own components. That
+     * is what lets a resumable deployment keep what it downloaded without skipping cleanup on every interrupt.
+     */
+    @Test
+    @Order(109)
+    void GIVEN_resolved_deployment_WHEN_interrupted_preparing_packages_THEN_own_artifacts_kept(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        ComponentIdentifier target = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ComponentManager spiedComponentManager = spy(componentManager);
+        CompletableFuture<Void> interruptedDownload = new CompletableFuture<>();
+        interruptedDownload.completeExceptionally(new InterruptedException("Artifact download interrupted"));
+        doReturn(interruptedDownload).when(spiedComponentManager).preparePackages(anyList());
+
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis(), thingGroupHelper, spiedComponentManager);
+
+        ExecutionException thrown =
+                assertThrows(ExecutionException.class, () -> result.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS));
+        assertThat(thrown.getCause(), instanceOf(InterruptedException.class));
+        verify(spiedComponentManager).preparePackages(anyList());
+        // cleanup runs, and the resolved keep map is what preserves this deployment's target
+        verify(spiedComponentManager).cleanupStaleVersions(eq(true), any());
+        assertRecipeArtifactExists(target);
+    }
+
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
+        return submitSampleJobDocument(uri, timestamp, thingGroupHelper, componentManager);
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp, ThingGroupHelper helper,
+                                                             ComponentManager compManager) throws Exception {
         kernel.getContext().get(DeploymentDirectoryManager.class)
                 .createNewDeploymentDirectory("testFleetConfigArn" + deploymentCount.getAndIncrement());
 
@@ -1473,10 +1603,10 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         sampleJobDocument.setTimestamp(timestamp);
         sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
         DefaultDeploymentTask deploymentTask =
-                new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
+                new DefaultDeploymentTask(dependencyResolver, compManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper, kernel.getContext().get(DeviceConfiguration.class));
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, helper, kernel.getContext().get(DeviceConfiguration.class));
         return executorService.submit(deploymentTask);
     }
 }

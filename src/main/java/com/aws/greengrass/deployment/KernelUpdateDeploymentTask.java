@@ -77,14 +77,8 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         DeploymentResult result;
         try {
             result = deploymentResultCompletableFuture.get();
-        } catch (InterruptedException | CancellationException e) {
+        } catch (InterruptedException | ExecutionException | CancellationException e) {
             // nothing to report when deployment is cancelled
-            // Interrupted or cancelled — skip cleanup to preserve in-progress artifacts.
-            logger.atDebug().setCause(e)
-                    .log("Deployment interrupted or cancelled; skipping stale artifact cleanup");
-            return null;
-        } catch (ExecutionException e) {
-            // Deployment failed; reclaim stale versions.
             componentManager.cleanupStaleVersions();
             return null;
         }

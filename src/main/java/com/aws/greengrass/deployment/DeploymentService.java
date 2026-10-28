@@ -400,7 +400,7 @@ public class DeploymentService extends GreengrassService {
             }
         } catch (ExecutionException e) {
             Throwable t = e.getCause();
-            if (Utils.hasCause(t, InterruptedException.class)) {
+            if (t instanceof InterruptedException) {
                 logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                         .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                         .log("Deployment task is interrupted");
