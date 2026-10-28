@@ -12,6 +12,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,15 +29,20 @@ import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.SdkHttpResponse;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
@@ -119,14 +125,44 @@ class GreengrassServiceClientFactoryTest {
     @Test
     void GIVEN_building_the_client_fails_once_WHEN_sdk_call_THEN_sdk_retries_it_on_a_new_client() {
         nextBuildFailure.set(new TLSAuthException("Failed to get trust manager"));
-        try (GreengrassV2DataClient sdkClient = GreengrassV2DataClient.builder().httpClient(client)
-                .credentialsProvider(AnonymousCredentialsProvider.create()).region(Region.US_EAST_1)
-                .endpointOverride(URI.create("https://localhost"))
-                .overrideConfiguration(c -> c.retryPolicy(RetryMode.STANDARD)).build()) {
+        try (GreengrassV2DataClient sdkClient = sdkClient(client, URI.create("https://localhost"))) {
             sdkClient.listThingGroupsForCoreDevice(r -> r.coreDeviceThingName("thing"));
         }
 
         assertEquals(1, built.size());
+    }
+
+    @Test
+    void GIVEN_apache_client_retired_after_request_is_prepared_WHEN_sdk_call_THEN_sdk_retries_it_on_a_new_client()
+            throws IOException {
+        AtomicInteger serverRequests = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            serverRequests.incrementAndGet();
+            byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+        server.start();
+        AtomicInteger builds = new AtomicInteger();
+        AtomicReference<GreengrassServiceClientFactory.SwappableHttpClient> apache = new AtomicReference<>();
+        apache.set(new GreengrassServiceClientFactory.SwappableHttpClient(() -> builds.incrementAndGet() == 1
+                ? new RetiredBeforeCallHttpClient(ApacheHttpClient.create(), () -> apache.get().retire())
+                : ApacheHttpClient.create()));
+        URI endpoint = URI.create("http://localhost:" + server.getAddress().getPort());
+
+        try (GreengrassV2DataClient sdkClient = sdkClient(apache.get(), endpoint)) {
+            sdkClient.listThingGroupsForCoreDevice(r -> r.coreDeviceThingName("thing"));
+        } finally {
+            apache.get().close();
+            server.stop(0);
+        }
+
+        assertEquals(2, builds.get());
+        assertEquals(1, serverRequests.get());
     }
 
     @Test
@@ -176,6 +212,12 @@ class GreengrassServiceClientFactoryTest {
         return listener.getValue();
     }
 
+    private static GreengrassV2DataClient sdkClient(SdkHttpClient httpClient, URI endpoint) {
+        return GreengrassV2DataClient.builder().httpClient(httpClient)
+                .credentialsProvider(AnonymousCredentialsProvider.create()).region(Region.US_EAST_1)
+                .endpointOverride(endpoint).overrideConfiguration(c -> c.retryPolicy(RetryMode.STANDARD)).build();
+    }
+
     private static HttpExecuteRequest request() {
         return HttpExecuteRequest.builder().request(SdkHttpRequest.builder().method(SdkHttpMethod.GET)
                 .uri(URI.create("https://localhost")).build()).build();
@@ -183,6 +225,42 @@ class GreengrassServiceClientFactoryTest {
 
     private static String servedBy(HttpExecuteResponse response) {
         return response.httpResponse().firstMatchingHeader(SERVED_BY).orElse(null);
+    }
+
+    /**
+     * A real Apache client whose first prepared request runs {@code beforeCall} first, so a retire lands between
+     * prepareRequest and the connection lease.
+     */
+    private static class RetiredBeforeCallHttpClient implements SdkHttpClient {
+        private final SdkHttpClient delegate;
+        private final Runnable beforeCall;
+
+        RetiredBeforeCallHttpClient(SdkHttpClient delegate, Runnable beforeCall) {
+            this.delegate = delegate;
+            this.beforeCall = beforeCall;
+        }
+
+        @Override
+        public ExecutableHttpRequest prepareRequest(HttpExecuteRequest request) {
+            ExecutableHttpRequest prepared = delegate.prepareRequest(request);
+            return new ExecutableHttpRequest() {
+                @Override
+                public HttpExecuteResponse call() throws IOException {
+                    beforeCall.run();
+                    return prepared.call();
+                }
+
+                @Override
+                public void abort() {
+                    prepared.abort();
+                }
+            };
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
     private class FakeHttpClient implements SdkHttpClient {
