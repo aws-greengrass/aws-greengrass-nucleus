@@ -212,8 +212,8 @@ class ThingGroupFetchDuringCertChangeTest {
 
     /**
      * Applies a root CA path change right after handing out the first client, before its request leases a
-     * connection. That is the order seen on a device: the client was built, the request started, the provisioning
-     * plugin wrote rootCaPath, and the request failed.
+     * connection. That is the order seen on a device: the deployment task got the client, a device config write
+     * closed it, and the request then went out on the closed client and failed.
      */
     private class CertChangeOnFirstFetchClientFactory extends GreengrassServiceClientFactory {
         private final AtomicBoolean changed = new AtomicBoolean();
