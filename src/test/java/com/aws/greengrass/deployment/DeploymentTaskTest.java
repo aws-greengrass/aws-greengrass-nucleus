@@ -182,6 +182,8 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_thingGroupHelper_interrupted_THEN_deployment_task_interrupted() throws Exception {
         when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(InterruptedException.class);
         assertThrows(InterruptedException.class, deploymentTask::call);
+        // exited before resolution, so the targets are unknown and the cleanup must not run
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test
@@ -199,6 +201,8 @@ class DeploymentTaskTest {
         verify(mockComponentManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
+        // exited before resolution, so the targets are unknown and the cleanup must not run
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test
@@ -232,6 +236,8 @@ class DeploymentTaskTest {
         verify(mockComponentManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
+        // exited before resolution, so the targets are unknown and the cleanup must not run
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test
@@ -384,28 +390,6 @@ class DeploymentTaskTest {
         ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
         when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(
                 GreengrassV2DataException.builder().statusCode(HttpStatusCode.INTERNAL_SERVER_ERROR).build());
-
-        DeploymentResult result = deploymentTask.call();
-
-        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
-        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-    }
-
-    @Test
-    void GIVEN_deployment_WHEN_interrupted_before_resolving_THEN_cleanup_skipped() throws Exception {
-        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(InterruptedException.class);
-
-        assertThrows(InterruptedException.class, deploymentTask::call);
-        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
-    }
-
-    @Test
-    void GIVEN_deployment_WHEN_resolve_dependencies_fails_THEN_cleanup_skipped(ExtensionContext context)
-            throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, PackagingException.class);
-        when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
-        when(mockResolveDependencyFuture.get())
-                .thenThrow(new ExecutionException(new PackagingException("unknown package")));
 
         DeploymentResult result = deploymentTask.call();
 
