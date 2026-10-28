@@ -36,12 +36,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.utils.ImmutableMap;
 
@@ -67,14 +65,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
-import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -85,9 +82,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * A device config change to the root CA, certificate or key path closes the cached HTTP client of
- * {@link GreengrassServiceClientFactory}. Fleet provisioning makes these changes while a deployment may already be
- * calling ListThingGroupsForCoreDevice on that client.
+ * Regression test for the fleet provisioning race. A device config change to the root CA, certificate or key path
+ * closes the HTTP client of {@link GreengrassServiceClientFactory}. Fleet provisioning makes these changes while a
+ * deployment may already be calling ListThingGroupsForCoreDevice on that client.
  */
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class ThingGroupFetchDuringCertChangeTest {
@@ -114,6 +111,10 @@ class ThingGroupFetchDuringCertChangeTest {
     private Context context;
     private HttpsServer server;
     private final AtomicInteger thingGroupRequests = new AtomicInteger();
+    private final AtomicReference<Runnable> onFirstThingGroupRequest = new AtomicReference<>(() -> {
+    });
+    private CountingClientFactory clientFactory;
+    private Runnable certChange;
     private ExecutorService executor;
     private Topics deploymentServiceConfig;
     private ThingGroupHelper thingGroupHelper;
@@ -128,8 +129,6 @@ class ThingGroupFetchDuringCertChangeTest {
                 .thenReturn(Topic.of(context, "environmentStage", "prod"));
         lenient().when(deviceConfiguration.getGGDataEndpoint()).thenReturn(
                 Topic.of(context, "greengrassDataPlaneEndpoint", "https://localhost:" + server.getAddress().getPort()));
-        lenient().when(deviceConfiguration.getGreengrassDataPlanePort())
-                .thenReturn(Topic.of(context, "greengrassDataPlanePort", 8443));
         lenient().when(deviceConfiguration.getAWSRegion())
                 .thenReturn(Topic.of(context, "awsRegion", "us-east-1"));
         lenient().when(deviceConfiguration.getRootCAFilePath())
@@ -138,7 +137,11 @@ class ThingGroupFetchDuringCertChangeTest {
                 .thenReturn(Topic.of(context, "thingName", THING_NAME));
         when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
 
-        GreengrassServiceClientFactory clientFactory = new CertChangeOnFirstFetchClientFactory(deviceConfiguration);
+        clientFactory = new CountingClientFactory(deviceConfiguration);
+        ArgumentCaptor<ChildChanged> configListener = ArgumentCaptor.forClass(ChildChanged.class);
+        verify(deviceConfiguration).onAnyChange(configListener.capture());
+        certChange = () -> configListener.getValue()
+                .childChanged(WhatHappened.childChanged, deviceConfiguration.getRootCAFilePath());
         thingGroupHelper = new ThingGroupHelper(clientFactory, deviceConfiguration);
         thingGroupHelper.setClientExceptionRetryConfig(thingGroupHelper.getClientExceptionRetryConfig().toBuilder()
                 .initialRetryInterval(Duration.ZERO).maxRetryInterval(Duration.ZERO).build());
@@ -165,24 +168,38 @@ class ThingGroupFetchDuringCertChangeTest {
     }
 
     @Test
-    void GIVEN_cloud_deployment_WHEN_cert_change_closes_client_during_thing_group_call_THEN_call_retried_and_deployment_succeeds(
-            ExtensionContext extensionContext) throws Exception {
-        ignoreExceptionOfType(extensionContext, SdkClientException.class);
-        DeploymentDocument document = DeploymentDocument.builder().deploymentId("cloudDeployment")
-                .timestamp(System.currentTimeMillis()).groupName("thinggroup/target").build();
+    void GIVEN_cloud_deployment_WHEN_cert_change_after_fetch_THEN_request_uses_new_client_without_refetch()
+            throws Exception {
+        clientFactory.afterFirstFetch = certChange;
+        DeploymentDocument document = cloudDeployment();
 
         DeploymentResult result = runDeployment(document, Deployment.DeploymentType.IOT_JOBS);
 
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
         assertEquals(1, thingGroupRequests.get());
+        assertEquals(1, clientFactory.fetches.get());
         verify(dependencyResolver).resolveDependencies(eq(document),
                 eq(rootPackages(CLOUD_GROUP, "CloudGroupComponent")));
     }
 
     @Test
-    void GIVEN_local_deployment_WHEN_cert_change_closes_client_during_thing_group_call_THEN_saved_groups_used_and_deployment_succeeds(
-            ExtensionContext extensionContext) throws Exception {
-        ignoreExceptionOfType(extensionContext, SdkClientException.class);
+    void GIVEN_cloud_deployment_WHEN_cert_change_during_request_THEN_sdk_retry_succeeds_without_refetch()
+            throws Exception {
+        onFirstThingGroupRequest.set(certChange);
+        DeploymentDocument document = cloudDeployment();
+
+        DeploymentResult result = runDeployment(document, Deployment.DeploymentType.IOT_JOBS);
+
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
+        assertEquals(2, thingGroupRequests.get());
+        assertEquals(1, clientFactory.fetches.get());
+        verify(dependencyResolver).resolveDependencies(eq(document),
+                eq(rootPackages(CLOUD_GROUP, "CloudGroupComponent")));
+    }
+
+    @Test
+    void GIVEN_local_deployment_WHEN_cert_change_after_fetch_THEN_cloud_groups_used() throws Exception {
+        clientFactory.afterFirstFetch = certChange;
         DeploymentDocument document = DeploymentDocument.builder().deploymentId("localDeployment")
                 .timestamp(System.currentTimeMillis())
                 .groupName(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME).build();
@@ -190,9 +207,13 @@ class ThingGroupFetchDuringCertChangeTest {
         DeploymentResult result = runDeployment(document, Deployment.DeploymentType.LOCAL);
 
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
-        Map<String, Set<ComponentRequirementIdentifier>> expected = rootPackages(CLOUD_GROUP, "CloudGroupComponent");
-        expected.putAll(rootPackages(SAVED_GROUP, "SavedGroupComponent"));
-        verify(dependencyResolver).resolveDependencies(eq(document), eq(expected));
+        verify(dependencyResolver).resolveDependencies(eq(document),
+                eq(rootPackages(CLOUD_GROUP, "CloudGroupComponent")));
+    }
+
+    private static DeploymentDocument cloudDeployment() {
+        return DeploymentDocument.builder().deploymentId("cloudDeployment")
+                .timestamp(System.currentTimeMillis()).groupName("thinggroup/target").build();
     }
 
     private DeploymentResult runDeployment(DeploymentDocument document, Deployment.DeploymentType type)
@@ -211,28 +232,25 @@ class ThingGroupFetchDuringCertChangeTest {
     }
 
     /**
-     * Applies a root CA path change right after handing out the first client, before its request leases a
-     * connection. That is the order seen on a device: the deployment task got the client, a device config write
-     * closed it, and the request then went out on the closed client and failed.
+     * Counts client fetches, and can run a config change right after handing out the first client, before its
+     * request leases a connection. That is the order seen on a device: the deployment task got the client, a device
+     * config write closed it, and the request then went out on the closed client.
      */
-    private static class CertChangeOnFirstFetchClientFactory extends GreengrassServiceClientFactory {
-        private final AtomicBoolean changed = new AtomicBoolean();
-        private final ChildChanged configListener;
+    private static class CountingClientFactory extends GreengrassServiceClientFactory {
+        private final AtomicInteger fetches = new AtomicInteger();
+        private Runnable afterFirstFetch = () -> {
+        };
 
-        CertChangeOnFirstFetchClientFactory(DeviceConfiguration deviceConfiguration) {
+        CountingClientFactory(DeviceConfiguration deviceConfiguration) {
             super(deviceConfiguration);
-            ArgumentCaptor<ChildChanged> listener = ArgumentCaptor.forClass(ChildChanged.class);
-            verify(deviceConfiguration).onAnyChange(listener.capture());
-            configListener = listener.getValue();
         }
 
         @Override
         public GreengrassV2DataClient fetchGreengrassV2DataClient()
                 throws DeviceConfigurationException, TLSAuthException {
             GreengrassV2DataClient client = super.fetchGreengrassV2DataClient();
-            if (changed.compareAndSet(false, true)) {
-                Topic rootCaPath = getDeviceConfiguration().getRootCAFilePath();
-                configListener.childChanged(WhatHappened.childChanged, rootCaPath);
+            if (fetches.incrementAndGet() == 1) {
+                afterFirstFetch.run();
             }
             return client;
         }
@@ -263,7 +281,9 @@ class ThingGroupFetchDuringCertChangeTest {
         server = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.setHttpsConfigurator(new HttpsConfigurator(sslContext));
         server.createContext("/greengrass/v2/coreDevices/" + THING_NAME + "/thingGroups", exchange -> {
-            thingGroupRequests.incrementAndGet();
+            if (thingGroupRequests.incrementAndGet() == 1) {
+                onFirstThingGroupRequest.get().run();
+            }
             byte[] body = "{\"thingGroups\":[{\"thingGroupName\":\"fromCloud\",\"rootToParentThingGroups\":[]}]}"
                     .getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
