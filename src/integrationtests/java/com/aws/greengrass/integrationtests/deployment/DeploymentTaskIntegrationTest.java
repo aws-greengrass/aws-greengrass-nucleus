@@ -136,7 +136,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -1586,6 +1588,40 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         verify(spiedComponentManager).preparePackages(anyList());
         // cleanup runs, and the resolved keep map is what preserves this deployment's target
         verify(spiedComponentManager).cleanupStaleVersions(eq(true), any());
+        assertRecipeArtifactExists(target);
+    }
+
+    /**
+     * The same window one step later: the artifacts have actually landed on disk and the interrupt arrives after
+     * the download completed. The cleanup still runs, and the resolved versions passed to it keep the artifacts
+     * this deployment just downloaded.
+     */
+    @Test
+    @Order(110)
+    void GIVEN_deployment_WHEN_interrupted_after_artifacts_downloaded_THEN_artifacts_kept(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        ComponentIdentifier target = new ComponentIdentifier(BREAKING_APP_NAME, new Semver("1.0.0"));
+        ComponentManager spiedComponentManager = spy(componentManager);
+        // let the real download finish, then surface an interrupt at the get() that follows it
+        doAnswer(invocation -> {
+            ((Future<Void>) invocation.callRealMethod()).get();
+            CompletableFuture<Void> interrupted = new CompletableFuture<>();
+            interrupted.completeExceptionally(new InterruptedException("interrupted after download"));
+            return interrupted;
+        }).when(spiedComponentManager).preparePackages(anyList());
+
+        preloadLocalStoreContent(BREAKING_APP_NAME, "1.0.0");
+        Future<DeploymentResult> result = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("BreakingAppJobDoc1.json").toURI(),
+                System.currentTimeMillis(), thingGroupHelper, spiedComponentManager);
+
+        ExecutionException thrown =
+                assertThrows(ExecutionException.class, () -> result.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS));
+        assertThat(thrown.getCause(), instanceOf(InterruptedException.class));
+        // the resolved versions reach the cleanup, which is what spares the downloaded artifacts
+        verify(spiedComponentManager).cleanupStaleVersions(eq(true),
+                argThat(versions -> "1.0.0".equals(versions.get(BREAKING_APP_NAME))));
         assertRecipeArtifactExists(target);
     }
 

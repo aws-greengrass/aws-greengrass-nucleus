@@ -38,6 +38,7 @@ import software.amazon.awssdk.utils.ImmutableMap;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -50,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -394,6 +396,32 @@ class DeploymentTaskTest {
         DeploymentResult result = deploymentTask.call();
 
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    /**
+     * A cancel reaches the task the same way a shutdown does, through an interrupt on the task thread. When it
+     * lands before resolution the targets are unknown, so the cleanup must not run even though a cancelled
+     * deployment is otherwise expected to clean up.
+     */
+    @Test
+    void GIVEN_deployment_cancelled_before_resolving_WHEN_call_THEN_cleanup_skipped() throws Exception {
+        CountDownLatch fetchStarted = new CountDownLatch(1);
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenAnswer(invocation -> {
+            fetchStarted.countDown();
+            Thread.sleep(10_000);
+            return Optional.empty();
+        });
+
+        FutureTask<DeploymentResult> futureTask = new FutureTask<>(deploymentTask);
+        Thread t = new Thread(futureTask);
+        t.start();
+        assertTrue(fetchStarted.await(5, TimeUnit.SECONDS));
+        // the same mechanism DeploymentService uses to cancel a deployment
+        futureTask.cancel(true);
+
+        t.join(5000);
+        assertFalse(t.isAlive());
         verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
