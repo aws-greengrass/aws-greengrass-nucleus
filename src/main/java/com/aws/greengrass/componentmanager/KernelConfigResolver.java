@@ -739,7 +739,7 @@ public class KernelConfigResolver {
             Topic existingPrevVersionTopic =
                     kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, compId.getName(), PREV_VERSION_CONFIG_KEY);
             if (existingPrevVersionTopic != null) {
-                String existingPrevVersion = (String) existingVersionTopic.getOnce();
+                String existingPrevVersion = (String) existingPrevVersionTopic.getOnce();
                 newConfig.put(PREV_VERSION_CONFIG_KEY, existingPrevVersion);
             }
         } else {
