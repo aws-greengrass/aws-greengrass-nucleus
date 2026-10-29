@@ -14,8 +14,10 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.spool.CloudMessageSpool;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
+import com.aws.greengrass.mqttclient.spool.SpoolMessageMetadata;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.QOS;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -213,6 +215,7 @@ class InMemorySpoolTest {
         SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
 
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllMessageMetadata()).thenReturn(null);
         lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
         lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
         lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
@@ -221,6 +224,136 @@ class InMemorySpoolTest {
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         spool = new Spool(deviceConfiguration, kernel);
         assertEquals(3, spool.getCurrentMessageCount());
+    }
+
+    @Test
+    void GIVEN_spooler_supports_message_metadata_WHEN_setup_spooler_THEN_sync_without_loading_messages()
+            throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
+        CloudMessageSpool persistenceSpool = mockPersistenceSpool(Arrays.asList(
+                new SpoolMessageMetadata(0L, 5L, QOS.AT_LEAST_ONCE),
+                new SpoolMessageMetadata(1L, 5L, QOS.AT_LEAST_ONCE),
+                new SpoolMessageMetadata(2L, 5L, QOS.AT_LEAST_ONCE)));
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        spool = new Spool(deviceConfiguration, kernel);
+
+        assertEquals(3, spool.getCurrentMessageCount());
+        assertEquals(15L, spool.getCurrentSpoolerSize());
+        verify(persistenceSpool, never()).getAllMessageIds();
+        verify(persistenceSpool, never()).getMessageById(anyLong());
+
+        SpoolMessage addedMessage = spool.addMessage(request);
+        assertEquals(3L, addedMessage.getId());
+    }
+
+    @Test
+    void GIVEN_message_metadata_without_qos_0_WHEN_pop_out_qos_0_messages_THEN_persisted_messages_not_loaded()
+            throws ServiceLoadException, IOException {
+        CloudMessageSpool persistenceSpool = mockPersistenceSpool(Arrays.asList(
+                new SpoolMessageMetadata(0L, 5L, QOS.AT_LEAST_ONCE),
+                new SpoolMessageMetadata(1L, 5L, QOS.EXACTLY_ONCE)));
+
+        spool = new Spool(deviceConfiguration, kernel);
+        spool.popOutMessagesWithQosZero();
+
+        assertEquals(2, spool.getCurrentMessageCount());
+        verify(persistenceSpool, never()).getMessageById(anyLong());
+    }
+
+    @Test
+    void GIVEN_message_metadata_with_qos_0_WHEN_pop_out_qos_0_messages_THEN_qos_0_messages_removed()
+            throws ServiceLoadException, IOException {
+        CloudMessageSpool persistenceSpool = mockPersistenceSpool(Arrays.asList(
+                new SpoolMessageMetadata(0L, 5L, QOS.AT_MOST_ONCE),
+                new SpoolMessageMetadata(1L, 5L, QOS.AT_LEAST_ONCE)));
+        Publish qos0Request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
+        Publish qos1Request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        lenient().when(persistenceSpool.getMessageById(0L))
+                .thenReturn(SpoolMessage.builder().id(0L).request(qos0Request).build());
+        lenient().when(persistenceSpool.getMessageById(1L))
+                .thenReturn(SpoolMessage.builder().id(1L).request(qos1Request).build());
+
+        spool = new Spool(deviceConfiguration, kernel);
+        spool.popOutMessagesWithQosZero();
+
+        verify(persistenceSpool).removeMessageById(0L);
+        verify(persistenceSpool, never()).removeMessageById(1L);
+        assertEquals(5L, spool.getCurrentSpoolerSize());
+    }
+
+    @Test
+    void GIVEN_message_metadata_exceeds_spool_size_WHEN_setup_spooler_THEN_new_ids_do_not_reuse_persisted_ids(
+            ExtensionContext context)
+            throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
+        ignoreExceptionOfType(context, SpoolerStoreException.class);
+        // spool size is 25 bytes, so only the first 2 messages fit
+        mockPersistenceSpool(Arrays.asList(
+                new SpoolMessageMetadata(5L, 10L, QOS.AT_LEAST_ONCE),
+                new SpoolMessageMetadata(6L, 10L, QOS.AT_LEAST_ONCE),
+                new SpoolMessageMetadata(7L, 10L, QOS.AT_LEAST_ONCE)));
+        Publish request = PublishRequest.builder().topic("spool").payload(new byte[0])
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        spool = new Spool(deviceConfiguration, kernel);
+
+        assertEquals(2, spool.getCurrentMessageCount());
+        assertEquals(8L, spool.addMessage(request).getId());
+    }
+
+    @Test
+    void GIVEN_persisted_messages_exceed_spool_size_WHEN_setup_spooler_without_metadata_THEN_new_ids_do_not_reuse_persisted_ids(
+            ExtensionContext context)
+            throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
+        ignoreExceptionOfType(context, SpoolerStoreException.class);
+        CloudMessageSpool persistenceSpool = mockPersistenceSpool(null);
+        Publish persistedRequest = PublishRequest.builder().topic("spool").payload(new byte[10])
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(Arrays.asList(5L, 6L, 7L));
+        for (long id = 5L; id <= 7L; id++) {
+            lenient().when(persistenceSpool.getMessageById(id))
+                    .thenReturn(SpoolMessage.builder().id(id).request(persistedRequest).build());
+        }
+        Publish request = PublishRequest.builder().topic("spool").payload(new byte[0])
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        spool = new Spool(deviceConfiguration, kernel);
+
+        assertEquals(2, spool.getCurrentMessageCount());
+        assertEquals(8L, spool.addMessage(request).getId());
+    }
+
+    @Test
+    void GIVEN_message_metadata_with_null_last_element_WHEN_setup_spooler_THEN_new_ids_do_not_reuse_persisted_ids(
+            ExtensionContext context)
+            throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
+        ignoreExceptionOfType(context, SpoolerStoreException.class);
+        CloudMessageSpool persistenceSpool = mockPersistenceSpool(Arrays.asList(
+                new SpoolMessageMetadata(0L, 5L, QOS.AT_LEAST_ONCE),
+                new SpoolMessageMetadata(5L, 5L, QOS.AT_LEAST_ONCE), null));
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        spool = new Spool(deviceConfiguration, kernel);
+
+        assertEquals(2, spool.getCurrentMessageCount());
+        verify(persistenceSpool, never()).getAllMessageIds();
+        verify(persistenceSpool, never()).getMessageById(anyLong());
+        assertEquals(6L, spool.addMessage(request).getId());
+    }
+
+    private CloudMessageSpool mockPersistenceSpool(List<SpoolMessageMetadata> metadata)
+            throws ServiceLoadException, IOException {
+        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class,
+                withSettings().extraInterfaces(CloudMessageSpool.class));
+        CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
+        lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllMessageMetadata()).thenReturn(metadata);
+        lenient().doNothing().when(persistenceSpool).add(anyLong(), any(SpoolMessage.class));
+        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
+        return persistenceSpool;
     }
 
     @Test
@@ -233,6 +366,7 @@ class InMemorySpoolTest {
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllMessageMetadata()).thenReturn(null);
         lenient().when(persistenceSpool.getAllMessageIds()).thenThrow(new IOException("Get all message IDs failed for Disk Spooler"));
 
         spool = new Spool(deviceConfiguration, kernel);
@@ -255,6 +389,7 @@ class InMemorySpoolTest {
         SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
 
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllMessageMetadata()).thenReturn(null);
         lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
         lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
         lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
