@@ -408,9 +408,10 @@ class EventFleetStatusServiceTest extends BaseITCase {
             fleetStatusDetailsList.get().clear();
             submitLocalDocument(request);
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(1, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(0);
-            // Get the last FSS publish request which should have component info of simpleApp v1 and other built in services
+            // Get this deployment's FSS publish request, which should have component info of simpleApp v1 and other
+            // built in services. A launch message which FSS had not published yet when the list was cleared can also
+            // land here, so select by deployment id rather than by position.
+            FleetStatusDetails fleetStatusDetails = lastStatusForDeployment(fleetStatusDetailsList.get(), "SimpleApp1");
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(PARTIAL, fleetStatusDetails.getMessageType());
@@ -418,18 +419,21 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals(0, fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents().size());
             assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentDetails().size());
-            fleetStatusDetails.getComponentDetails().forEach(componentStatusDetails -> {
-                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
-                if (componentStatusDetails.getComponentName().equals("SimpleApp")) {
-                    assertEquals("1.0.0", componentStatusDetails.getVersion());
-                    assertEquals(State.FINISHED, componentStatusDetails.getState());
-                    assertTrue(componentStatusDetails.isRoot());
+            // FSS reports the services which changed state since its last publish, so a service which changes state
+            // after this message is published is reported in a later message. Assert on the component this deployment
+            // added rather than requiring this one message to cover every state change the deployment caused.
+            ComponentDetails simpleApp = null;
+            for (ComponentDetails componentStatusDetails : fleetStatusDetails.getComponentDetails()) {
+                if ("SimpleApp".equals(componentStatusDetails.getComponentName())) {
+                    simpleApp = componentStatusDetails;
                 } else {
                     assertFalse(componentStatusDetails.isRoot());
                 }
-            });
-            assertEquals(0, componentNamesToCheck.size());
+            }
+            assertNotNull(simpleApp, "SimpleApp was not reported in the deployment status update");
+            assertEquals("1.0.0", simpleApp.getVersion());
+            assertEquals(State.FINISHED, simpleApp.getState());
+            assertTrue(simpleApp.isRoot());
         }
     }
 
@@ -590,11 +594,13 @@ class EventFleetStatusServiceTest extends BaseITCase {
             submitLocalDocument(secondRequest);
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(3, fleetStatusDetailsList.get().size());
 
-            // Get the last FSS publish request which should have no new component info, since no component statuses have
-            // changed
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(2);
+            // Nucleus launch publishes a variable number of component-status-change messages, depending on how FSS
+            // batches the launch state changes, so look the second deployment's message up by its deployment id
+            // instead of by position in the list.
+            // It should have no new component info, since no component statuses have changed.
+            FleetStatusDetails fleetStatusDetails =
+                    lastStatusForDeployment(fleetStatusDetailsList.get(), "SimpleApp1-2");
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(Trigger.LOCAL_DEPLOYMENT, fleetStatusDetails.getTrigger());
@@ -825,6 +831,18 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 (DeploymentQueue) kernel.getContext().getvIfExists(DeploymentQueue.class).get();
         Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(request), DeploymentType.LOCAL, request.getRequestId());
         deploymentQueue.offer(deployment);
+    }
+
+    private FleetStatusDetails lastStatusForDeployment(List<FleetStatusDetails> statuses, String deploymentId) {
+        FleetStatusDetails found = null;
+        for (FleetStatusDetails status : statuses) {
+            if (status.getDeploymentInformation() != null
+                    && deploymentId.equals(status.getDeploymentInformation().getDeploymentId())) {
+                found = status;
+            }
+        }
+        assertNotNull(found, "No FSS status update was published for deployment " + deploymentId);
+        return found;
     }
 
     private void assertListEquals(List<String> first, List<String> second) {

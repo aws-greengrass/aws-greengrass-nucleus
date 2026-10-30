@@ -86,8 +86,11 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
             if (!expectedStateTransitions.isEmpty()) {
                 ExpectedStateTransition expected = expectedStateTransitions.peek();
 
-                if (service.getName().equals(expected.serviceName) && oldState.equals(expected.was) && newState
-                        .equals(expected.current)) {
+                // A null "was" matches whichever state the service transitioned from, for transitions which can be
+                // reached by more than one path
+                if (service.getName().equals(expected.serviceName)
+                        && (expected.was == null || oldState.equals(expected.was))
+                        && newState.equals(expected.current)) {
                     logger.atWarn().kv("expected", expected).log("Just saw expected state event for service");
                     expectedStateTransitions.pollFirst();
                 }
@@ -167,7 +170,10 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                         new ExpectedStateTransition(HardDependency, State.STARTING, State.RUNNING),
                         new ExpectedStateTransition(CustomerApp, State.INSTALLED, State.STARTING),
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING),
-                        new ExpectedStateTransition("main", State.STOPPING, State.FINISHED)));
+                        // main finishing is the launch completing. It has no run script, so it can report FINISHED
+                        // straight from STARTING, or go through STOPPING first if the lifecycle reports STOPPING
+                        // before the service reports itself finished - either way the launch is done.
+                        new ExpectedStateTransition("main", null, State.FINISHED)));
 
         testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, kernel::launch, "kernel launched", expectedDuringLaunch, Collections.emptySet());
 
