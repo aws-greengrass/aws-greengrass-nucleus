@@ -56,8 +56,11 @@ public class RetryUtils {
      * @return return value
      * @throws Exception Exception
      */
+    // PreserveStackTrace: the interrupt is a control flow signal rather than a failure to report, and the exception
+    // which carried it is named in the message. Chaining it as the cause would make a cancellation look like an SDK
+    // failure to anything which inspects the cause of a logged interrupt.
     @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
-            "PMD.AvoidInstanceofChecksInCatchClause"})
+            "PMD.AvoidInstanceofChecksInCatchClause", "PMD.PreserveStackTrace"})
     public static <T> T runWithRetry(DifferentiatedRetryConfig differentiatedRetryConfig,
                                      CrashableSupplier<T, Exception> task, String taskDescription, Logger logger)
             throws Exception {
@@ -84,6 +87,14 @@ public class RetryUtils {
             } catch (Exception e) {
                 if (e instanceof InterruptedException) {
                     throw e;
+                }
+                // An interrupt which lands inside the task is not always reported as an InterruptedException. The AWS
+                // SDK, for example, re-interrupts the thread and throws AbortedException, which matches retryable
+                // exception lists containing SdkClientException. Honour the interrupt instead of logging it as a
+                // transient failure and retrying it.
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedException(taskDescription + " task is interrupted, "
+                            + e.getClass().getSimpleName() + " was thrown while the thread was interrupted");
                 }
 
                 boolean foundExceptionInMap = false;
