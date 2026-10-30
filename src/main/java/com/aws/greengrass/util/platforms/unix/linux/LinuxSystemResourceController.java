@@ -21,13 +21,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "Cgroup Controller virtual filesystem path cannot be relative")
@@ -36,6 +37,8 @@ public class LinuxSystemResourceController implements SystemResourceController {
     private static final String COMPONENT_NAME = "componentName";
     private static final String MEMORY_KEY = "memory";
     private static final String CPUS_KEY = "cpus";
+    // ESRCH strerror text (locale-sensitive); matched case-insensitively since the JDK exposes no typed errno.
+    private static final String ESRCH_MESSAGE = "no such process";
     private static final Path CGROUP_V2_CONTROLLERS = Paths.get("/sys/fs/cgroup/cgroup.controllers");
     
     // Cgroup managers for different subsystems
@@ -160,11 +163,10 @@ public class LinuxSystemResourceController implements SystemResourceController {
         resourceLimitCgroups.forEach(cgroupManager -> {
             try {
                 addComponentProcessToCgroup(component.getServiceName(), process, cgroupManager);
-
-                // Child processes of a process in a cgroup are auto-added to the same cgroup by linux kernel. But in
-                // case of a race condition in starting a child process and us adding pids to cgroup, neither us nor
-                // the linux kernel will add it to the cgroup. To account for this, re-list all pids for the component
-                // after 1 second and add to cgroup again so that all component processes are resource controlled.
+            } catch (IOException e) {
+                handleErrorAddingPidToCgroup(e, component.getServiceName());
+            } finally {
+                // Always re-add pids after 1s (finally) to catch races; a non-ESRCH add may log twice.
                 component.getContext().get(ScheduledExecutorService.class).schedule(() -> {
                     try {
                         addComponentProcessToCgroup(component.getServiceName(), process, cgroupManager);
@@ -172,9 +174,6 @@ public class LinuxSystemResourceController implements SystemResourceController {
                         handleErrorAddingPidToCgroup(e, component.getServiceName());
                     }
                 }, 1, TimeUnit.SECONDS);
-
-            } catch (IOException e) {
-               handleErrorAddingPidToCgroup(e, component.getServiceName());
             }
         });
     }
@@ -221,8 +220,20 @@ public class LinuxSystemResourceController implements SystemResourceController {
                             continue;
                         }
 
-                        Files.write(cgroupManager.getCgroupProcsPath(component),
-                                Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+                        try {
+                            Files.write(cgroupManager.getCgroupProcsPath(component),
+                                    Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+                        } catch (IOException e) {
+                            // Skip a pid that exited before its write (ESRCH); propagate any other IOException.
+                            if (e.getMessage() != null
+                                    && e.getMessage().toLowerCase(Locale.ROOT).contains(ESRCH_MESSAGE)) {
+                                logger.atWarn().kv(COMPONENT_NAME, component).kv("pid", pid)
+                                        .log("Failed to add pid to the cgroup because the process doesn't exist "
+                                                + "anymore");
+                            } else {
+                                throw e;
+                            }
+                        }
                     }
                 }
             } catch (InterruptedException e) {
@@ -250,7 +261,20 @@ public class LinuxSystemResourceController implements SystemResourceController {
     }
 
     private Set<Integer> pidsInComponentCgroup(CgroupManager cgroupManager, String component) throws IOException {
-        return Files.readAllLines(cgroupManager.getCgroupProcsPath(component))
-                .stream().map(Integer::parseInt).collect(Collectors.toSet());
+        Set<Integer> pids = new HashSet<>();
+        for (String line : Files.readAllLines(cgroupManager.getCgroupProcsPath(component))) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                pids.add(Integer.parseInt(trimmed));
+            } catch (NumberFormatException e) {
+                // Skip a blank/non-numeric cgroup.procs entry instead of failing the whole read.
+                logger.atWarn().kv(COMPONENT_NAME, component).kv("entry", trimmed)
+                        .log("Skipping invalid pid entry from cgroup.procs");
+            }
+        }
+        return pids;
     }
 }
