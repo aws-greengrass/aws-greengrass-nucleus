@@ -248,4 +248,18 @@ class KernelUpdateDeploymentTaskTest {
 
         assertNull(result.get());
     }
+
+    /**
+     * A cancelled kernel-update deployment still reclaims stale versions. At kernel activation the merged config
+     * already lists this deployment's target versions as running, so they are protected without passing a
+     * version map.
+     */
+    @Test
+    void GIVEN_deployment_activation_WHEN_deployment_cancelled_THEN_stale_versions_cleaned_up() throws Exception {
+        Future<DeploymentResult> result = executorService.submit(task);
+        task.cancel();
+
+        assertNull(result.get());
+        verify(componentManager).cleanupStaleVersions();
+    }
 }

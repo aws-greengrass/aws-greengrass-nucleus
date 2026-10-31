@@ -647,6 +647,38 @@ class ComponentManagerTest {
     }
 
     @Test
+    void GIVEN_interrupted_thread_WHEN_cleanup_THEN_no_component_deleted() throws Exception {
+        // Service config keeps 1.0.0 and 2.0.0, so 3.0.0 would otherwise be deleted.
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        Map<String, Set<String>> mockArtifacts = new HashMap<>();
+        mockArtifacts.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0", "3.0.0"));
+        when(componentStore.listAvailableComponentVersions()).thenReturn(mockArtifacts);
+
+        // Mock the recipe digest path so that, if the interrupt guard were absent, this test would fail on the
+        // deleteComponent assertion below rather than on an unmocked call.
+        GreengrassService mockKernelService = mock(GreengrassService.class);
+        Topics runtimeTopics = mock(Topics.class);
+        lenient().when(kernel.getMain()).thenReturn(mockKernelService);
+        lenient().when(mockKernelService.getRuntimeConfig()).thenReturn(runtimeTopics);
+        lenient().when(runtimeTopics.find(any(), any())).thenReturn(null);
+
+        try {
+            // A cancel can land after the caller decided to clean up. Cleanup must stop rather than keep
+            // deleting versions a subsequent deployment may already have staged.
+            Thread.currentThread().interrupt();
+            componentManager.cleanupStaleVersions(true, null);
+
+            verify(componentStore, never()).deleteComponent(any(), any());
+        } finally {
+            // Clear the flag so it cannot leak into other tests running on this thread.
+            Thread.interrupted();
+        }
+    }
+
+    @Test
     void GIVEN_successful_deployment_WHEN_cleanup_with_deployment_result_THEN_keeps_current_and_previous() {
         Collection<GreengrassService> mockOrderedDeps =
                 Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));

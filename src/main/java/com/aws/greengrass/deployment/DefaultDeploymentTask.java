@@ -107,7 +107,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
     }
 
     @Override
-    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.PrematureDeclaration"})
+    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.PrematureDeclaration", "PMD.AvoidCatchingGenericException"})
     public DeploymentResult call() throws InterruptedException {
         Future<List<ComponentIdentifier>> resolveDependenciesFuture = null;
         Future<Void> preparePackagesFuture = null;
@@ -244,21 +244,35 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // Populate the exception up to the stack
             throw e;
         } finally {
-            // Clean up stale artifacts from previous deployments after downloading deployment document
-            // if we have desiredPackages then the artifact download has started
-            Map<String, String> currentDeploymentComponentVersions = null;
-            if (desiredPackages != null) {
-                currentDeploymentComponentVersions = desiredPackages.stream()
-                        .collect(Collectors.toMap(
-                                ComponentIdentifier::getName,
-                                ci -> ci.getVersion().getValue()));
-                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
-                        .kv("Current deployment map", currentDeploymentComponentVersions.toString())
-                        .log("Found current deployment artifacts, will preserve.");
+            if (desiredPackages == null) {
+                // Exited before resolving components, so the versions this deployment targets are unknown
+                // here and the cleanup would delete them. A shutdown is one way to get here, and the
+                // deployment resumes after restart still needing them.
+                logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
+                        .log("Skipping stale artifact cleanup; deployment exited before resolving components");
+            } else {
+                try {
+                    // Clean up stale artifacts from previous deployments. Passing the resolved versions keeps
+                    // this deployment's own components, so an interrupted deployment that resumes still has
+                    // what it downloaded.
+                    // Deduplicate defensively; duplicates should not occur in practice.
+                    Map<String, String> currentDeploymentComponentVersions = desiredPackages.stream()
+                            .collect(Collectors.toMap(
+                                    ComponentIdentifier::getName,
+                                    ci -> ci.getVersion().getValue(),
+                                    (first, second) -> first));
+                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                            .kv("Current deployment map", currentDeploymentComponentVersions.toString())
+                            .log("Found current deployment artifacts, will preserve.");
+                    boolean isDeploymentAborted = deploymentResult == null
+                            || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
+                    componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
+                } catch (RuntimeException e) {
+                    // Best-effort cleanup; do not mask the propagating result or exception.
+                    logger.atWarn(DEPLOYMENT_TASK_EVENT_TYPE).setCause(e)
+                            .log("Failed to clean up stale component versions");
+                }
             }
-            boolean isDeploymentAborted = deploymentResult == null
-                    || deploymentResult.getDeploymentStatus() != DeploymentResult.DeploymentStatus.SUCCESSFUL;
-            componentManager.cleanupStaleVersions(isDeploymentAborted, currentDeploymentComponentVersions);
         }
     }
 
