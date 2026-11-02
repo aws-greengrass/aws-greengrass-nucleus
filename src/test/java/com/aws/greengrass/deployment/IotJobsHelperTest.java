@@ -50,6 +50,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -58,12 +59,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import org.mockito.MockedStatic;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_ACCEPTED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_REJECTED_TOPIC;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -487,6 +490,64 @@ class IotJobsHelperTest {
         assertEquals("anyId2", actualDeployments.get(1).getId());
         assertEquals(IOT_JOBS, actualDeployments.get(1).getDeploymentType());
         assertEquals("{\"DeploymentId\":\"anyId2\"}", actualDeployments.get(1).getDeploymentDocument());
+    }
+
+    @Test
+    void GIVEN_resumed_job_dequeued_but_not_yet_started_WHEN_same_job_notified_in_progress_THEN_job_not_cancelled_or_requeued()
+            throws Exception {
+        // LatestQueuedJobs is static with no reset, so unique ids keep this state out of other tests
+        String jobId = "resumedJob-" + UUID.randomUUID();
+        DeploymentQueue deploymentQueue = new DeploymentQueue();
+        Deployment resumedDeployment = new Deployment("{}", IOT_JOBS, jobId);
+        resumedDeployment.setDeploymentStage(KERNEL_ROLLBACK);
+        deploymentQueue.offer(resumedDeployment);
+        iotJobsHelper.setDeploymentQueue(deploymentQueue);
+        iotJobsHelper.postInject();
+        iotJobsHelper.subscribeToJobsTopics();
+        verify(mockIotJobsClientWrapper, times(2)).SubscribeToDescribeJobExecutionAccepted(any(), eq(
+                QualityOfService.AT_LEAST_ONCE), describeJobResponseCaptor.capture());
+
+        // DeploymentService has polled the resumed deployment and made it current
+        assertEquals(jobId, deploymentQueue.poll().getId());
+        DeploymentTaskMetadata currentDeployment = mock(DeploymentTaskMetadata.class);
+        lenient().when(currentDeployment.getDeploymentType()).thenReturn(IOT_JOBS);
+        lenient().when(mockDeploymentService.getCurrentDeploymentTaskMetadata()).thenReturn(currentDeployment);
+
+        DescribeJobExecutionResponse response = new DescribeJobExecutionResponse();
+        response.execution = getMockJobExecutionData(jobId, new Timestamp(new Date()));
+        response.execution.status = JobStatus.IN_PROGRESS;
+        describeJobResponseCaptor.getValue().accept(response);
+
+        assertTrue(deploymentQueue.isEmpty(), () -> "queued: " + deploymentQueue.toArray());
+    }
+
+    @Test
+    void GIVEN_resumed_and_default_jobs_queued_at_startup_WHEN_other_jobs_notified_THEN_they_are_queued()
+            throws Exception {
+        String resumedJobId = "resumedJob-" + UUID.randomUUID();
+        String defaultJobId = "defaultJob-" + UUID.randomUUID();
+        String newJobId = "newJob-" + UUID.randomUUID();
+        DeploymentQueue deploymentQueue = new DeploymentQueue();
+        Deployment resumedDeployment = new Deployment("{}", IOT_JOBS, resumedJobId);
+        resumedDeployment.setDeploymentStage(KERNEL_ROLLBACK);
+        deploymentQueue.offer(resumedDeployment);
+        deploymentQueue.offer(new Deployment("{}", IOT_JOBS, defaultJobId));
+        iotJobsHelper.setDeploymentQueue(deploymentQueue);
+        iotJobsHelper.postInject();
+        iotJobsHelper.subscribeToJobsTopics();
+        verify(mockIotJobsClientWrapper, times(2)).SubscribeToDescribeJobExecutionAccepted(any(), eq(
+                QualityOfService.AT_LEAST_ONCE), describeJobResponseCaptor.capture());
+        deploymentQueue.poll();
+        deploymentQueue.poll();
+
+        for (String jobId : Arrays.asList(defaultJobId, newJobId)) {
+            DescribeJobExecutionResponse response = new DescribeJobExecutionResponse();
+            response.execution = getMockJobExecutionData(jobId, new Timestamp(new Date()));
+            describeJobResponseCaptor.getValue().accept(response);
+        }
+
+        assertEquals(Arrays.asList(defaultJobId, newJobId),
+                deploymentQueue.toArray().stream().map(Deployment::getId).collect(Collectors.toList()));
     }
 
     @Test
