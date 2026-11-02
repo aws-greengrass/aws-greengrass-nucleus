@@ -48,6 +48,13 @@ public class RetryUtils {
     /**
      * Run a task with differentiated retry behaviors. Different maximum retry attempts based on different exception
      * types. Stop the retry when interrupted.
+     *
+     * <p>The task is abandoned as soon as the thread is interrupted, whatever exception the task reported the
+     * interrupt as, on the basis that every interrupt in this codebase means the work is being abandoned rather
+     * than that the attempt timed out. The interrupt status is left set, so a caller which catches the
+     * InterruptedException and intends to carry on working must clear it with {@code Thread.interrupted()}
+     * rather than restore it.
+     *
      * @param differentiatedRetryConfig     differentiated retry config
      * @param task            task to run
      * @param taskDescription task description
@@ -93,8 +100,12 @@ public class RetryUtils {
                 // exception lists containing SdkClientException. Honour the interrupt instead of logging it as a
                 // transient failure and retrying it.
                 if (Thread.currentThread().isInterrupted()) {
+                    // Name the exception and its message, so that a failure which had nothing to do with the
+                    // cancellation is not lost entirely. Still not chained as the cause, for the reason above.
+                    String message = e.getMessage();
                     throw new InterruptedException(taskDescription + " task is interrupted, "
-                            + e.getClass().getSimpleName() + " was thrown while the thread was interrupted");
+                            + e.getClass().getSimpleName() + " was thrown while the thread was interrupted"
+                            + (Utils.isEmpty(message) ? "" : ": " + message));
                 }
 
                 boolean foundExceptionInMap = false;
