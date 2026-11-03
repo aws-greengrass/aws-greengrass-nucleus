@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util.platforms.unix.linux;
 
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,17 +13,28 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.zeroturnaround.process.PidProcess;
+import org.zeroturnaround.process.PidUtil;
+import org.zeroturnaround.process.Processes;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -35,6 +47,9 @@ class LinuxSystemResourceControllerTest {
     
     @Mock
     private GreengrassService mockService;
+
+    @Mock
+    private Context mockContext;
 
     @InjectMocks
     @Spy
@@ -286,6 +301,273 @@ class LinuxSystemResourceControllerTest {
             // verify freeze writes "FROZEN" and thaw writes "THAWED" (CgroupV1 format)
             assertEquals("FROZEN", new String(contentCaptor.getAllValues().get(0))); // freeze
             assertEquals("THAWED", new String(contentCaptor.getAllValues().get(1))); // thaw
+        }
+    }
+
+    @Test
+    void GIVEN_cgroupV1_and_short_lived_pid_WHEN_addComponentProcess_THEN_remaining_pids_added_and_readd_scheduled()
+            throws Exception {
+        int deadPid = 100;      // e.g. sh/sudo wrapper that exits before its pid is written
+        int livePid1 = 6808;
+        int livePid2 = 6823;
+        int rootPid = 6800;
+        Path memoryProcs = CgroupV1.Memory.getCgroupProcsPath(TEST_COMPONENT);
+        Path cpuProcs = CgroupV1.CPU.getCgroupProcsPath(TEST_COMPONENT);
+        Map<Path, List<Integer>> written = new HashMap<>();
+        Process process = mock(Process.class);
+        ScheduledExecutorService ses = mock(ScheduledExecutorService.class);
+        when(mockService.getContext()).thenReturn(mockContext);
+        when(mockContext.get(ScheduledExecutorService.class)).thenReturn(ses);
+        // Dead pid is iterated first, as in the arbitrary HashSet order seen on device
+        when(mockPlatform.getChildPids(process))
+                .thenAnswer(i -> new LinkedHashSet<>(Arrays.asList(deadPid, livePid1, livePid2)));
+
+        try (MockedStatic<Files> filesMock = mockStatic(Files.class);
+             MockedStatic<PidUtil> pidMock = mockStatic(PidUtil.class);
+             MockedStatic<Processes> processesMock = mockStatic(Processes.class)) {
+            filesMock.when(() -> Files.exists(Paths.get(CONTROLLER_PATH))).thenReturn(false);
+            filesMock.when(() -> Files.exists(argThat(path -> !path.equals(Paths.get(CONTROLLER_PATH)))))
+                    .thenReturn(true);
+            filesMock.when(() -> Files.readAllLines(any(Path.class))).thenReturn(Collections.emptyList());
+            // Dead pid's write throws ESRCH on the memory pass (localized message, e.g. de_DE); the remaining live
+            // pids must still be added
+            filesMock.when(() -> Files.write(any(Path.class), any(byte[].class))).thenAnswer(i -> {
+                Path path = i.getArgument(0);
+                int pid = pidFromBytes(i.getArgument(1));
+                if (pid == deadPid && path.equals(memoryProcs)) {
+                    throw new IOException("Kein passender Prozess gefunden");
+                }
+                written.computeIfAbsent(path, p -> new ArrayList<>()).add(pid);
+                return path;
+            });
+            pidMock.when(() -> PidUtil.getPid(process)).thenReturn(rootPid);
+            mockPidAlive(processesMock, deadPid, false);
+
+            controller = new LinuxSystemResourceController(mockPlatform);
+            controller.addComponentProcess(mockService, process);
+
+            assertTrue(written.getOrDefault(cpuProcs, Collections.emptyList())
+                    .containsAll(Arrays.asList(livePid1, livePid2, rootPid)), "cpu cgroup pids: " + written.get(cpuProcs));
+            assertTrue(written.getOrDefault(memoryProcs, Collections.emptyList())
+                    .containsAll(Arrays.asList(livePid1, livePid2, rootPid)),
+                    "memory cgroup pids: " + written.get(memoryProcs));
+            // 1s re-add must be scheduled for both memory and cpu cgroups
+            ArgumentCaptor<Runnable> readd = ArgumentCaptor.forClass(Runnable.class);
+            verify(ses, times(2)).schedule(readd.capture(), eq(1L), eq(TimeUnit.SECONDS));
+
+            // Re-add picks up a child forked after the first enumeration
+            int lateChild = 6830;
+            when(mockPlatform.getChildPids(process))
+                    .thenAnswer(i -> new LinkedHashSet<>(Arrays.asList(livePid1, livePid2, lateChild)));
+            readd.getAllValues().forEach(Runnable::run);
+
+            assertTrue(written.get(memoryProcs).contains(lateChild), "memory cgroup pids: " + written.get(memoryProcs));
+            assertTrue(written.get(cpuProcs).contains(lateChild), "cpu cgroup pids: " + written.get(cpuProcs));
+        }
+    }
+
+    @Test
+    void GIVEN_cgroupV2_and_short_lived_pid_WHEN_addComponentProcess_THEN_remaining_pids_added_and_readd_scheduled()
+            throws Exception {
+        int deadPid = 100;
+        int livePid1 = 6808;
+        int livePid2 = 6823;
+        int rootPid = 6800;
+        Path generalProcs = CgroupV2.General.getCgroupProcsPath(TEST_COMPONENT);
+        Map<Path, List<Integer>> written = new HashMap<>();
+        Process process = mock(Process.class);
+        ScheduledExecutorService ses = mock(ScheduledExecutorService.class);
+        when(mockService.getContext()).thenReturn(mockContext);
+        when(mockContext.get(ScheduledExecutorService.class)).thenReturn(ses);
+        when(mockPlatform.getChildPids(process))
+                .thenAnswer(i -> new LinkedHashSet<>(Arrays.asList(deadPid, livePid1, livePid2)));
+
+        try (MockedStatic<Files> filesMock = mockStatic(Files.class);
+             MockedStatic<PidUtil> pidMock = mockStatic(PidUtil.class);
+             MockedStatic<Processes> processesMock = mockStatic(Processes.class)) {
+            filesMock.when(() -> Files.exists(any(Path.class))).thenReturn(true);
+            filesMock.when(() -> Files.readAllLines(any(Path.class))).thenReturn(Collections.emptyList());
+            // On v2 the single General cgroup carries both limits, so a dead pid must not keep live pids out of it
+            filesMock.when(() -> Files.write(any(Path.class), any(byte[].class))).thenAnswer(i -> {
+                int pid = pidFromBytes(i.getArgument(1));
+                if (pid == deadPid) {
+                    throw new IOException("No such process");
+                }
+                Path path = i.getArgument(0);
+                written.computeIfAbsent(path, p -> new ArrayList<>()).add(pid);
+                return path;
+            });
+            pidMock.when(() -> PidUtil.getPid(process)).thenReturn(rootPid);
+            mockPidAlive(processesMock, deadPid, false);
+
+            controller = new LinuxSystemResourceController(mockPlatform);
+            controller.addComponentProcess(mockService, process);
+
+            assertTrue(written.getOrDefault(generalProcs, Collections.emptyList())
+                    .containsAll(Arrays.asList(livePid1, livePid2, rootPid)),
+                    "general cgroup pids: " + written.get(generalProcs));
+            verify(ses, times(1)).schedule(any(Runnable.class), eq(1L), eq(TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void GIVEN_cgroupV1_and_write_error_for_live_pid_WHEN_addComponentProcess_THEN_remaining_pids_still_added(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, IOException.class);
+        int failingPid = 100;
+        int livePid1 = 6808;
+        int livePid2 = 6823;
+        int rootPid = 6800;
+        Path memoryProcs = CgroupV1.Memory.getCgroupProcsPath(TEST_COMPONENT);
+        Path cpuProcs = CgroupV1.CPU.getCgroupProcsPath(TEST_COMPONENT);
+        Map<Path, List<Integer>> written = new HashMap<>();
+        Process process = mock(Process.class);
+        ScheduledExecutorService ses = mock(ScheduledExecutorService.class);
+        when(mockService.getContext()).thenReturn(mockContext);
+        when(mockContext.get(ScheduledExecutorService.class)).thenReturn(ses);
+        when(mockPlatform.getChildPids(process))
+                .thenAnswer(i -> new LinkedHashSet<>(Arrays.asList(failingPid, livePid1, livePid2)));
+
+        try (MockedStatic<Files> filesMock = mockStatic(Files.class);
+             MockedStatic<PidUtil> pidMock = mockStatic(PidUtil.class);
+             MockedStatic<Processes> processesMock = mockStatic(Processes.class)) {
+            filesMock.when(() -> Files.exists(Paths.get(CONTROLLER_PATH))).thenReturn(false);
+            filesMock.when(() -> Files.exists(argThat(path -> !path.equals(Paths.get(CONTROLLER_PATH)))))
+                    .thenReturn(true);
+            filesMock.when(() -> Files.readAllLines(any(Path.class))).thenReturn(Collections.emptyList());
+            // A live pid's write fails on the memory pass; it must not stop the remaining pids from being added
+            filesMock.when(() -> Files.write(any(Path.class), any(byte[].class))).thenAnswer(i -> {
+                Path path = i.getArgument(0);
+                int pid = pidFromBytes(i.getArgument(1));
+                if (pid == failingPid && path.equals(memoryProcs)) {
+                    throw new IOException("Permission denied");
+                }
+                written.computeIfAbsent(path, p -> new ArrayList<>()).add(pid);
+                return path;
+            });
+            pidMock.when(() -> PidUtil.getPid(process)).thenReturn(rootPid);
+            mockPidAlive(processesMock, failingPid, true);
+
+            controller = new LinuxSystemResourceController(mockPlatform);
+            controller.addComponentProcess(mockService, process);
+
+            assertTrue(written.getOrDefault(memoryProcs, Collections.emptyList())
+                    .containsAll(Arrays.asList(livePid1, livePid2, rootPid)),
+                    "memory cgroup pids: " + written.get(memoryProcs));
+            assertTrue(written.getOrDefault(cpuProcs, Collections.emptyList())
+                    .containsAll(Arrays.asList(failingPid, livePid1, livePid2, rootPid)),
+                    "cpu cgroup pids: " + written.get(cpuProcs));
+            verify(ses, times(2)).schedule(any(Runnable.class), eq(1L), eq(TimeUnit.SECONDS));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void GIVEN_cgroupV1_and_write_error_for_live_pid_WHEN_pauseComponentProcesses_THEN_remaining_pids_added_and_throws(
+            boolean livenessCheckFails, ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, IOException.class);
+        int failingPid = 100;
+        int livePid = 6808;
+        int rootPid = 6800;
+        Path freezerProcs = CgroupV1.Freezer.getCgroupProcsPath(TEST_COMPONENT);
+        List<Integer> written = new ArrayList<>();
+        Process process = mock(Process.class);
+        when(mockPlatform.getChildPids(process))
+                .thenAnswer(i -> new LinkedHashSet<>(Arrays.asList(failingPid, livePid)));
+
+        try (MockedStatic<Files> filesMock = mockStatic(Files.class);
+             MockedStatic<PidUtil> pidMock = mockStatic(PidUtil.class);
+             MockedStatic<Processes> processesMock = mockStatic(Processes.class)) {
+            filesMock.when(() -> Files.exists(Paths.get(CONTROLLER_PATH))).thenReturn(false);
+            filesMock.when(() -> Files.exists(argThat(path -> !path.equals(Paths.get(CONTROLLER_PATH)))))
+                    .thenReturn(true);
+            filesMock.when(() -> Files.readAllLines(any(Path.class))).thenReturn(Collections.emptyList());
+            filesMock.when(() -> Files.write(eq(freezerProcs), any(byte[].class))).thenAnswer(i -> {
+                int pid = pidFromBytes(i.getArgument(1));
+                if (pid == failingPid) {
+                    throw new IOException("Permission denied");
+                }
+                written.add(pid);
+                return freezerProcs;
+            });
+            pidMock.when(() -> PidUtil.getPid(process)).thenReturn(rootPid);
+            if (livenessCheckFails) {
+                // If liveness can't be checked, the pid must be treated as alive rather than skipped
+                PidProcess pidProcess = mock(PidProcess.class);
+                when(pidProcess.isAlive()).thenThrow(new IOException("liveness check failed"));
+                processesMock.when(() -> Processes.newPidProcess(failingPid)).thenReturn(pidProcess);
+            } else {
+                mockPidAlive(processesMock, failingPid, true);
+            }
+
+            controller = new LinuxSystemResourceController(mockPlatform);
+            IOException e = assertThrows(IOException.class,
+                    () -> controller.pauseComponentProcesses(mockService, Collections.singletonList(process)));
+
+            assertTrue(e.getMessage().contains(String.valueOf(failingPid)), e.getMessage());
+            assertTrue(written.containsAll(Arrays.asList(livePid, rootPid)), "freezer cgroup pids: " + written);
+            // Pause fails before freezing
+            filesMock.verify(() -> Files.write(eq(CgroupV1.Freezer.getCgroupFreezerStateFilePath(TEST_COMPONENT)),
+                    any(byte[].class), any()), never());
+        }
+    }
+
+    @Test
+    void GIVEN_cgroupV1_and_short_lived_pid_WHEN_pauseComponentProcesses_THEN_remaining_pids_added_and_frozen()
+            throws Exception {
+        int deadPid = 100;
+        int livePid = 6808;
+        int rootPid = 6800;
+        Path freezerProcs = CgroupV1.Freezer.getCgroupProcsPath(TEST_COMPONENT);
+        Path freezerState = CgroupV1.Freezer.getCgroupFreezerStateFilePath(TEST_COMPONENT);
+        List<Integer> written = new ArrayList<>();
+        Process process = mock(Process.class);
+        when(mockPlatform.getChildPids(process))
+                .thenAnswer(i -> new LinkedHashSet<>(Arrays.asList(deadPid, livePid)));
+
+        try (MockedStatic<Files> filesMock = mockStatic(Files.class);
+             MockedStatic<PidUtil> pidMock = mockStatic(PidUtil.class);
+             MockedStatic<Processes> processesMock = mockStatic(Processes.class)) {
+            filesMock.when(() -> Files.exists(Paths.get(CONTROLLER_PATH))).thenReturn(false);
+            filesMock.when(() -> Files.exists(argThat(path -> !path.equals(Paths.get(CONTROLLER_PATH)))))
+                    .thenReturn(true);
+            filesMock.when(() -> Files.readAllLines(any(Path.class))).thenReturn(Collections.emptyList());
+            filesMock.when(() -> Files.readAllLines(freezerState)).thenReturn(Collections.singletonList("THAWED"));
+            filesMock.when(() -> Files.write(eq(freezerProcs), any(byte[].class))).thenAnswer(i -> {
+                int pid = pidFromBytes(i.getArgument(1));
+                if (pid == deadPid) {
+                    throw new IOException("No such process");
+                }
+                written.add(pid);
+                return freezerProcs;
+            });
+            pidMock.when(() -> PidUtil.getPid(process)).thenReturn(rootPid);
+            mockPidAlive(processesMock, deadPid, false);
+
+            controller = new LinuxSystemResourceController(mockPlatform);
+            controller.pauseComponentProcesses(mockService, Collections.singletonList(process));
+
+            assertTrue(written.containsAll(Arrays.asList(livePid, rootPid)), "freezer cgroup pids: " + written);
+            filesMock.verify(() -> Files.write(eq(freezerState),
+                    AdditionalMatchers.aryEq("FROZEN".getBytes(StandardCharsets.UTF_8)),
+                    eq(StandardOpenOption.TRUNCATE_EXISTING)), times(1));
+        }
+    }
+
+    private static void mockPidAlive(MockedStatic<Processes> processesMock, int pid, boolean alive)
+            throws Exception {
+        PidProcess pidProcess = mock(PidProcess.class);
+        when(pidProcess.isAlive()).thenReturn(alive);
+        processesMock.when(() -> Processes.newPidProcess(pid)).thenReturn(pidProcess);
+    }
+
+    // Test stub helper: written content is always Integer.toString(pid), so NFE is unreachable here.
+    private static int pidFromBytes(byte[] bytes) {
+        String s = new String(bytes, StandardCharsets.UTF_8);
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("unexpected cgroup.procs write: " + s, e);
         }
     }
 }
