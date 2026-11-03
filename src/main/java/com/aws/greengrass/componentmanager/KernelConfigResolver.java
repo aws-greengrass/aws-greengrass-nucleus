@@ -75,6 +75,7 @@ public class KernelConfigResolver {
     static final String CONFIGURATION_NAMESPACE = "configuration";
     static final String PATH_KEY = "path";
     static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
+    static final String DERIVED_NAMESPACE = "derived";
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     // pattern matches {group1:group2}. ex. {configuration:/singleLevelKey}
     // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
@@ -135,6 +136,9 @@ public class KernelConfigResolver {
         Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> iotNamespace = new HashMap<>();
         iotNamespace.put(THING_NAME_PATH, (id) -> Coerce.toString(deviceConfiguration.getThingName()));
         systemParameters.put(IOT_NAMESPACE, iotNamespace);
+
+        // Populated per-resolve by refreshDerivedVariables(); registered empty so the namespace guards recognize it.
+        systemParameters.put(DERIVED_NAMESPACE, new HashMap<>());
     }
 
     /**
@@ -155,6 +159,8 @@ public class KernelConfigResolver {
         Map<String, Object> servicesConfig = new HashMap<>();
         LOGGER.atDebug().kv("Components to deploy", componentsToDeploy).kv("Root packages", rootPackages)
                 .log("Resolving services configuration");
+        // Register operator-defined {derived:...} variables so the stock interpolation path resolves them.
+        refreshDerivedVariables();
         // resolve configuration
         for (ComponentIdentifier componentToDeploy : componentsToDeploy) {
             servicesConfig.put(componentToDeploy.getName(), getServiceConfig(componentToDeploy, document,
@@ -662,6 +668,15 @@ public class KernelConfigResolver {
             return systemParams.get(key).apply(component);
         }
         return null;
+    }
+
+    // Wrap each operator-defined derived value as a constant system-parameter function and swap in a fresh
+    // derived-namespace map. Called per resolve() so runtime config and thing-name changes are picked up.
+    private void refreshDerivedVariables() {
+        Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> derivedMap = new HashMap<>();
+        deviceConfiguration.getDerivedRecipeVariableValues()
+                .forEach((name, value) -> derivedMap.put(name, (id) -> value));
+        systemParameters.put(DERIVED_NAMESPACE, derivedMap);
     }
 
     /*
