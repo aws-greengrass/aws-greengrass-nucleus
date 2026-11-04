@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.CopyOption;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
@@ -652,13 +653,19 @@ public final class Utils {
      * @throws IOException if deletion fails
      */
     public static void deleteFileRecursively(File filePath) throws IOException {
-        File[] files = filePath.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                deleteFileRecursively(file);
+        Path path = filePath.toPath();
+        // Only descend into real directories. A symlink to a directory must be deleted as a link,
+        // never followed -- otherwise recursively deleting a tree that contains a symlink could
+        // delete files outside that tree.
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            File[] files = filePath.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    deleteFileRecursively(file);
+                }
             }
         }
-        Files.deleteIfExists(filePath.toPath());
+        Files.deleteIfExists(path);
     }
 
     /**
