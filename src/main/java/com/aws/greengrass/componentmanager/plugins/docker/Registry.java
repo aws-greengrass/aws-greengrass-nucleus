@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
 
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -83,6 +84,10 @@ public class Registry {
      */
     @Getter
     public static class Credentials {
+        // Treat credentials as expired this long before they expire, so they don't run out mid-pull and a device
+        // clock running behind the registry's doesn't hide the expiry. Same margin TES uses for AWS credentials.
+        static final Duration EXPIRY_BUFFER = Duration.ofMinutes(5);
+
         @NonNull
         private String username;
         @NonNull
@@ -114,12 +119,12 @@ public class Registry {
         }
 
         /**
-         * Check if credentials are valid at any point in time, if not they need to be refreshed.
+         * Check if credentials will stay valid for at least {@link #EXPIRY_BUFFER}, if not they need to be refreshed.
          *
          * @return validity
          */
         public boolean isValid() {
-            return Instant.now().isBefore(expiresAt);
+            return Instant.now().plus(EXPIRY_BUFFER).isBefore(expiresAt);
         }
     }
 }

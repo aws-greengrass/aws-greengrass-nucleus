@@ -112,7 +112,13 @@ class DefaultDockerClientTest {
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": net/http: invalid header field "
                     + "value for \"Authorization\"",
             "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": net/http: HTTP/1.x transport "
-                    + "connection broken: malformed HTTP response"})
+                    + "connection broken: malformed HTTP response",
+            // ECR rejecting an expired token, first as docker wraps it. These must stay retryable, since the retry
+            // re-checks the credentials and refreshes them when a token expires during a pull
+            "Error response from daemon: pull access denied for 1234.dkr.ecr.us-east-1.amazonaws.com/testimage, "
+                    + "repository does not exist or may require 'docker login': denied: Your authorization token "
+                    + "has expired. Reauthenticate and try again.",
+            "denied: Your authorization token has expired. Reauthenticate and try again."})
     void GIVEN_unrecognized_error_WHEN_classified_THEN_neither_connection_nor_non_retryable(String err) {
         assertFalse(DefaultDockerClient.isConnectionError(err));
         assertFalse(DefaultDockerClient.isNonRetryableError(err));
