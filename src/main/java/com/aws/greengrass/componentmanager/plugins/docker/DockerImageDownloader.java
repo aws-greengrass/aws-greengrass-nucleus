@@ -17,6 +17,7 @@ import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionE
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UnknownDockerPullException;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.CrashableSupplier;
@@ -35,6 +36,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
@@ -56,7 +58,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig infiniteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
-                    .maxRetryInterval(Duration.ofMinutes(64L)).maxAttempt(Integer.MAX_VALUE).retryableExceptions(
+                    .maxRetryInterval(Duration.ofMinutes(5L)).maxAttempt(Integer.MAX_VALUE).retryableExceptions(
                         Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class))
                     .build();
     @Setter(AccessLevel.PACKAGE)
@@ -65,6 +67,26 @@ public class DockerImageDownloader extends ArtifactDownloader {
                     .maxRetryInterval(Duration.ofMinutes(32L)).maxAttempt(30).retryableExceptions(
                             Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
                             SdkClientException.class, ServerException.class)).build();
+
+    // A docker pull error that is recognized as neither a network error nor a non-retryable error may still be
+    // transient, so allow a small number of retries. Deliberately much shorter than finiteAttemptsRetryConfig: the
+    // error is not known to be recoverable, so this only needs to be long enough to ride out a brief blip before
+    // reporting the failure.
+    //
+    // The attempt count is chosen against the offline fallback in runWithConnectionErrorCheck, which reads
+    // MqttClient's cached connection flag. That flag can lag a real outage by around 90 seconds with default
+    // keep-alive settings, so a shorter budget could expire before the device notices it is offline, defeating the
+    // fallback for the very outages it exists to catch. Seven attempts at this ceiling span roughly 195-390 seconds
+    // with jitter, which clears that lag on any draw.
+    //
+    // This bounds the retry tier, not the deployment: performDownloadSteps re-enters run() if the ECR credentials
+    // expire mid-pull, which starts a fresh budget. In practice that can happen at most once, since the refreshed
+    // token is valid for hours, so the effective worst case is about twice the figure above.
+    @Setter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig unknownErrorRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(10L))
+                    .maxRetryInterval(Duration.ofMinutes(2L)).maxAttempt(7).retryableExceptions(
+                            Collections.singletonList(UnknownDockerPullException.class)).build();
 
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig finiteDeleteAttemptsRetryConfig =
@@ -285,8 +307,11 @@ public class DockerImageDownloader extends ArtifactDownloader {
             throws PackageDownloadException, InterruptedException {
         try {
             // Finite retry attempts for errors that are not due to connectivity issues and
-            // might need explicit intervention to recover from
-            RetryUtils.runWithRetry(finiteAttemptsRetryConfig, () -> RetryUtils
+            // might need explicit intervention to recover from, and a shorter finite retry for errors that could
+            // not be classified at all
+            RetryUtils.runWithRetry(RetryUtils.DifferentiatedRetryConfig.builder()
+                            .retryConfigList(Arrays.asList(finiteAttemptsRetryConfig, unknownErrorRetryConfig)).build(),
+                    () -> RetryUtils
                     // Indefinite retry for errors that are due to connectivity issues and can be
                     // resolved when connectivity comes back
                     .runWithRetry(infiniteAttemptsRetryConfig, () -> runWithConnectionErrorCheck(task), description,
@@ -306,7 +331,15 @@ public class DockerImageDownloader extends ArtifactDownloader {
             // can be fixed with retries, explicitly check if an error could be due to connectivity problem
             // we infer that based on Mqtt connection, even though not perfect, it should accurately represent if
             // device is having connectivity issues most of the times.
-            if (e instanceof DockerServiceUnavailableException && !mqttClient.getMqttOnline().get()) {
+            // The same inference applies to a pull error that could not be classified at all. Classification depends
+            // on docker's stderr text, which is not a stable contract and cannot cover every transport failure, so
+            // the device's own connectivity is used as independent evidence: if it is offline, an unrecognized
+            // failure is far more likely to be that outage than anything the registry reported, and should be
+            // retried until connectivity returns rather than given up on after a bounded number of attempts. When
+            // the device is online the bounded retry still applies, so an error that is genuinely permanent
+            // continues to surface promptly.
+            if ((e instanceof DockerServiceUnavailableException || e instanceof UnknownDockerPullException)
+                    && !mqttClient.getMqttOnline().get()) {
                 throw new ConnectionException("Device appears to be offline, should retry the task", e);
             }
             throw e;

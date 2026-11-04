@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -57,6 +58,8 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
@@ -288,6 +291,53 @@ class KernelConfigResolverTest {
         // dependencies
         assertThat("Main service must depend on updated service",
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1.2.0, 1.1.0", "1.3.0, 1.2.0"})
+    void GIVEN_existing_version_and_previous_version_WHEN_config_resolution_requested_THEN_previous_version_set(
+            String deploymentVersion, String expectedPreviousVersion) throws Exception {
+        // GIVEN
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, VERSION_CONFIG_KEY).withValue("1.2.0");
+        config.lookup(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, PREV_VERSION_CONFIG_KEY).withValue("1.1.0");
+
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver(deploymentVersion, Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe =
+                getPackage(TEST_INPUT_PACKAGE_A, deploymentVersion, Collections.emptyMap(), TEST_INPUT_PACKAGE_A);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=" + deploymentVersion);
+        DeploymentDocument document = DeploymentDocument.builder()
+                                                        .deploymentPackageConfigurationList(
+                                                                Arrays.asList(rootPackageDeploymentConfig))
+                                                        .timestamp(10_000L)
+                                                        .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(
+                Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
+        when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A),
+                        document.getTimestamp());
+
+        // THEN
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        Map<String, Object> serviceConfig = getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig);
+        assertThat(serviceConfig, hasEntry(VERSION_CONFIG_KEY, deploymentVersion));
+        assertThat(serviceConfig, hasEntry(PREV_VERSION_CONFIG_KEY, expectedPreviousVersion));
     }
 
     @Test

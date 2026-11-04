@@ -24,8 +24,12 @@ import org.mockito.Mock;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
@@ -201,6 +205,122 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
                     put("RequiresPrivilege", true);
                     put("timeout", 120);
                     put("Setenv", "");
+                }});
+            }});
+        }}));
+    }
+
+    // Regression test: a Bootstrap step with a multi-key Setenv map must not be reported as changed
+    // on an unchanged redeployment. The stored config is a case-insensitive TreeMap (Topics.toPOJO)
+    // while the incoming config is a HashMap (KernelConfigResolver.interpolate); their nested Setenv
+    // maps iterate in different key order, so comparing toString() falsely reported a change,
+    // rerunning Bootstrap and restarting the core device on every deployment.
+    @Test
+    void GIVEN_bootstrap_setenv_map_same_content_different_order_WHEN_isBootstrapRequired_THEN_return_false() {
+        String[] setenvKeys = {"ARTIFACTS_PATH", "CA_CHAIN", "COMPONENT_CERT",
+                "COMPONENT_KEY", "LOCAL_ISSUING_CA", "LOCAL_ISSUING_CA_KEY", "LOCAL_ROOT_CA"};
+
+        Topics bootstrap = Topics.of(context, Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
+        bootstrap.createLeafChild("script").withValue("\necho complete\n");
+        Topics storedSetenv = bootstrap.createInteriorChild("Setenv");
+        for (String k : setenvKeys) {
+            storedSetenv.createLeafChild(k).withValue("/greengrass/v2/work/" + k);
+        }
+        doReturn(bootstrap).when(config)
+                .findNode(eq(SERVICE_LIFECYCLE_NAMESPACE_TOPIC), eq(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+
+        // Build the incoming Setenv in reverse-sorted key order (a LinkedHashMap) so its iteration order is
+        // guaranteed to differ from the stored side, whose toPOJO() is a sorted case-insensitive TreeMap.
+        // This forces the ordering mismatch the old toString()-based comparison broke on, regardless of the
+        // specific key names, so the test stays a true regression guard if the keys are ever changed.
+        String[] reverseSortedKeys = setenvKeys.clone();
+        Arrays.sort(reverseSortedKeys, Comparator.reverseOrder());
+        Map<String, Object> incomingSetenv = new LinkedHashMap<>();
+        for (String k : reverseSortedKeys) {
+            incomingSetenv.put(k, "/greengrass/v2/work/" + k);
+        }
+
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put("script", "\necho complete\n");
+                    put("Setenv", incomingSetenv);
+                }});
+            }});
+        }}));
+    }
+
+    // Control for the fix above: a genuine change to a nested Setenv value must still be detected.
+    @Test
+    void GIVEN_bootstrap_setenv_value_changed_WHEN_isBootstrapRequired_THEN_return_true() {
+        String[] setenvKeys = {"ARTIFACTS_PATH", "CA_CHAIN", "COMPONENT_CERT",
+                "COMPONENT_KEY", "LOCAL_ISSUING_CA", "LOCAL_ISSUING_CA_KEY", "LOCAL_ROOT_CA"};
+
+        Topics bootstrap = Topics.of(context, Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
+        bootstrap.createLeafChild("script").withValue("\necho complete\n");
+        Topics storedSetenv = bootstrap.createInteriorChild("Setenv");
+        for (String k : setenvKeys) {
+            storedSetenv.createLeafChild(k).withValue("/greengrass/v2/work/" + k);
+        }
+        doReturn(bootstrap).when(config)
+                .findNode(eq(SERVICE_LIFECYCLE_NAMESPACE_TOPIC), eq(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put("script", "\necho complete\n");
+                    put("Setenv", new HashMap<String, Object>() {{
+                        for (String k : setenvKeys) {
+                            put(k, "/greengrass/v2/work/" + k);
+                        }
+                        put("LOCAL_ROOT_CA", "/greengrass/v2/work/CHANGED");
+                    }});
+                }});
+            }});
+        }}));
+    }
+
+    // Edge case now handled correctly by normalization: a key present on both sides with a null value is
+    // not a change. (The previous comparison reported it as changed because a null value never matched.)
+    @Test
+    void GIVEN_bootstrap_key_with_null_value_on_both_sides_WHEN_isBootstrapRequired_THEN_return_false() {
+        Topics bootstrap = Topics.of(context, Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
+        bootstrap.createLeafChild("script").withValue("\necho complete\n");
+        bootstrap.createLeafChild("RequiresPrivilege");   // null value on the stored side
+        doReturn(bootstrap).when(config)
+                .findNode(eq(SERVICE_LIFECYCLE_NAMESPACE_TOPIC), eq(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+
+        Map<String, Object> incomingBootstrap = new HashMap<>();
+        incomingBootstrap.put("script", "\necho complete\n");
+        incomingBootstrap.put("RequiresPrivilege", null);
+
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, incomingBootstrap);
+            }});
+        }}));
+    }
+
+    // Edge case now handled correctly by normalization: a field that is a map on one side must not be
+    // treated as equal to a string that merely prints the same, so it is reported as a change.
+    @Test
+    void GIVEN_bootstrap_field_map_vs_equivalent_string_WHEN_isBootstrapRequired_THEN_return_true() {
+        Topics bootstrap = Topics.of(context, Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
+        bootstrap.createLeafChild("script").withValue("\necho complete\n");
+        Topics storedSetenv = bootstrap.createInteriorChild("Setenv");
+        storedSetenv.createLeafChild("A").withValue("1");
+        doReturn(bootstrap).when(config)
+                .findNode(eq(SERVICE_LIFECYCLE_NAMESPACE_TOPIC), eq(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put("script", "\necho complete\n");
+                    put("Setenv", "{A=1}");   // a string that prints like the stored Setenv map
                 }});
             }});
         }}));
