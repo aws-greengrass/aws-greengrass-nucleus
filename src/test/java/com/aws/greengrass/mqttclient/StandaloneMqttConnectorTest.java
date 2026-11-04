@@ -142,8 +142,18 @@ class StandaloneMqttConnectorTest {
             conn.connect(5000);
             conn.close();
             assertDoesNotThrow(conn::close);
-            verify(builder).close();
         }
+    }
+
+    @Test
+    void GIVEN_caller_supplied_builder_WHEN_close_THEN_builder_left_open_for_caller() throws Exception {
+        when(mqttConnection.connect()).thenReturn(CompletableFuture.completedFuture(true));
+
+        try (StandaloneMqttConnector conn = new StandaloneMqttConnector(builder, "thing-preflight")) {
+            conn.connect(5000);
+        }
+        verify(mqttConnection).close();
+        verify(builder, never()).close();
     }
 
     @Test

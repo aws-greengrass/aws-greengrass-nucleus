@@ -44,25 +44,28 @@ public class StandaloneMqttConnector implements Closeable {
     private final String clientId;
     @Nullable
     private final DeviceConfiguration proxyConfiguration;
+    private final boolean ownsBuilder;
     private ClientTlsContext proxyTlsContext;
     private MqttClientConnection connection;
     private boolean closed;
 
     /**
-     * Create a standalone MQTT connection that does not use a proxy. The connector takes ownership of the builder.
+     * Create a standalone MQTT connection that does not use a proxy. The caller keeps ownership of the builder and
+     * must close it; {@link #close()} does not.
      *
      * @param builder  configured MQTT connection builder (with certs, CA, endpoint)
      * @param clientId MQTT client ID
      */
-    StandaloneMqttConnector(AwsIotMqttConnectionBuilder builder, String clientId) {
-        this(builder, clientId, null);
+    public StandaloneMqttConnector(AwsIotMqttConnectionBuilder builder, String clientId) {
+        this(builder, clientId, null, false);
     }
 
     private StandaloneMqttConnector(AwsIotMqttConnectionBuilder builder, String clientId,
-                                    DeviceConfiguration proxyConfiguration) {
+                                    DeviceConfiguration proxyConfiguration, boolean ownsBuilder) {
         this.builder = builder;
         this.clientId = clientId;
         this.proxyConfiguration = proxyConfiguration;
+        this.ownsBuilder = ownsBuilder;
     }
 
     /**
@@ -70,7 +73,8 @@ public class StandaloneMqttConnector implements Closeable {
      * Extracts builder setup from the deployment layer so callers don't need to know about proxy/TLS details.
      *
      * <p>The root CA file and the proxy URL are first used in {@link #connect(long)}, so problems with either
-     * surface there as a {@link DeploymentException}, with or without a proxy.</p>
+     * surface there as a {@link DeploymentException}, with or without a proxy. The returned connector owns the
+     * builder it creates and closes it in {@link #close()}.</p>
      *
      * @param securityService     provides the MQTT connection builder with device certs
      * @param deviceConfiguration provides endpoint, proxy, port, and CA configuration
@@ -94,7 +98,7 @@ public class StandaloneMqttConnector implements Closeable {
                 .withCertificateAuthorityFromPath(null, rootCaPath)
                 .withPort(mqttPort)
                 .withCleanSession(true);
-        return new StandaloneMqttConnector(mqttBuilder, clientId, proxyConfiguration);
+        return new StandaloneMqttConnector(mqttBuilder, clientId, proxyConfiguration, true);
     }
 
     /**
@@ -254,7 +258,9 @@ public class StandaloneMqttConnector implements Closeable {
         if (proxyTlsContext != null) {
             proxyTlsContext.close();
         }
-        builder.close();
+        if (ownsBuilder) {
+            builder.close();
+        }
     }
 
     private void connectionCleanup() {
