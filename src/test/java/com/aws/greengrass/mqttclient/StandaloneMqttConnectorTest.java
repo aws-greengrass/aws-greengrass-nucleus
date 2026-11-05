@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Answers;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -53,6 +54,7 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
@@ -397,7 +399,8 @@ class StandaloneMqttConnectorTest {
     }
 
     @Test
-    void GIVEN_https_proxy_WHEN_connect_and_close_twice_THEN_one_proxy_tls_context_is_closed_once() throws Exception {
+    void GIVEN_https_proxy_WHEN_connect_twice_and_close_twice_THEN_one_proxy_tls_context_is_closed_once_in_order()
+            throws Exception {
         when(mqttConnection.connect()).thenReturn(CompletableFuture.completedFuture(true));
         try (Context context = new Context();
              MockedConstruction<ClientTlsContext> tlsContexts = mockConstruction(ClientTlsContext.class)) {
@@ -407,11 +410,17 @@ class StandaloneMqttConnectorTest {
             try (StandaloneMqttConnector conn = StandaloneMqttConnector.forEndpointSwitch(securityService,
                     deviceConfiguration, REMOTE_ENDPOINT)) {
                 conn.connect(5000);
+                conn.connect(5000);
                 conn.close();
             }
             assertEquals(1, tlsContexts.constructed().size());
             verify(tlsContexts.constructed().get(0)).close();
             verify(identityBuilder).close();
+            InOrder closeOrder = inOrder(mqttConnection, tlsContexts.constructed().get(0), identityBuilder);
+            closeOrder.verify(mqttConnection).disconnect();
+            closeOrder.verify(mqttConnection).close();
+            closeOrder.verify(tlsContexts.constructed().get(0)).close();
+            closeOrder.verify(identityBuilder).close();
         }
     }
 

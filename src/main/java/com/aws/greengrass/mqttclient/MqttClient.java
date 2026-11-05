@@ -35,6 +35,7 @@ import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
@@ -317,11 +318,21 @@ public class MqttClient implements Closeable {
                     String newRootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
                     try (LockScope ls = LockScope.lock(httpProxyLock)) {
                         if (!Objects.equals(rootCaPath, newRootCaPath)) {
+                            ClientTlsContext newProxyTlsContext;
+                            try {
+                                newProxyTlsContext = ProxyUtils.newProxyTlsContext(newRootCaPath);
+                            } catch (CrtRuntimeException e) {
+                                // Keep the current context and connections. rootCaPath stays unchanged, so a later
+                                // config change retries the load; nothing retries if the file is fixed in place.
+                                logger.atError().kv("rootCaPath", newRootCaPath).setCause(e)
+                                        .log("Unable to load the root CA, not reconnecting MQTT clients");
+                                return;
+                            }
                             if (proxyTlsContext != null) {
                                 proxyTlsContext.close();
                             }
+                            proxyTlsContext = newProxyTlsContext;
                             rootCaPath = newRootCaPath;
-                            proxyTlsContext = ProxyUtils.newProxyTlsContext(rootCaPath);
                         }
                     }
 

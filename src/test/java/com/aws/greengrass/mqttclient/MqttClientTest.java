@@ -103,9 +103,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -293,6 +295,57 @@ class MqttClientTest {
                     optionsByContext.get(proxyTlsContextOfNewConnection(mqttClient, identityBuilder));
             assertNotNull(secondOptions);
             verify(secondOptions).withCertificateAuthorityFromPath(null, "/certs/new-root-ca.pem");
+            verify(tlsContexts.constructed().get(0)).close();
+            mqttClient.close();
+        }
+    }
+
+    @Test
+    void GIVEN_https_proxy_WHEN_root_ca_path_changes_to_unreadable_file_THEN_live_proxy_tls_context_is_kept(
+            ExtensionContext extContext) throws Exception {
+        ignoreExceptionOfType(extContext, CrtRuntimeException.class);
+        Topic rootCaPath = config.lookup("system", DEVICE_PARAM_ROOT_CA_PATH).withValue("/certs/old-root-ca.pem");
+        when(deviceConfiguration.getRootCAFilePath()).thenReturn(rootCaPath);
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:3128");
+        ArgumentCaptor<ChildChanged> configChange = ArgumentCaptor.forClass(ChildChanged.class);
+        doNothing().when(deviceConfiguration).onAnyChange(configChange.capture());
+        ScheduledExecutorService reconfigureScheduler = mock(ScheduledExecutorService.class);
+        AwsIotMqttConnectionBuilder identityBuilder = identityBuilderThatStopsAfterConfiguration();
+        Map<TlsContext, TlsContextOptions> optionsByContext = new IdentityHashMap<>();
+        try (MockedStatic<TlsContextOptions> tlsOptions = mockStatic(TlsContextOptions.class);
+             MockedConstruction<ClientTlsContext> tlsContexts = mockConstruction(ClientTlsContext.class,
+                     (tlsContext, construction) -> optionsByContext.put(tlsContext,
+                             (TlsContextOptions) construction.arguments().get(0)))) {
+            tlsOptions.when(TlsContextOptions::createDefaultClient).thenAnswer(invocation -> {
+                TlsContextOptions options = mock(TlsContextOptions.class, Answers.RETURNS_SELF);
+                lenient().when(options.withCertificateAuthorityFromPath(null, "/certs/unreadable-root-ca.pem"))
+                        .thenThrow(new CrtRuntimeException("unreadable root CA"));
+                return options;
+            });
+            MqttClient mqttClient = new MqttClient(deviceConfiguration, reconfigureScheduler, executorService,
+                    securityServiceFor(identityBuilder), kernel);
+            mqttNamespace.context.waitForPublishQueueToClear();
+            TlsContext originalContext = proxyTlsContextOfNewConnection(mqttClient, identityBuilder);
+            ArgumentCaptor<Runnable> reconfigure = ArgumentCaptor.forClass(Runnable.class);
+
+            rootCaPath.withValue("/certs/unreadable-root-ca.pem");
+            configChange.getValue().childChanged(WhatHappened.childChanged, rootCaPath);
+            verify(reconfigureScheduler, timeout(5000)).schedule(reconfigure.capture(), anyLong(), any());
+            assertDoesNotThrow(() -> reconfigure.getValue().run());
+
+            assertSame(originalContext, proxyTlsContextOfNewConnection(mqttClient, identityBuilder));
+            verify(tlsContexts.constructed().get(0), never()).close();
+            assertEquals(1, tlsContexts.constructed().size());
+
+            rootCaPath.withValue("/certs/new-root-ca.pem");
+            configChange.getValue().childChanged(WhatHappened.childChanged, rootCaPath);
+            verify(reconfigureScheduler, timeout(5000).times(2)).schedule(reconfigure.capture(), anyLong(), any());
+            reconfigure.getValue().run();
+
+            TlsContextOptions newOptions =
+                    optionsByContext.get(proxyTlsContextOfNewConnection(mqttClient, identityBuilder));
+            assertNotNull(newOptions);
+            verify(newOptions).withCertificateAuthorityFromPath(null, "/certs/new-root-ca.pem");
             verify(tlsContexts.constructed().get(0)).close();
             mqttClient.close();
         }
