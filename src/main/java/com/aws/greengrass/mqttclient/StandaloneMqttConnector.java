@@ -142,9 +142,13 @@ public class StandaloneMqttConnector implements Closeable {
      *
      * @param timeoutMs timeout budget in milliseconds used to derive the number of connection attempts
      * @throws DeploymentException with appropriate error code if all attempts fail
+     * @throws IllegalStateException if this connector was already closed
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void connect(long timeoutMs) throws DeploymentException {
+        if (closed) {
+            throw new IllegalStateException("StandaloneMqttConnector is closed; create a new one to reconnect");
+        }
         if (timeoutMs <= 0) {
             throw new DeploymentException("MQTT connection timeout must be positive, got " + timeoutMs,
                     DeploymentErrorCode.MQTT_CONNECTION_FAILED);

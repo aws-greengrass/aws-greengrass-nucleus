@@ -58,6 +58,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -83,6 +84,19 @@ class StandaloneMqttConnectorTest {
         lenient().when(builder.withClientId(any())).thenReturn(builder);
         lenient().when(builder.build()).thenReturn(mqttConnection);
         lenient().when(mqttConnection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+    }
+
+    @Test
+    void GIVEN_closed_connector_WHEN_connect_THEN_throws_and_builds_no_connection() throws Exception {
+        when(mqttConnection.connect()).thenReturn(CompletableFuture.completedFuture(true));
+
+        try (StandaloneMqttConnector conn = new StandaloneMqttConnector(builder, "thing-preflight")) {
+            conn.connect(5000);
+            conn.close();
+
+            assertThrows(IllegalStateException.class, () -> conn.connect(5000));
+            verify(builder, times(1)).build();
+        }
     }
 
     @Test
