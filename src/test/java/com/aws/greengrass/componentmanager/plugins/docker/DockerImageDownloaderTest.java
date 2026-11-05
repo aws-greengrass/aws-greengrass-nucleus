@@ -126,7 +126,7 @@ public class DockerImageDownloaderTest {
         Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
 
         when(ecrAccessor.getCredentials("012345678910", region))
-                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(3600)));
         when(dockerClient.dockerInstalled()).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
@@ -151,7 +151,7 @@ public class DockerImageDownloaderTest {
         URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag");
         Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(ecrAccessor.getCredentials("012345678910", "us-east-1"))
-                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(3600)));
         when(dockerClient.dockerInstalled()).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
@@ -429,7 +429,7 @@ public class DockerImageDownloaderTest {
         Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
         when(ecrAccessor.getCredentials("012345678910", "us-east-1"))
-                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(3600)));
         doThrow(new UserNotAuthorizedForDockerException(
                 "Got permission denied while trying to connect to the Docker daemon socket")).when(dockerClient)
                 .login(any());
@@ -509,7 +509,7 @@ public class DockerImageDownloaderTest {
         // performed in time before credentials expired.
         when(ecrAccessor.getCredentials("012345678910", "us-east-1"))
                 .thenReturn(new Registry.Credentials("username", "password", Instant.now().minusSeconds(300)))
-                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(300)));
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(3600)));
         when(dockerClient.dockerInstalled()).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
@@ -662,7 +662,7 @@ public class DockerImageDownloaderTest {
         URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:latest");
         Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(ecrAccessor.getCredentials("012345678910", "us-east-1"))
-                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(3600)));
         when(dockerClient.dockerInstalled()).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);

@@ -91,7 +91,7 @@ public class DockerImageArtifactDownload01Test extends BaseITCase {
         lenient().when(spyEcrAccessor.getClient("us-east-1")).thenReturn(eastEcrClient);
         lenient().when(spyEcrAccessor.getClient("us-west-1")).thenReturn(westEcrClient);
 
-        Instant credentialsExpiry = Instant.now().plusSeconds(10);
+        Instant credentialsExpiry = Instant.now().plusSeconds(3600);
         AuthorizationData authorizationDataEast = AuthorizationData.builder()
                 .authorizationToken(Base64.getEncoder().encodeToString("eastUser:eastPass".getBytes(StandardCharsets.UTF_8)))
                 .expiresAt(credentialsExpiry).build();
