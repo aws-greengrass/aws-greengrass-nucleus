@@ -1,0 +1,11 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: aws.iot.gg.test.integ.parallel
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: all
+    Artifacts:
+      - URI: s3://mock-bucket/artifact1.txt
+      - URI: s3://mock-bucket/artifact2.txt
+      - URI: s3://mock-bucket/artifact3.txt
