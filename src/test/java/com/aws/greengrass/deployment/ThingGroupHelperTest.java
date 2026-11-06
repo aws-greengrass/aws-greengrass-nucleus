@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.exception.AbortedException;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.*;
 
@@ -65,5 +66,33 @@ class ThingGroupHelperTest {
         assertThrows(RetryableServerErrorException.class, () -> helper.listThingGroupsForDevice(3));
 
         verify(clientFactory, times(CLIENT_RETRY_COUNT)).fetchGreengrassV2DataClient();
+    }
+
+    @Test
+    void GIVEN_list_thing_groups_for_core_device_request_WHEN_interrupted_THEN_interrupt_is_not_retried()
+            throws Exception {
+        this.helper = spy(new ThingGroupHelper(clientFactory, deviceConfiguration));
+        ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
+                .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
+                .nextToken(nextToken.get()).build();
+        when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
+        when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
+
+        // An interrupt which lands inside the call is reported by the SDK as AbortedException, with the thread
+        // re-interrupted, rather than as an InterruptedException
+        when(client.listThingGroupsForCoreDevice(request)).thenAnswer(invocation -> {
+            Thread.currentThread().interrupt();
+            throw AbortedException.create("Thread was interrupted");
+        });
+
+        helper.setClientExceptionRetryConfig(
+                helper.getClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
+        try {
+            // Cloud deployments pass an unbounded attempt count, so retrying a cancellation would never terminate
+            assertThrows(InterruptedException.class, () -> helper.listThingGroupsForDevice(3));
+            verify(clientFactory, times(1)).fetchGreengrassV2DataClient();
+        } finally {
+            Thread.interrupted(); // clear for the tests which follow
+        }
     }
 }
