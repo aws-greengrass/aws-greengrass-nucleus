@@ -903,6 +903,56 @@ class KernelConfigResolverTest {
     }
 
     @Test
+    void GIVEN_derived_recipe_variables_WHEN_config_resolution_requested_THEN_named_groups_interpolated()
+            throws Exception {
+        // GIVEN a Nucleus config that derives {derived:mac} and {derived:site} from the thing name
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            // declared-and-matched vars, plus a declared-but-unmatched var and an undeclared var
+            put(LIFECYCLE_RUN_KEY,
+                    "run --mac {derived:mac} --site {derived:site} --opt {derived:absent} --raw {derived:unknown}");
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2");
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        // Stub the flat name -> value map (matched mac/site, declared-but-unmatched "absent" -> "");
+        // the extraction itself is covered in DeviceConfigurationDerivedVariablesTest.
+        Map<String, String> derivedValues = new HashMap<>();
+        derivedValues.put("mac", "aabbcc");
+        derivedValues.put("site", "floor1");
+        derivedValues.put("absent", "");
+        when(deviceConfiguration.getDerivedRecipeVariableValues()).thenReturn(derivedValues);
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A),
+                        document.getTimestamp());
+
+        // THEN
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        assertThat("declared named groups resolve; declared-but-unmatched -> empty; undeclared -> left untouched",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("run --mac aabbcc --site floor1 --opt  --raw {derived:unknown}"));
+    }
+
+    @Test
     void GIVEN_deployment_WHEN_recipe_interpolate_non_dependency_THEN_config_not_interpolated() throws Exception {
         // GIVEN
         ComponentIdentifier componentIdentifierA =

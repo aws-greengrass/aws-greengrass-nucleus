@@ -18,19 +18,29 @@ import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.regex.PatternSyntaxException;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.AWS_IOT_THING_NAME_ENV;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_DERIVED_RECIPE_VARIABLES;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.FALLBACK_DEFAULT_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -186,6 +196,72 @@ class DeviceConfigurationTest {
 
             // Expect fallback version in the absence of version information from build files
             assertEquals("0.0.0", deviceConfiguration.getNucleusVersion());
+        }
+    }
+
+    private DeviceConfiguration deviceConfigWithDerived(Context context, String thingName, String pattern) {
+        Topics derived = Topics.of(context, DEVICE_PARAM_DERIVED_RECIPE_VARIABLES, null);
+        if (pattern != null) {
+            derived.lookup(DEVICE_PARAM_THING_NAME).withValue(pattern);
+        }
+        lenient().when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_DERIVED_RECIPE_VARIABLES)).thenReturn(derived);
+        lenient().when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME))
+                .thenReturn(Topic.of(context, DEVICE_PARAM_THING_NAME, thingName));
+        lenient().when(configuration.lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV))
+                .thenReturn(Topic.of(context, AWS_IOT_THING_NAME_ENV, ""));
+        return new DeviceConfiguration(configuration, kernelCommandLine);
+    }
+
+    @Test
+    void GIVEN_pattern_with_named_groups_WHEN_getDerivedValues_THEN_groups_extracted_and_unmatched_group_is_empty()
+            throws Exception {
+        try (Context context = new Context()) {
+            // "zone" is declared via an optional group that does not participate in this match
+            deviceConfiguration = deviceConfigWithDerived(context, "gateway-1a2b3c",
+                    "^(?<prefix>[a-z]+)-(?<id>[0-9a-f]+)(?:-(?<zone>[a-z0-9]+))?$");
+
+            Map<String, String> values = deviceConfiguration.getDerivedRecipeVariableValues();
+
+            assertEquals("gateway", values.get("prefix"));
+            assertEquals("1a2b3c", values.get("id"));
+            assertEquals("", values.get("zone"));          // declared but unmatched -> empty
+            assertFalse(values.containsKey("unknown"));     // undeclared -> absent (placeholder left as-is)
+        }
+    }
+
+    @Test
+    void GIVEN_pattern_that_does_not_match_thing_name_WHEN_getDerivedValues_THEN_declared_groups_are_empty()
+            throws Exception {
+        try (Context context = new Context()) {
+            deviceConfiguration = deviceConfigWithDerived(context, "router",
+                    "^(?<prefix>[a-z]+)-(?<id>[0-9a-f]+)$");
+
+            Map<String, String> values = deviceConfiguration.getDerivedRecipeVariableValues();
+
+            assertEquals("", values.get("prefix"));
+            assertEquals("", values.get("id"));
+        }
+    }
+
+    @Test
+    void GIVEN_invalid_regex_WHEN_getDerivedValues_THEN_entry_skipped(ExtensionContext extensionContext)
+            throws Exception {
+        ignoreExceptionOfType(extensionContext, PatternSyntaxException.class);
+        try (Context context = new Context()) {
+            deviceConfiguration = deviceConfigWithDerived(context, "gateway-1a2b3c",
+                    "^(?<id>[0-9a-f]+"); // unbalanced group -> PatternSyntaxException
+
+            assertEquals(0, deviceConfiguration.getDerivedRecipeVariableValues().size());
+        }
+    }
+
+    @Test
+    void GIVEN_no_derived_config_WHEN_getDerivedValues_THEN_empty_map() throws Exception {
+        try (Context context = new Context()) {
+            deviceConfiguration = deviceConfigWithDerived(context, "gateway-1a2b3c", null);
+
+            assertEquals(0, deviceConfiguration.getDerivedRecipeVariableValues().size());
         }
     }
 }
