@@ -9,10 +9,10 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import lombok.NonNull;
 import org.apache.http.client.utils.URIBuilder;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -187,12 +188,14 @@ public final class ProxyUtils {
      * CRT library clients (like mqtt and http)
      *
      * @param deviceConfiguration contains user specified system proxy values
-     * @param tlsContext contains TLS options for proxy connection if an HTTPS proxy is used
+     * @param tlsContext TLS context for the connection to the proxy. Required for an https proxy, unused and may
+     *                   be null for any other scheme.
      * @return httpProxyOptions containing user proxy settings, if specified. If not, httpProxyOptions is null.
+     * @throws NullPointerException if the proxy is https and tlsContext is null
      */
     @Nullable
     public static HttpProxyOptions getHttpProxyOptions(DeviceConfiguration deviceConfiguration,
-                                                       @NonNull ClientTlsContext tlsContext) {
+                                                       @Nullable ClientTlsContext tlsContext) {
         String proxyUrl = deviceConfiguration.getProxyUrl();
         if (Utils.isEmpty(proxyUrl)) {
             return null;
@@ -203,8 +206,8 @@ public final class ProxyUtils {
         httpProxyOptions.setPort(ProxyUtils.getPortFromProxyUrl(proxyUrl));
         httpProxyOptions.setConnectionType(HttpProxyOptions.HttpProxyConnectionType.Tunneling);
 
-        if ("https".equalsIgnoreCase(getSchemeFromProxyUrl(proxyUrl))) {
-            httpProxyOptions.setTlsContext(tlsContext);
+        if (isHttpsProxy(proxyUrl)) {
+            httpProxyOptions.setTlsContext(Objects.requireNonNull(tlsContext, "An https proxy needs a TLS context"));
         }
 
         String proxyUsername = getProxyUsername(proxyUrl, deviceConfiguration.getProxyUsername());
@@ -216,6 +219,46 @@ public final class ProxyUtils {
         }
 
         return httpProxyOptions;
+    }
+
+    /**
+     * Returns true if the proxy URL uses the https scheme, so the connection to the proxy itself needs TLS.
+     *
+     * @param proxyUrl user specified proxy url
+     * @return true for an https proxy
+     */
+    public static boolean isHttpsProxy(String proxyUrl) {
+        return "https".equalsIgnoreCase(getSchemeFromProxyUrl(proxyUrl));
+    }
+
+    /**
+     * Creates the TLS context for the connection to an https proxy, trusting the given root CA, or the system trust
+     * store when the path is empty. The caller owns the context and must close it.
+     *
+     * @param rootCaPath path to the root CA file, may be empty
+     * @return a new TLS context
+     */
+    public static ClientTlsContext newProxyTlsContext(String rootCaPath) {
+        try (TlsContextOptions tlsOptions = TlsContextOptions.createDefaultClient()) {
+            if (Utils.isNotEmpty(rootCaPath)) {
+                tlsOptions.withCertificateAuthorityFromPath(null, rootCaPath);
+            }
+            return new ClientTlsContext(tlsOptions);
+        }
+    }
+
+    /**
+     * Returns true if the endpoint matches an entry in the configured noProxyAddresses, so a connection to it must
+     * not go through the proxy. Each comma-separated entry is a Java regular expression.
+     *
+     * @param deviceConfiguration contains the noProxyAddresses value
+     * @param endpoint            host the client connects to
+     * @return true if the connection to the endpoint must bypass the proxy
+     */
+    public static boolean isProxyBypassed(DeviceConfiguration deviceConfiguration, String endpoint) {
+        String noProxy = deviceConfiguration.getNoProxyAddresses();
+        return Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)
+                && Arrays.stream(noProxy.split(",")).anyMatch(endpoint::matches);
     }
 
     /**
