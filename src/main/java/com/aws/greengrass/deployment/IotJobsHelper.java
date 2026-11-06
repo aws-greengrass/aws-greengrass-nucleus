@@ -111,7 +111,6 @@ public class IotJobsHelper implements InjectionActions {
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
     // with, and keep retrying the request until we get a non-empty response.
     private static final AtomicInteger unprocessedJobs = new AtomicInteger(0);
-    @Getter(AccessLevel.PACKAGE)
     private static final LatestQueuedJobs latestQueuedJobs = new LatestQueuedJobs();
 
     private static final Logger logger = LogManager.getLogger(IotJobsHelper.class);
@@ -296,6 +295,12 @@ public class IotJobsHelper implements InjectionActions {
 
     @Override
     public void postInject() {
+        // Kernel queues the resumed job before launch and this runs before MQTT connects or DeploymentService polls,
+        // so the cloud's IN_PROGRESS reply for the resumed job is ignored.
+        deploymentQueue.toArray().stream()
+                .filter(d -> DeploymentType.IOT_JOBS.equals(d.getDeploymentType())
+                        && !Deployment.DeploymentStage.DEFAULT.equals(d.getDeploymentStage()))
+                .forEach(d -> latestQueuedJobs.addProcessedJob(d.getId()));
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
         // GG_NEEDS_REVIEW: TODO: switch back to IotJobsClient after IoT device sdk updated for jobs namespace
