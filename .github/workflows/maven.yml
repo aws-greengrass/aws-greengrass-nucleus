@@ -44,7 +44,8 @@ jobs:
         env:
           AWS_REGION: us-west-2
         run: |
-          sudo -E mvn -ntp -U verify
+          sudo env "JAVA_HOME=$JAVA_HOME" "PATH=$JAVA_HOME/bin:$PATH" "AWS_REGION=$AWS_REGION" \
+            mvn -ntp -U verify
           sudo chown -R runner target
         if: matrix.os == 'ubuntu-latest'
       - name: Upload Failed Test Report
@@ -81,8 +82,10 @@ jobs:
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: |
-          sudo mvn -ntp -U install -DskipTests
-          sudo mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
+          sudo env "JAVA_HOME=$JAVA_HOME" "PATH=$JAVA_HOME/bin:$PATH" \
+            mvn -ntp -U install -DskipTests
+          sudo env "JAVA_HOME=$JAVA_HOME" "PATH=$JAVA_HOME/bin:$PATH" \
+            mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
         if: matrix.os == 'ubuntu-latest'
       - name: Save PR number
         env:

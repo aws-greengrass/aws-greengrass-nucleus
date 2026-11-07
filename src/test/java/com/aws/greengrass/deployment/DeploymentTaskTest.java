@@ -21,6 +21,8 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
+import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +38,7 @@ import software.amazon.awssdk.utils.ImmutableMap;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -44,17 +47,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -127,6 +137,27 @@ class DeploymentTaskTest {
                         mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper, mockDeviceConfiguration);
     }
 
+    private List<ComponentIdentifier> resolvedComponent() {
+        return Collections.singletonList(
+                new ComponentIdentifier(COMPONENT_2_ROOT_PACKAGE_NAME, new Semver("1.0.0")));
+    }
+
+    /**
+     * An aborted deployment hands its resolved versions to the cleanup, and that is what keeps the components
+     * it had already downloaded. Asserting the map, not just the call, is what makes this meaningful.
+     */
+    private void verifyCleanupKeptResolvedVersions() {
+        verify(mockComponentManager).cleanupStaleVersions(eq(true), argThat(
+                versions -> versions != null
+                        && "1.0.0".equals(versions.get(COMPONENT_2_ROOT_PACKAGE_NAME))));
+    }
+
+    private void assertInterrupted(FutureTask<DeploymentResult> futureTask) {
+        ExecutionException thrown = assertThrows(ExecutionException.class, futureTask::get);
+        assertTrue(thrown.getCause() instanceof InterruptedException,
+                "task must end on the interrupt path, but ended with " + thrown.getCause());
+    }
+
     @Test
     void GIVEN_deploymentDocument_WHEN_start_deploymentTask_THEN_succeeds() throws Exception {
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
@@ -176,6 +207,8 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_thingGroupHelper_interrupted_THEN_deployment_task_interrupted() throws Exception {
         when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(InterruptedException.class);
         assertThrows(InterruptedException.class, deploymentTask::call);
+        // exited before resolution, so the targets are unknown and the cleanup must not run
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test
@@ -193,6 +226,8 @@ class DeploymentTaskTest {
         verify(mockComponentManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
+        // exited before resolution, so the targets are unknown and the cleanup must not run
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test
@@ -226,12 +261,14 @@ class DeploymentTaskTest {
         verify(mockComponentManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
+        // exited before resolution, so the targets are unknown and the cleanup must not run
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
     }
 
     @Test
     void GIVEN_deployment_task_interrupted_WHEN_preparePackages_in_progress_THEN_cancel_prepare_packages() throws Exception {
         when(mockExecutorService.submit(any(Callable.class)))
-                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+                .thenReturn(CompletableFuture.completedFuture(resolvedComponent()));
         CountDownLatch preparePackagesInvoked = new CountDownLatch(1);
         when(mockComponentManager.preparePackages(anyList())).thenAnswer(invocationOnMock -> {
             preparePackagesInvoked.countDown();
@@ -247,21 +284,33 @@ class DeploymentTaskTest {
         assertTrue(preparePackagesInvoked.await(3, TimeUnit.SECONDS));
         t.interrupt();
 
+        t.join(5000);
+        assertFalse(t.isAlive());
+        assertInterrupted(futureTask);
+
         verify(mockComponentManager).preparePackages(anyList());
         verify(mockPreparePackagesFuture, timeout(5000)).cancel(true);
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
+        // interrupted mid-download, so the targets are known and the cleanup keeps what was downloaded
+        verifyCleanupKeptResolvedVersions();
     }
 
     @Test
     void GIVEN_deployment_task_interrupted_WHEN_preparePackages_done_merge_not_started_THEN_do_nothing() throws Exception {
         when(mockExecutorService.submit(any(Callable.class)))
-                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+                .thenReturn(CompletableFuture.completedFuture(resolvedComponent()));
         CountDownLatch resolveConfigInvoked = new CountDownLatch(1);
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockKernelConfigResolver.resolve(any(), any(), any(), any(Long.class))).thenAnswer(invocationOnMock -> {
             resolveConfigInvoked.countDown();
-            Thread.sleep(1000);
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                // resolve does not declare InterruptedException, so in production an interrupt here leaves
+                // the flag set and the check after resolution is what turns it into one
+                Thread.currentThread().interrupt();
+            }
             return Collections.emptyMap();
         });
 
@@ -272,15 +321,21 @@ class DeploymentTaskTest {
         resolveConfigInvoked.await(3, TimeUnit.SECONDS);
         t.interrupt();
 
+        t.join(5000);
+        assertFalse(t.isAlive());
+        assertInterrupted(futureTask);
+
         verify(mockComponentManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any(), any(Long.class));
+        // downloads already completed, so the cleanup must keep them
+        verifyCleanupKeptResolvedVersions();
     }
 
     @Test
     void GIVEN_deployment_task_interrupted_WHEN_merge_in_progress_THEN_cancel_merge() throws Exception {
         when(mockExecutorService.submit(any(Callable.class)))
-                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+                .thenReturn(CompletableFuture.completedFuture(resolvedComponent()));
         CountDownLatch mergeConfigInvoked = new CountDownLatch(1);
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class))).thenAnswer(invocationOnMock -> {
@@ -298,10 +353,16 @@ class DeploymentTaskTest {
         assertTrue(mergeConfigInvoked.await(3, TimeUnit.SECONDS));
         t.interrupt();
 
+        t.join(5000);
+        assertFalse(t.isAlive());
+        assertInterrupted(futureTask);
+
         verify(mockComponentManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class));
         verify(mockDeploymentConfigMerger, timeout(4000)).mergeInNewConfig(any(), any(), any(Long.class));
         verify(mockMergeConfigFuture, timeout(5000)).cancel(false);
+        // interrupted after the downloads and before the merge landed, so the cleanup keeps them
+        verifyCleanupKeptResolvedVersions();
     }
 
     @Test
@@ -347,5 +408,140 @@ class DeploymentTaskTest {
         assertThrows(RuntimeException.class, () -> deploymentTask.call());
         
         verify(mockComponentManager).cleanupStaleVersions(eq(true), any());
+    }
+
+    /**
+     * The reported failure: a shutdown during the thing-group fetch surfaces as TLSAuthException wrapping
+     * InterruptedException. The task exits before resolution, so the cleanup has no way to know which versions
+     * this deployment targets and must not run, or it deletes a locally preloaded target the resumed
+     * deployment needs.
+     */
+    @Test
+    void GIVEN_deployment_WHEN_thing_group_fetch_wrapped_interrupt_THEN_cleanup_skipped(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                new TLSAuthException("Get key managers interrupted", new InterruptedException()));
+
+        DeploymentResult result = deploymentTask.call();
+
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    /**
+     * The rule is about whether the targets are known, not about interrupts. A thing-group fetch that fails with
+     * a server error also exits before resolution, so the cleanup must not run there either.
+     */
+    @Test
+    void GIVEN_deployment_WHEN_thing_group_fetch_server_error_THEN_cleanup_skipped(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(
+                GreengrassV2DataException.builder().statusCode(HttpStatusCode.INTERNAL_SERVER_ERROR).build());
+
+        DeploymentResult result = deploymentTask.call();
+
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    /**
+     * A cancel reaches the task the same way a shutdown does, through an interrupt on the task thread. When it
+     * lands before resolution the targets are unknown, so the cleanup must not run even though a cancelled
+     * deployment is otherwise expected to clean up.
+     */
+    @Test
+    void GIVEN_deployment_cancelled_before_resolving_WHEN_call_THEN_cleanup_skipped() throws Exception {
+        CountDownLatch fetchStarted = new CountDownLatch(1);
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenAnswer(invocation -> {
+            fetchStarted.countDown();
+            Thread.sleep(10_000);
+            return Optional.empty();
+        });
+
+        FutureTask<DeploymentResult> futureTask = new FutureTask<>(deploymentTask);
+        Thread t = new Thread(futureTask);
+        t.start();
+        assertTrue(fetchStarted.await(5, TimeUnit.SECONDS));
+        // the same mechanism DeploymentService uses to cancel a deployment
+        futureTask.cancel(true);
+
+        t.join(5000);
+        assertFalse(t.isAlive());
+        verify(mockComponentManager, never()).cleanupStaleVersions(anyBoolean(), any());
+    }
+
+    /**
+     * An interrupt after resolution does not skip the cleanup, because the resolved versions are passed to it and
+     * keep this deployment's own components. That is what lets a resumable deployment keep what it downloaded
+     * while a cancelled deployment still reclaims stale versions.
+     */
+    @Test
+    void GIVEN_interrupted_deployment_WHEN_components_resolved_THEN_cleanup_keeps_this_deployments_versions(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        List<ComponentIdentifier> resolved = Collections.singletonList(
+                new ComponentIdentifier(COMPONENT_2_ROOT_PACKAGE_NAME, new Semver("1.0.0")));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(resolved));
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(mockPreparePackagesFuture);
+        when(mockPreparePackagesFuture.get()).thenThrow(new ExecutionException(new InterruptedException()));
+
+        assertThrows(InterruptedException.class, deploymentTask::call);
+
+        verifyCleanupKeptResolvedVersions();
+    }
+
+    /**
+     * An interrupt that lands outside a blocking call reaches the cleanup with the flag still set, because
+     * the check after config resolution reads it without clearing it. The sweep aborts on a set flag, so the
+     * flag is cleared for its duration and restored afterwards; otherwise the sweep would be a no-op here.
+     */
+    @Test
+    void GIVEN_interrupt_set_outside_blocking_call_WHEN_cleanup_THEN_sweep_runs_and_interrupt_restored(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+        List<ComponentIdentifier> resolved = Collections.singletonList(
+                new ComponentIdentifier(COMPONENT_2_ROOT_PACKAGE_NAME, new Semver("1.0.0")));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(resolved));
+        when(mockComponentManager.preparePackages(anyList()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        // Interrupt without unblocking anything, so the flag is still set at the check after config resolution
+        when(mockKernelConfigResolver.resolve(anyList(), eq(deploymentDocument), anyList(), any(Long.class)))
+                .thenAnswer(invocation -> {
+                    Thread.currentThread().interrupt();
+                    return Collections.emptyMap();
+                });
+        AtomicBoolean interruptedDuringSweep = new AtomicBoolean(true);
+        doAnswer(invocation -> {
+            interruptedDuringSweep.set(Thread.currentThread().isInterrupted());
+            return null;
+        }).when(mockComponentManager).cleanupStaleVersions(anyBoolean(), any());
+
+        assertThrows(InterruptedException.class, deploymentTask::call);
+
+        verifyCleanupKeptResolvedVersions();
+        assertFalse(interruptedDuringSweep.get(), "sweep must not observe the interrupt flag");
+        // reads and clears, so the assertion also keeps the flag off the next test
+        assertTrue(Thread.interrupted(), "interrupt must be restored after the sweep");
+    }
+
+    @Test
+    void GIVEN_deployment_WHEN_cleanup_throws_THEN_result_still_returned(ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, RuntimeException.class);
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class)))
+                .thenReturn(CompletableFuture.completedFuture(
+                        new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null)));
+        doThrow(new RuntimeException("cleanup blew up"))
+                .when(mockComponentManager).cleanupStaleVersions(anyBoolean(), any());
+
+        DeploymentResult result = deploymentTask.call();
+
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
     }
 }
