@@ -7,6 +7,9 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.ConfigurationReader;
+import com.aws.greengrass.config.ConfigurationWriter;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.Context;
@@ -28,6 +31,7 @@ import com.aws.greengrass.provisioning.ProvisioningPluginFactory;
 import com.aws.greengrass.provisioning.exceptions.RetryableProvisioningException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
@@ -45,6 +49,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -53,6 +58,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -61,6 +67,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Kernel.DEFAULT_CONFIG_YAML_FILE_READ;
 import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
@@ -401,6 +408,17 @@ class KernelLifecycleTest {
         kernelLifecycle.setPostPluginStartables(new ArrayList<>());
     }
 
+    // Boot-time tlog compaction reads its threshold via Configuration.find; unstubbed find returns null so
+    // compaction falls back to the (large) default and stays inert for the small fixture tlogs. Tests that
+    // exercise compaction call this to force a specific threshold.
+    private void stubTlogCompactionThreshold(long thresholdBytes) {
+        Topic thresholdTopic = mock(Topic.class);
+        when(thresholdTopic.getOnce()).thenReturn(thresholdBytes);
+        when(mockConfig.find(SERVICES_NAMESPACE_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY, DeviceConfiguration.BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES))
+                .thenReturn(thresholdTopic);
+    }
+
     @Test
     void GIVEN_deployment_config_override_WHEN_read_THEN_read_persisted_config() throws Exception {
         String providedConfigPathName = "external_config.yaml";
@@ -475,6 +493,167 @@ class KernelLifecycleTest {
         verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
                 tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_bloated_tlog_WHEN_launch_from_tlog_THEN_active_tlog_compacted() throws Exception {
+        // Tiny threshold so the small fixture tlog counts as "bloated" and gate 1 fires.
+        stubTlogCompactionThreshold(10L);
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), configTlogPath);
+
+        kernelLifecycle.initConfigAndTlog();
+
+        verify(mockKernel.getConfig()).read(eq(configTlogPath));
+        // Normally a read-from-tlog boot never rewrites config.tlog; gate 1 compacts it because it is bloated.
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(configTlogPath);
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_bloated_backup_tlog_WHEN_launch_THEN_backup_also_compacted() throws Exception {
+        // Tiny threshold so the small fixture backup counts as "bloated" and gate 2 fires.
+        stubTlogCompactionThreshold(10L);
+        // Main config.tlog absent -> config read from the backup (readFromTlog == false).
+        Path backupTlogPath = mockPaths.configPath().resolve("config.tlog~");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), backupTlogPath);
+        Path configTlogPath = tempRootDir.resolve("config").resolve("config.tlog");
+
+        kernelLifecycle.initConfigAndTlog();
+
+        verify(mockKernel.getConfig()).read(eq(backupTlogPath));
+        // One dump from the !readFromTlog branch, plus one from gate 2 reclaiming the bloated backup.
+        verify(mockKernel, times(2)).writeEffectiveConfigAsTransactionLog(configTlogPath);
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_bloated_tlog_WHEN_compaction_disabled_THEN_not_compacted() throws Exception {
+        // Threshold 0 disables boot compaction entirely.
+        stubTlogCompactionThreshold(0L);
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), configTlogPath);
+
+        kernelLifecycle.initConfigAndTlog();
+
+        verify(mockKernel.getConfig()).read(eq(configTlogPath));
+        verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
+                tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_boot_compaction_fails_WHEN_launch_THEN_boot_continues(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, IOException.class);
+        stubTlogCompactionThreshold(10L);
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), configTlogPath);
+        // Compaction dump fails (e.g. disk full). Since compaction is an optimization, boot must continue.
+        doThrow(new IOException("disk full")).when(mockKernel)
+                .writeEffectiveConfigAsTransactionLog(configTlogPath);
+
+        kernelLifecycle.initConfigAndTlog();
+
+        // Boot proceeded past the failed compaction rather than aborting.
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_unparseable_threshold_WHEN_launch_THEN_uses_default_not_disabled() throws Exception {
+        // An unparseable value must fall back to the default, not silently disable (Coerce.toLong -> 0).
+        Topic thresholdTopic = mock(Topic.class);
+        when(thresholdTopic.getOnce()).thenReturn("20MB");
+        when(mockConfig.find(SERVICES_NAMESPACE_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY, DeviceConfiguration.BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES))
+                .thenReturn(thresholdTopic);
+        // A valid config.tlog larger than the 10 MB default: compaction fires only if the default (not
+        // disable) is in effect.
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        List<String> lines = Files.readAllLines(Paths.get(this.getClass().getResource("test.tlog").toURI()));
+        try (BufferedWriter w = Files.newBufferedWriter(configTlogPath)) {
+            long size = 0;
+            while (size < 11_000_000L) {
+                for (String line : lines) {
+                    w.write(line);
+                    w.newLine();
+                    size += line.length() + 1;
+                }
+            }
+        }
+
+        kernelLifecycle.initConfigAndTlog();
+
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(configTlogPath);
+    }
+
+    @Test
+    void GIVEN_negative_threshold_WHEN_launch_THEN_not_compacted() throws Exception {
+        stubTlogCompactionThreshold(-1L);
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), configTlogPath);
+
+        kernelLifecycle.initConfigAndTlog();
+
+        verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(configTlogPath);
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_real_oversized_tlog_WHEN_launch_THEN_compacted_and_config_preserved() throws Exception {
+        Path configTlog = mockPaths.configPath().resolve("config.tlog");
+        Path backupTlog = mockPaths.configPath().resolve("config.tlog~");
+        int lastValue = 1999;
+        long threshold = 20_000L;
+
+        // 1. Build a real, valid, oversized config.tlog on disk: many appends of two topics produce many
+        //    lines, but the effective (last-writer-wins) config is tiny.
+        try (Context seedCtx = new Context()) {
+            Configuration seed = new Configuration(seedCtx);
+            try (ConfigurationWriter w = ConfigurationWriter.logTransactionsTo(seed, configTlog)) {
+                for (int i = 0; i <= lastValue; i++) {
+                    seed.lookup("services", "aws.greengrass.Foo", "configuration", "counter").withValue(i);
+                    seed.lookup("services", "aws.greengrass.Foo", "configuration", "name").withValue("v" + i);
+                }
+                seedCtx.waitForPublishQueueToClear();
+            }
+        }
+        long bloatedSize = Files.size(configTlog);
+        assertTrue(bloatedSize > threshold, "precondition: seeded tlog must exceed the threshold");
+
+        // 2. Real config for the boot path, carrying a low compaction threshold in the Nucleus config.
+        try (Context bootCtx = new Context()) {
+            Configuration realConfig = new Configuration(bootCtx);
+            bootCtx.runOnPublishQueueAndWait(() -> realConfig.lookup("services",
+                    DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME, "configuration",
+                    DeviceConfiguration.BOOT_CONFIG_TLOG_COMPACTION_THRESHOLD_BYTES).withValue(threshold));
+            when(mockKernel.getConfig()).thenReturn(realConfig);
+            // 3. Make writeEffectiveConfigAsTransactionLog perform a real dump of the live config to disk.
+            doAnswer(inv -> {
+                ConfigurationWriter.dump(realConfig, inv.getArgument(0));
+                return null;
+            }).when(mockKernel).writeEffectiveConfigAsTransactionLog(any());
+
+            // 4. Boot: replay the oversized tlog, then compact.
+            kernelLifecycle.initConfigAndTlog();
+            bootCtx.waitForPublishQueueToClear();
+
+            // 5a. config.tlog was actually rewritten smaller and is now under the threshold (gate 1).
+            long compactedSize = Files.size(configTlog);
+            assertTrue(compactedSize < bloatedSize, "config.tlog should shrink after boot compaction");
+            assertTrue(compactedSize <= threshold, "compacted config.tlog should be under threshold");
+            // 5b. The bloated backup left by the demote was reclaimed, not left at the bloated size (gate 2).
+            assertTrue(Files.exists(backupTlog), "gate 2 should have produced a config.tlog~");
+            assertTrue(Files.size(backupTlog) <= threshold, "config.tlog~ backup should be reclaimed by gate 2");
+
+            // 5c. Effective config is preserved: replaying the compacted tlog yields the final values.
+            try (Context verifyCtx = new Context()) {
+                Configuration verify = ConfigurationReader.createFromTLog(verifyCtx, configTlog);
+                assertEquals(lastValue,
+                        Coerce.toLong(verify.find("services", "aws.greengrass.Foo", "configuration", "counter")));
+                assertEquals("v" + lastValue,
+                        Coerce.toString(verify.find("services", "aws.greengrass.Foo", "configuration", "name")));
+            }
+        }
     }
 
     @Test

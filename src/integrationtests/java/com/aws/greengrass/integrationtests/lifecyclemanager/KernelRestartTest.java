@@ -10,15 +10,20 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class KernelRestartTest extends BaseITCase {
@@ -105,6 +110,42 @@ class KernelRestartTest extends BaseITCase {
         // service 1 is removed
         assertThrows(ServiceLoadException.class, () -> kernel.locate("service_1"),
                 "actual kernel config: " + kernel.getConfig().toPOJO());
+    }
+
+    @Test
+    void GIVEN_config_tlog_exceeds_threshold_WHEN_kernel_restarts_THEN_compacted_and_config_preserved()
+            throws Exception {
+        // GIVEN a running kernel with a low boot-compaction threshold and an oversized config.tlog.
+        kernel = new Kernel();
+        kernel.parseArgs();
+        kernel.launch();
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
+
+        Path configTlog = kernel.getNucleusPaths().configPath().resolve("config.tlog");
+
+        // Persist a low threshold (so the restart boot reads it back) and bloat the tlog with many
+        // last-writer-wins writes to one topic: many tlog lines, but a tiny effective config.
+        kernel.getContext().runOnPublishQueueAndWait(() -> {
+            kernel.getConfig().lookup("services", "aws.greengrass.Nucleus", "configuration",
+                    "bootConfigTlogCompactionThresholdBytes").withValue(20_000L);
+            for (int i = 0; i < 2000; i++) {
+                kernel.getConfig().lookup("e2eCompactionProbe", "counter").withValue(i);
+            }
+        });
+        kernel.getContext().waitForPublishQueueToClear();
+
+        long bloatedSize = Files.size(configTlog);
+        assertThat(bloatedSize, greaterThan(20_000L));
+        kernel.shutdown();
+
+        // WHEN the kernel restarts with the same root dir, boot compaction rewrites the oversized tlog.
+        kernel = new Kernel();
+        kernel.parseArgs().launch();
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
+
+        // THEN config.tlog was compacted and the probe value survived the compaction round-trip.
+        assertThat(Files.size(configTlog), lessThan(bloatedSize));
+        assertThat(Coerce.toInt(kernel.getConfig().find("e2eCompactionProbe", "counter")), is(equalTo(1999)));
     }
 
     @AfterEach

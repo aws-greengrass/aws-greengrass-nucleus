@@ -72,14 +72,26 @@ public class IotConnectionManager implements Closeable {
         deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null && (node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH))) {
-                try (LockScope ls = LockScope.lock(lock)) {
-                    if (this.client != null) {
-                        this.client.close();
-                        this.client = null;
-                    }
-                }
+                reset();
             }
         });
+    }
+
+    /**
+     * Discard the cached {@link SdkHttpClient} so that the next call to {@link #getClient()} builds a fresh one.
+     *
+     * <p>Callers should invoke this after observing a connection-level failure (such as a transient network
+     * outage) so that a subsequent retry does not keep reusing a client whose connection pool or DNS resolution
+     * may be stale for the current network state (e.g. after an IPv4-&gt;IPv6 failover).</p>
+     */
+    @SuppressWarnings("PMD.NullAssignment")
+    public void reset() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (this.client != null) {
+                this.client.close();
+                this.client = null;
+            }
+        }
     }
 
     private SdkHttpClient initConnectionManager() throws TLSAuthException {

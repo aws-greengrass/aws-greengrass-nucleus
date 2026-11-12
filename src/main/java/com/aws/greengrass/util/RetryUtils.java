@@ -61,12 +61,18 @@ public class RetryUtils {
     public static <T> T runWithRetry(DifferentiatedRetryConfig differentiatedRetryConfig,
                                      CrashableSupplier<T, Exception> task, String taskDescription, Logger logger)
             throws Exception {
-        long retryInterval = 0;
         long totalAttempts = 0;
         long totalMaxAttempts = calculateTotalMaxAttempts(differentiatedRetryConfig);
         Map<RetryConfig, Integer> attemptMap = new HashMap<>();
+        // Each config backs off independently. Sharing one interval across configs would let a config with a high
+        // ceiling ramp the interval and then have a config with a lower ceiling sleep past its own ceiling, because
+        // the sleep happens before the interval is clamped.
+        Map<RetryConfig, Long> retryIntervalMap = new HashMap<>();
         differentiatedRetryConfig.getRetryConfigList()
-                .forEach(retryConfig -> attemptMap.put(retryConfig, 1));
+                .forEach(retryConfig -> {
+                    attemptMap.put(retryConfig, 1);
+                    retryIntervalMap.put(retryConfig, retryConfig.getInitialRetryInterval().toMillis());
+                });
 
         while (totalAttempts < totalMaxAttempts) {
             if (Thread.currentThread().isInterrupted()) {
@@ -98,11 +104,10 @@ public class RetryUtils {
                         logBuilder.kv("task-attempt", attempt).setCause(e).log("task failed and will be retried");
 
                         // sleep with back-off
-                        if (retryInterval == 0) {
-                            retryInterval = retryConfig.getInitialRetryInterval().toMillis();
-                        }
+                        long retryInterval = retryIntervalMap.get(retryConfig);
                         Thread.sleep(retryInterval / 2 + RANDOM.nextInt((int) (retryInterval / 2 + 1)));
-                        retryInterval = Math.min(retryInterval * 2, retryConfig.getMaxRetryInterval().toMillis());
+                        retryIntervalMap.put(retryConfig,
+                                Math.min(retryInterval * 2, retryConfig.getMaxRetryInterval().toMillis()));
 
                         // break since exception is found
                         break;
