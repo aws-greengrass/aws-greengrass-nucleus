@@ -35,6 +35,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.net.ssl.TrustManager;
@@ -442,4 +444,85 @@ public final class ProxyUtils {
         return "localhost";
     }
 
+    /**
+     * <p>Validates noProxyAddresses entries at config-load time.</p>
+     *
+     * <p>Rejects entries that are clearly invalid (empty after trim, contain spaces, or use
+     * unsupported wildcard positions). Valid patterns are:</p>
+     * <ul>
+     *   <li><code>*.domain.com</code> — wildcard subdomain prefix</li>
+     *   <li><code>.domain.com</code> — leading-dot (equivalent to *.)</li>
+     *   <li><code>domain.com</code> — exact hostname</li>
+     *   <li><code>127.0.0.1</code> — exact IP</li>
+     * </ul>
+     *
+     * @param noProxyAddresses comma-separated noProxy string from config
+     * @return list of invalid entries (empty if all valid)
+     */
+    public static List<String> validateNoProxyAddresses(String noProxyAddresses) {
+        List<String> invalid = new ArrayList<>();
+        if (Utils.isEmpty(noProxyAddresses)) {
+            return invalid;
+        }
+        for (String entry : noProxyAddresses.split(",")) {
+            String trimmed = entry.trim();
+            if (trimmed.isEmpty()) {
+                invalid.add(entry);
+                continue;
+            }
+            // Reject wildcards in unsupported positions (only leading *. is valid)
+            if (trimmed.contains("*") && !trimmed.startsWith("*.")) {
+                invalid.add(entry);
+                continue;
+            }
+            // Reject entries with spaces (likely typo)
+            if (trimmed.contains(" ")) {
+                invalid.add(entry);
+            }
+        }
+        return invalid;
+    }
+
+    /**
+     * <p>Checks whether an endpoint matches a NO_PROXY pattern using standard glob-style matching.</p>
+     *
+     * <p>Supports the standard NO_PROXY conventions:</p>
+     * <ul>
+     *   <li><code>*.domain.com</code> — matches any subdomain (e.g. foo.domain.com)</li>
+     *   <li><code>.domain.com</code> — same as *.domain.com (leading-dot convention)</li>
+     *   <li><code>domain.com</code> — exact match only</li>
+     * </ul>
+     *
+     * <p>Falls back gracefully on invalid patterns — logs a warning and returns false (no match),
+     * preventing a bad noProxyAddresses entry from crashing the process.</p>
+     *
+     * @param endpoint the hostname to check (e.g. "data-ats.iot.us-west-2.amazonaws.com")
+     * @param pattern  the NO_PROXY pattern to match against
+     * @return true if the endpoint matches the pattern
+     */
+    public static boolean noProxyMatches(String endpoint, String pattern) {
+        String trimmed = pattern.trim();
+        if (Utils.isEmpty(trimmed)) {
+            return false;
+        }
+
+        String regex;
+        if (trimmed.startsWith("*.")) {
+            // *.domain.com → match any prefix ending with .domain.com
+            regex = ".*" + Pattern.quote(trimmed.substring(1));
+        } else if (trimmed.startsWith(".")) {
+            // .domain.com → same as *.domain.com per NO_PROXY convention
+            regex = ".*" + Pattern.quote(trimmed);
+        } else {
+            // Exact hostname match — quote all special chars
+            regex = Pattern.quote(trimmed);
+        }
+
+        try {
+            return endpoint.matches(regex);
+        } catch (PatternSyntaxException e) {
+            logger.warn("Invalid noProxyAddress pattern '{}', skipping: {}", pattern, e.getMessage());
+            return false;
+        }
+    }
 }
