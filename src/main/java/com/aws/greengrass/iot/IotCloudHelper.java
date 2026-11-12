@@ -39,7 +39,7 @@ public class IotCloudHelper {
     private static final int BACKOFF_MILLIS = 200;
 
     /**
-     * Sends Http request to Iot Cloud.
+     * Sends Http request to Iot Cloud, retrying up to {@link #RETRY_COUNT} times with backoff.
      *
      * @param connManager underlying connection manager to use for sending requests
      * @param thingName   IoT Thing Name
@@ -52,6 +52,31 @@ public class IotCloudHelper {
      */
     public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, String thingName, final String path,
                                             final String verb, final byte[] body)
+                                            throws AWSIotException, TLSAuthException {
+        return sendHttpRequest(connManager, thingName, path, verb, body, RETRY_COUNT);
+    }
+
+    /**
+     * Sends Http request to Iot Cloud, retrying up to {@code maxAttempts} times with backoff.
+     *
+     * <p>Use a lower {@code maxAttempts} (e.g. 1) for callers that already wrap this call in their own bounded
+     * retry/recovery logic and want to avoid compounding this method's internal retry-with-backoff loop with
+     * their own, which can otherwise multiply worst-case latency for callers with a tight or unbounded time
+     * budget.</p>
+     *
+     * @param connManager underlying connection manager to use for sending requests
+     * @param thingName   IoT Thing Name
+     * @param path        Http url to query
+     * @param verb        Http verb for the request
+     * @param body        Http body for the request
+     * @param maxAttempts maximum number of attempts (1 = no internal retry)
+     * @return Http response corresponding to http request for path
+     * @throws AWSIotException when unable to send the request successfully
+     * @throws TLSAuthException when unable to configure the client with mTLS
+     */
+    public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, String thingName,
+                                            final String path, final String verb, final byte[] body,
+                                            final int maxAttempts)
                                             throws AWSIotException, TLSAuthException {
         URI uri = null;
         try {
@@ -80,7 +105,7 @@ public class IotCloudHelper {
 
         BaseRetryableAccessor accessor = new BaseRetryableAccessor();
         CrashableSupplier<IotCloudResponse, AWSIotException> getHttpResponse = () -> getHttpResponse(request);
-        return accessor.retry(RETRY_COUNT, BACKOFF_MILLIS, getHttpResponse,
+        return accessor.retry(maxAttempts, BACKOFF_MILLIS, getHttpResponse,
                 new HashSet<>(Collections.singletonList(AWSIotException.class)));
     }
 

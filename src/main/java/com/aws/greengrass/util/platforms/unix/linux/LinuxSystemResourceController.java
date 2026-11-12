@@ -13,21 +13,23 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.zeroturnaround.process.PidUtil;
+import org.zeroturnaround.process.Processes;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "Cgroup Controller virtual filesystem path cannot be relative")
@@ -160,11 +162,11 @@ public class LinuxSystemResourceController implements SystemResourceController {
         resourceLimitCgroups.forEach(cgroupManager -> {
             try {
                 addComponentProcessToCgroup(component.getServiceName(), process, cgroupManager);
-
-                // Child processes of a process in a cgroup are auto-added to the same cgroup by linux kernel. But in
-                // case of a race condition in starting a child process and us adding pids to cgroup, neither us nor
-                // the linux kernel will add it to the cgroup. To account for this, re-list all pids for the component
-                // after 1 second and add to cgroup again so that all component processes are resource controlled.
+            } catch (IOException e) {
+                handleErrorAddingPidToCgroup(e, component.getServiceName());
+            } finally {
+                // Always re-add pids after 1s (finally), even if the first add failed, to catch child processes
+                // started in between.
                 component.getContext().get(ScheduledExecutorService.class).schedule(() -> {
                     try {
                         addComponentProcessToCgroup(component.getServiceName(), process, cgroupManager);
@@ -172,9 +174,6 @@ public class LinuxSystemResourceController implements SystemResourceController {
                         handleErrorAddingPidToCgroup(e, component.getServiceName());
                     }
                 }, 1, TimeUnit.SECONDS);
-
-            } catch (IOException e) {
-               handleErrorAddingPidToCgroup(e, component.getServiceName());
             }
         });
     }
@@ -215,14 +214,36 @@ public class LinuxSystemResourceController implements SystemResourceController {
 
                     // Writing pid to cgroup.procs file should auto add the pid to tasks file
                     // Once a process is added to a cgroup, its forked child processes inherit its (parent's) settings
+                    List<Integer> failedPids = new ArrayList<>();
+                    IOException firstFailure = null;
                     for (Integer pid : childProcesses) {
                         if (pid == null) {
                             logger.atError().log("The process doesn't exist and is skipped");
                             continue;
                         }
 
-                        Files.write(cgroupManager.getCgroupProcsPath(component),
-                                Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+                        try {
+                            Files.write(cgroupManager.getCgroupProcsPath(component),
+                                    Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+                        } catch (IOException e) {
+                            // Skip a pid that exited before its write; keep going on other errors and report them
+                            // after the loop so every remaining pid still gets added.
+                            if (isProcessAlive(pid)) {
+                                logger.atError().kv(COMPONENT_NAME, component).kv("pid", pid)
+                                        .kv("error", e.toString()).log("Failed to add pid to the cgroup");
+                                failedPids.add(pid);
+                                if (firstFailure == null) {
+                                    firstFailure = e;
+                                }
+                            } else {
+                                logger.atWarn().kv(COMPONENT_NAME, component).kv("pid", pid)
+                                        .log("Failed to add pid to the cgroup because the process doesn't exist "
+                                                + "anymore");
+                            }
+                        }
+                    }
+                    if (!failedPids.isEmpty()) {
+                        throw new IOException("Failed to add pids " + failedPids + " to the cgroup", firstFailure);
                     }
                 }
             } catch (InterruptedException e) {
@@ -233,24 +254,39 @@ public class LinuxSystemResourceController implements SystemResourceController {
         }
     }
 
+    // Checks the pid directly rather than the write error's strerror text, which is locale-dependent.
+    private boolean isProcessAlive(int pid) throws InterruptedException {
+        try {
+            return Processes.newPidProcess(pid).isAlive();
+        } catch (IOException e) {
+            // Can't confirm the process exited, so treat the write failure as real.
+            return true;
+        }
+    }
+
     protected void initializeCgroup(GreengrassService component, CgroupManager cgroup) throws IOException {
         cgroup.initializeCgroup(component.getServiceName(), platform);
     }
 
     private void handleErrorAddingPidToCgroup(IOException e, String component) {
-        // The process might have exited (if it's a short running process).
-        // Check the exception message here to avoid the exception stacktrace failing the tests.
-        if (e.getMessage() != null && e.getMessage().contains("No such process")) {
-            logger.atWarn().kv(COMPONENT_NAME, component)
-                    .log("Failed to add pid to the cgroup because the process doesn't exist anymore");
-        } else {
-            logger.atError().setCause(e).kv(COMPONENT_NAME, component)
-                    .log("Failed to add pid to the cgroup");
-        }
+        logger.atError().setCause(e).kv(COMPONENT_NAME, component).log("Failed to add pid to the cgroup");
     }
 
     private Set<Integer> pidsInComponentCgroup(CgroupManager cgroupManager, String component) throws IOException {
-        return Files.readAllLines(cgroupManager.getCgroupProcsPath(component))
-                .stream().map(Integer::parseInt).collect(Collectors.toSet());
+        Set<Integer> pids = new HashSet<>();
+        for (String line : Files.readAllLines(cgroupManager.getCgroupProcsPath(component))) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                pids.add(Integer.parseInt(trimmed));
+            } catch (NumberFormatException e) {
+                // Skip a blank/non-numeric cgroup.procs entry instead of failing the whole read.
+                logger.atWarn().kv(COMPONENT_NAME, component).kv("entry", trimmed)
+                        .log("Skipping invalid pid entry from cgroup.procs");
+            }
+        }
+        return pids;
     }
 }

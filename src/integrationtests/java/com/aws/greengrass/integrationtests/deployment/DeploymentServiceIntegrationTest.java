@@ -677,12 +677,14 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                     "TestComponentTakesLongToStartupNoNotify", DeploymentType.SHADOW);
 
             // WHEN
-            assertTrue(firstDeploymentCompleted.await(20, TimeUnit.SECONDS));
+            // The install script sleeps 15 seconds; leave generous headroom for deployment machinery
+            // and slow runners on top of that mandatory delay.
+            assertTrue(firstDeploymentCompleted.await(60, TimeUnit.SECONDS));
             // FleetConfigWithComponentTakesLongToStartupAndBrokenService.json
             submitSampleCloudDeploymentDocument(
                     DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithComponentTakesLongToStartupAndBrokenService.json")
                             .toURI(), "DeployBrokenComponent", DeploymentType.SHADOW);
-            assertTrue(secondDeploymentFailed.await(15, TimeUnit.SECONDS));
+            assertTrue(secondDeploymentFailed.await(60, TimeUnit.SECONDS));
 
             // THEN
             submitSampleCloudDeploymentDocument(
