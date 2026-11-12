@@ -12,11 +12,10 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,8 +29,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 
 public final class AuthorizationPolicyParser {
     private static final Logger logger = LogManager.getLogger(AuthorizationPolicyParser.class);
-    private static final ObjectMapper OBJECT_MAPPER =
-            JsonMapper.builder().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true).build();
+    private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getCaseInsensitiveJsonObjectMapper();
     /**
      * Given a kernel object, construct and return a map of AuthorizationPolicy objects that may exist,
      * grouped into lists of the same destination component.
