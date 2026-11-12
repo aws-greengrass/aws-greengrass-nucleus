@@ -35,6 +35,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.net.ssl.TrustManager;
@@ -440,6 +442,70 @@ public final class ProxyUtils {
             return "localhost," + deviceConfiguration.getNoProxyAddresses();
         }
         return "localhost";
+    }
+
+    /**
+     * <p>Checks whether an endpoint matches a single noProxyAddresses entry without ever throwing.</p>
+     *
+     * <p>Entries are Java regular expressions (existing documented behavior) and are trimmed of
+     * surrounding whitespace before matching. Note this is a small behavior change: previously a
+     * space-padded entry (e.g. from a comma-space separated list) could never match. A blank entry
+     * or an entry that does not compile is logged and treated as a non-match, so a bad
+     * noProxyAddresses value (e.g. a glob-style entry such as <code>*.example.com</code>) can no
+     * longer crash MQTT connection setup with a {@link PatternSyntaxException}.</p>
+     *
+     * @param endpoint the endpoint host being connected to; null or empty never matches
+     * @param pattern  a single noProxyAddresses entry
+     * @return true if the endpoint matches the entry; false for blank or invalid entries
+     */
+    public static boolean noProxyMatches(String endpoint, String pattern) {
+        String trimmed = pattern == null ? "" : pattern.trim();
+        if (Utils.isEmpty(endpoint) || Utils.isEmpty(trimmed)) {
+            return false;
+        }
+        try {
+            return endpoint.matches(trimmed);
+        } catch (PatternSyntaxException e) {
+            logger.atWarn().kv("pattern", pattern).setCause(e)
+                    .log("Ignoring invalid noProxyAddresses entry; it will never match an endpoint");
+            return false;
+        }
+    }
+
+    /**
+     * <p>Validates a comma-separated noProxyAddresses value at config-validation time.</p>
+     *
+     * <p>Flags entries that do not compile as a Java regular expression (which the runtime matcher
+     * would silently never match), and entries with embedded whitespace (which compile but can
+     * never match a hostname -- almost certainly a typo). Empty segments produced by stray commas
+     * are skipped rather than flagged, matching the runtime matcher which treats them as harmless
+     * non-matches.</p>
+     *
+     * @param noProxyAddresses comma-separated noProxyAddresses value from config
+     * @return the invalid entries; empty when all entries are valid
+     */
+    public static List<String> validateNoProxyAddresses(String noProxyAddresses) {
+        List<String> invalid = new ArrayList<>();
+        if (Utils.isEmpty(noProxyAddresses)) {
+            return invalid;
+        }
+        for (String entry : noProxyAddresses.split(",")) {
+            String trimmed = entry.trim();
+            if (trimmed.isEmpty()) {
+                // A stray comma is benign -- skip it rather than fail the deployment
+                continue;
+            }
+            if (trimmed.contains(" ") || trimmed.contains("\t")) {
+                invalid.add(trimmed);
+                continue;
+            }
+            try {
+                Pattern.compile(trimmed);
+            } catch (PatternSyntaxException e) {
+                invalid.add(trimmed);
+            }
+        }
+        return invalid;
     }
 
 }
