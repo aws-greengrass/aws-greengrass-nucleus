@@ -5,18 +5,34 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker;
 
+import com.aws.greengrass.componentmanager.models.ComponentArtifact;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
 
+import java.net.URI;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.RETURNS_SELF;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class})
 class DefaultDockerClientTest {
@@ -155,5 +171,54 @@ class DefaultDockerClientTest {
         } finally {
             Locale.setDefault(original);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Error response from daemon: No such image: alpine:3.19",
+            "ERROR RESPONSE FROM DAEMON: NO SUCH IMAGE: alpine:3.19"})
+    void GIVEN_image_not_found_WHEN_delete_image_THEN_treated_as_removed(String err) throws Exception {
+        try (MockedStatic<Platform> platform = mockDockerCli(Optional.of(1), err)) {
+            assertDoesNotThrow(() -> new DefaultDockerClient().deleteImage(testImage()));
+        }
+    }
+
+    @Test
+    void GIVEN_image_used_by_container_WHEN_delete_image_THEN_throw() throws Exception {
+        try (MockedStatic<Platform> platform = mockDockerCli(Optional.of(1),
+                "Error response from daemon: conflict: unable to delete 05455a08881e (must be forced) - image is "
+                        + "being used by stopped container 3f4e8b2a1c9d")) {
+            assertThrows(DockerImageDeleteException.class, () -> new DefaultDockerClient().deleteImage(testImage()));
+        }
+    }
+
+    @Test
+    void GIVEN_no_exit_code_WHEN_delete_image_THEN_throw() throws Exception {
+        try (MockedStatic<Platform> platform = mockDockerCli(Optional.empty(),
+                "Error response from daemon: No such image: alpine:3.19")) {
+            assertThrows(DockerImageDeleteException.class, () -> new DefaultDockerClient().deleteImage(testImage()));
+        }
+    }
+
+    private static MockedStatic<Platform> mockDockerCli(Optional<Integer> exit, String err) throws Exception {
+        AtomicReference<Consumer<CharSequence>> errConsumer = new AtomicReference<>();
+        Exec exec = mock(Exec.class, RETURNS_SELF);
+        when(exec.withErr(any())).thenAnswer(invocation -> {
+            errConsumer.set(invocation.getArgument(0));
+            return exec;
+        });
+        when(exec.exec()).thenAnswer(invocation -> {
+            errConsumer.get().accept(err);
+            return exit;
+        });
+        Platform platform = mock(Platform.class);
+        when(platform.createNewProcessRunner()).thenReturn(exec);
+        MockedStatic<Platform> platformStatic = mockStatic(Platform.class);
+        platformStatic.when(Platform::getInstance).thenReturn(platform);
+        return platformStatic;
+    }
+
+    private static Image testImage() throws Exception {
+        return Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(new URI("docker:alpine:3.19")).build());
     }
 }
