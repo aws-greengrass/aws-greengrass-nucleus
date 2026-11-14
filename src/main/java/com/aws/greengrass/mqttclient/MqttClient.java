@@ -35,13 +35,13 @@ import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
@@ -52,7 +52,6 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -155,7 +154,6 @@ public class MqttClient implements Closeable {
     private final Spool spool;
     private final ExecutorService executorService;
 
-    private TlsContextOptions proxyTlsOptions;
     private ClientTlsContext proxyTlsContext;
     private String rootCaPath;
 
@@ -238,7 +236,7 @@ public class MqttClient implements Closeable {
             String endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
             builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(endpoint)
-                    .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
+                    .withPort(Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
                     .withCleanSession(false).withBootstrap(clientBootstrap)
                     .withKeepAliveMs(keepAliveMs)
                     .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())
@@ -248,16 +246,8 @@ public class MqttClient implements Closeable {
             try (LockScope ls = LockScope.lock(httpProxyLock)) {
                 HttpProxyOptions httpProxyOptions =
                         ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext);
-                if (httpProxyOptions != null) {
-                    String noProxy = Coerce.toString(deviceConfiguration.getNoProxyAddresses());
-                    boolean useProxy = true;
-                    // Only use the proxy when the endpoint we're connecting to is not in the NoProxyAddress list
-                    if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)) {
-                        useProxy = Arrays.stream(noProxy.split(",")).noneMatch(endpoint::matches);
-                    }
-                    if (useProxy) {
-                        builder.withHttpProxyOptions(httpProxyOptions);
-                    }
+                if (httpProxyOptions != null && !ProxyUtils.isProxyBypassed(deviceConfiguration, endpoint)) {
+                    builder.withHttpProxyOptions(httpProxyOptions);
                 }
             }
             return builder;
@@ -271,8 +261,7 @@ public class MqttClient implements Closeable {
         this.executorService = executorService;
         this.ses = ses;
         rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-        this.proxyTlsOptions = getTlsContextOptions(rootCaPath);
-        this.proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
+        this.proxyTlsContext = ProxyUtils.newProxyTlsContext(rootCaPath);
 
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
@@ -329,15 +318,21 @@ public class MqttClient implements Closeable {
                     String newRootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
                     try (LockScope ls = LockScope.lock(httpProxyLock)) {
                         if (!Objects.equals(rootCaPath, newRootCaPath)) {
-                            if (proxyTlsOptions != null) {
-                                proxyTlsOptions.close();
+                            ClientTlsContext newProxyTlsContext;
+                            try {
+                                newProxyTlsContext = ProxyUtils.newProxyTlsContext(newRootCaPath);
+                            } catch (CrtRuntimeException e) {
+                                // Keep the current context and connections. rootCaPath stays unchanged, so a later
+                                // config change retries the load; nothing retries if the file is fixed in place.
+                                logger.atError().kv("rootCaPath", newRootCaPath).setCause(e)
+                                        .log("Unable to load the root CA, not reconnecting MQTT clients");
+                                return;
                             }
                             if (proxyTlsContext != null) {
                                 proxyTlsContext.close();
                             }
+                            proxyTlsContext = newProxyTlsContext;
                             rootCaPath = newRootCaPath;
-                            proxyTlsOptions = getTlsContextOptions(rootCaPath);
-                            proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
                         }
                     }
 
@@ -390,16 +385,7 @@ public class MqttClient implements Closeable {
         this.spool = spool;
         this.mqttOnline.set(mqttOnline);
         this.executorService = executorService;
-        rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-        this.proxyTlsOptions = getTlsContextOptions(rootCaPath);
-        this.proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
         validateAndSetMqttPublishConfiguration();
-    }
-
-    private TlsContextOptions getTlsContextOptions(String rootCaPath) {
-        return Utils.isNotEmpty(rootCaPath)
-                ? TlsContextOptions.createDefaultClient().withCertificateAuthorityFromPath(null, rootCaPath)
-                : TlsContextOptions.createDefaultClient();
     }
 
     private void validateAndSetMqttPublishConfiguration() {
@@ -1072,9 +1058,6 @@ public class MqttClient implements Closeable {
             }
 
             connections.forEach(IndividualMqttClient::closeOnShutdown);
-            if (proxyTlsOptions != null) {
-                proxyTlsOptions.close();
-            }
             if (proxyTlsContext != null) {
                 proxyTlsContext.close();
             }
