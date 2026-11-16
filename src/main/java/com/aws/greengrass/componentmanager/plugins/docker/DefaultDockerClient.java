@@ -338,6 +338,9 @@ public class DefaultDockerClient {
         CliResponse response = runDockerCmd(String.format("docker rmi %s", image.getImageFullName()));
         if (response.exit.isPresent() && response.exit.get() == 0) {
             return;
+        } else if (response.exit.isPresent() && response.err.toLowerCase(Locale.ROOT).contains("no such image")) {
+            logger.atWarn().kv("image", image.getImageFullName())
+                    .log("Docker image not found under this name, treating it as already removed");
         } else {
             throw new DockerImageDeleteException(
                     String.format("Unexpected error while trying to perform docker rmi - %s", response.err),
