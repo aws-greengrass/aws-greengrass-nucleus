@@ -153,11 +153,11 @@ public class ShadowDeploymentListenerTest {
         when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
         when(mockKernel.getContext()).thenReturn(mockContext);
         lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
-        doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
+        lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
-        doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
+        lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowRejected(any(), any(), any(), any());
-        doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
+        lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToGetNamedShadowAccepted(any(), any(), any(), any());
 
         when(mockEndpointSwitchState.isEndpointSwitchDeployment(TEST_CONFIG_ARN)).thenReturn(true);
@@ -261,6 +261,9 @@ public class ShadowDeploymentListenerTest {
 
         when(mockEndpointSwitchState.isEndpointSwitchDeployment(TEST_CONFIG_ARN)).thenReturn(false);
 
+        when(mockIotShadowClient.PublishUpdateNamedShadow(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
+
         ArgumentCaptor<java.util.function.Function> consumerCaptor =
                 ArgumentCaptor.forClass(java.util.function.Function.class);
         shadowDeploymentListener.postInject();
@@ -274,8 +277,6 @@ public class ShadowDeploymentListenerTest {
         statusDetails.put("detailed-deployment-status", "SUCCESSFUL");
         details.put("DeploymentStatusDetails", statusDetails);
 
-        when(mockIotShadowClient.PublishUpdateNamedShadow(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(0));
         consumerCaptor.getValue().apply(details);
 
         // Not an endpoint-switch deployment — no source key clearing
@@ -288,14 +289,17 @@ public class ShadowDeploymentListenerTest {
         when(mockContext.get(EndpointSwitchState.class)).thenReturn(mockEndpointSwitchState);
         when(mockKernel.getContext()).thenReturn(mockContext);
         lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
-        doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
+        lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
-        doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
+        lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowRejected(any(), any(), any(), any());
-        doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
+        lenient().doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToGetNamedShadowAccepted(any(), any(), any(), any());
 
         when(mockEndpointSwitchState.isEndpointSwitchDeployment(TEST_CONFIG_ARN)).thenReturn(false);
+
+        when(mockIotShadowClient.PublishUpdateNamedShadow(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(0));
 
         ArgumentCaptor<java.util.function.Function> consumerCaptor =
                 ArgumentCaptor.forClass(java.util.function.Function.class);
@@ -311,8 +315,6 @@ public class ShadowDeploymentListenerTest {
         details.put("DeploymentStatusDetails", statusDetails);
 
         // Normal path — no source routing
-        when(mockIotShadowClient.PublishUpdateNamedShadow(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(0));
         consumerCaptor.getValue().apply(details);
     }
 }
