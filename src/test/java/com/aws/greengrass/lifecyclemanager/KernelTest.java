@@ -65,6 +65,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
@@ -96,6 +97,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
+// This test class was already at PMD's object-coupling and class-length limits before the
+// interrupted-deployment cases were added. Splitting it up is worth doing on its own, not as part of a
+// bug fix.
+@SuppressWarnings({"PMD.CouplingBetweenObjects", "PMD.ExcessiveClassLength"})
 class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
             "  main:\n"
@@ -407,6 +412,112 @@ class KernelTest {
 
         DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
         assertThat(deployments.toArray(), hasSize(1));
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_deployment_was_interrupted_without_completing_THEN_reprocess_it()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+        doReturn(new Deployment("{}", Deployment.DeploymentType.LOCAL, "mockId"))
+                .when(deploymentDirectoryManager).readDeploymentMetadata();
+
+        launchWithDefaultStage(deploymentDirectoryManager);
+
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(1));
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_interrupted_cloud_deployment_THEN_left_for_the_cloud_to_redeliver()
+            throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+        doReturn(new Deployment("{}", Deployment.DeploymentType.IOT_JOBS, "mockId"))
+                .when(deploymentDirectoryManager).readDeploymentMetadata();
+
+        launchWithDefaultStage(deploymentDirectoryManager);
+
+        // Re-processing it from disk would race the cloud's own re-delivery, which carries the document
+        // the cloud holds and can resolve components this device cannot.
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_no_deployment_in_progress_THEN_nothing_reprocessed() throws Exception {
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(false).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+
+        launchWithDefaultStage(deploymentDirectoryManager);
+
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+        verify(deploymentDirectoryManager, times(0)).readDeploymentMetadata();
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_interrupted_deployment_exhausted_its_attempts_THEN_boot_from_rollback_snapshot()
+            throws Exception {
+        Path snapshotPath = tempRootDir.resolve("rollback_snapshot.tlog");
+        Files.createFile(snapshotPath);
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(true).when(deploymentDirectoryManager).hasUnfinishedDeployment();
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+        doReturn(true).when(deploymentDirectoryManager).hasExhaustedProcessingAttempts();
+        doReturn(snapshotPath).when(deploymentDirectoryManager).getSnapshotFilePath();
+        doReturn(new Deployment("{}", Deployment.DeploymentType.LOCAL, "mockId"))
+                .when(deploymentDirectoryManager).readDeploymentMetadata();
+
+        KernelLifecycle kernelLifecycle = launchWithDefaultStage(deploymentDirectoryManager, true);
+
+        verify(kernelLifecycle).initConfigAndTlog(snapshotPath.toString());
+        // Still re-queued, so DeploymentService reports the deployment failed rather than leaving it
+        // outstanding for the cloud to deliver again.
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(1));
+    }
+
+    @Test
+    void GIVEN_kernel_launch_WHEN_interrupted_deployment_cannot_be_read_THEN_launch_still_proceeds(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, RuntimeException.class);
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(true).when(deploymentDirectoryManager).hasReadableDeploymentMetadata();
+        doThrow(new RuntimeException("corrupt metadata")).when(deploymentDirectoryManager).readDeploymentMetadata();
+
+        KernelLifecycle kernelLifecycle = launchWithDefaultStage(deploymentDirectoryManager, false);
+
+        // Re-processing is a recovery step: failing it must not keep the device from starting.
+        verify(kernelLifecycle).launch();
+        assertThat(kernel.getContext().get(DeploymentQueue.class).toArray(), hasSize(0));
+    }
+
+    private void launchWithDefaultStage(DeploymentDirectoryManager deploymentDirectoryManager) throws Exception {
+        launchWithDefaultStage(deploymentDirectoryManager, false);
+    }
+
+    private KernelLifecycle launchWithDefaultStage(DeploymentDirectoryManager deploymentDirectoryManager,
+                                                  boolean expectConfigOverride) throws Exception {
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        doNothing().when(kernelLifecycle).launch();
+        if (expectConfigOverride) {
+            doNothing().when(kernelLifecycle).initConfigAndTlog(any());
+        } else {
+            doNothing().when(kernelLifecycle).initConfigAndTlog();
+        }
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(DEFAULT).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+        doReturn(mock(BootstrapManager.class)).when(kernelCommandLine).getBootstrapManager();
+        kernel.setKernelCommandLine(kernelCommandLine);
+
+        kernel.parseArgs().launch();
+        return kernelLifecycle;
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

@@ -30,6 +30,8 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS;
+import static com.aws.greengrass.deployment.DeviceConfiguration.MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -80,6 +82,31 @@ class DeviceConfigurationTest {
         verify(deviceConfiguration, times(1)).validate(true);
         deviceConfiguration.isDeviceConfiguredToTalkToCloud();
         verify(deviceConfiguration, times(1)).validate(true);
+    }
+
+    @Test
+    void GIVEN_unparseable_attempt_limit_WHEN_resolved_THEN_default_used_rather_than_no_limit(
+            @Mock Context mockContext) {
+        Topic limitTopic = Topic.of(mockContext, MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS, null);
+        lenient().when(configuration.lookup(anyString(), anyString(), anyString(),
+                eq(MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS))).thenReturn(limitTopic);
+        deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
+
+        limitTopic.withValue("three");
+        assertEquals(DEFAULT_MAX_INTERRUPTED_DEPLOYMENT_ATTEMPTS,
+                deviceConfiguration.getEffectiveMaxInterruptedDeploymentAttempts());
+
+        // An explicit value below 1 is a deliberate choice to retry indefinitely, so it is honoured.
+        limitTopic.withValue(0);
+        assertEquals(0, deviceConfiguration.getEffectiveMaxInterruptedDeploymentAttempts());
+
+        limitTopic.withValue("5");
+        assertEquals(5, deviceConfiguration.getEffectiveMaxInterruptedDeploymentAttempts());
+
+        // A value too large for an int means "effectively unlimited", so it is clamped rather than
+        // rejected: falling back to the default would be the most restrictive setting instead.
+        limitTopic.withValue("99999999999999");
+        assertEquals(Integer.MAX_VALUE, deviceConfiguration.getEffectiveMaxInterruptedDeploymentAttempts());
     }
 
     @Test
