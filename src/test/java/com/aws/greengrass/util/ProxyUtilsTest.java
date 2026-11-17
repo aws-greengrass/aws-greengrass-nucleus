@@ -131,6 +131,45 @@ class ProxyUtilsTest {
     }
 
     @Test
+    void testGetProxyEnvVarValue_noPort_schemeDefaultAdded() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy");
+        assertEquals("https://myproxy:443", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+        when(deviceConfiguration.getProxyUrl()).thenReturn("http://myproxy");
+        assertEquals("http://myproxy:80", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+        when(deviceConfiguration.getProxyUrl()).thenReturn("socks5://myproxy");
+        assertEquals("socks5://myproxy:1080", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    void testGetProxyEnvVarValue_noPort_withAuthInUrl() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://test-user%40aws:itsasecret@myproxy");
+        assertEquals("https://test-user%40aws:itsasecret@myproxy:443",
+                ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    void testGetProxyEnvVarValue_noPort_authInfoAddedToUrl() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy");
+        when(deviceConfiguration.getProxyUsername()).thenReturn("test-user@aws");
+        when(deviceConfiguration.getProxyPassword()).thenReturn("itsasecret");
+        assertEquals("https://test-user%40aws:itsasecret@myproxy:443",
+                ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    void testGetProxyEnvVarValue_noPort_pathKept() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy/somethingA/somethingB");
+        assertEquals("https://myproxy:443/somethingA/somethingB",
+                ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    void testGetProxyEnvVarValue_unknownScheme_unchanged() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("ftp://myproxy");
+        assertEquals("ftp://myproxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
     void testGetNoProxyEnvVarValue_customValue() {
         when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:8080");
         when(deviceConfiguration.getNoProxyAddresses()).thenReturn("other-local-domain,example.com");
