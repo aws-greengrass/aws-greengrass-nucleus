@@ -52,6 +52,45 @@ class RetryUtilsTest {
     }
 
     @Test
+    void GIVEN_retryableException_thrown_while_interrupted_WHEN_runWithRetry_THEN_honour_the_interrupt() {
+        // The AWS SDK re-interrupts the thread and throws AbortedException when an interrupt lands inside a client
+        // call. AbortedException is an SdkClientException, so without this the interrupt is retried as a transient
+        // client error, and logged as a task failure on the way.
+        AtomicInteger invoked = new AtomicInteger();
+        try {
+            assertThrows(InterruptedException.class, () -> RetryUtils.runWithRetry(config, () -> {
+                invoked.getAndIncrement();
+                Thread.currentThread().interrupt();
+                throw new IOException("thread was interrupted");
+            }, "interrupted-task", logger));
+            assertEquals(1, invoked.get());
+        } finally {
+            Thread.interrupted(); // clear for the tests which follow
+        }
+    }
+
+    @Test
+    void GIVEN_nonRetryableException_thrown_while_interrupted_WHEN_runWithRetry_THEN_honour_the_interrupt() {
+        // The interrupt wins over the task's own exception even where that exception would not have been retried,
+        // which is the behaviour change this makes outside the cancellation path. The exception which carried the
+        // interrupt is named in the message, since it is deliberately not chained as the cause.
+        AtomicInteger invoked = new AtomicInteger();
+        try {
+            InterruptedException thrown = assertThrows(InterruptedException.class,
+                    () -> RetryUtils.runWithRetry(config, () -> {
+                        invoked.getAndIncrement();
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("failed for its own reasons");
+                    }, "interrupted-task", logger));
+            assertEquals(1, invoked.get());
+            assertTrue(thrown.getMessage().contains("RuntimeException"));
+            assertTrue(thrown.getMessage().contains("failed for its own reasons"));
+        } finally {
+            Thread.interrupted(); // clear for the tests which follow
+        }
+    }
+
+    @Test
     void GIVEN_differentiatedRetryConfig_WHEN_runWithRetry_THEN_retryDifferently() {
         AtomicInteger invoked = new AtomicInteger(0);
         List<RetryUtils.RetryConfig> configList = new ArrayList<>();
