@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,6 +54,9 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import javax.inject.Inject;
 import javax.net.ssl.KeyManager;
 
@@ -84,6 +88,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
     public static final String DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION = "interpolateComponentConfiguration";
+    public static final String DEVICE_PARAM_DERIVED_RECIPE_VARIABLES = "derivedRecipeVariables";
     public static final String DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE = "deploymentConfigurationTimeSource";
     public static final String DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_CREATION_TIME = "deploymentCreationTime";
     public static final String DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME =
@@ -133,6 +138,8 @@ public class DeviceConfiguration {
     private static final String DEFAULT_ENV_STAGE = "prod";
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
+    private static final Pattern DERIVED_NAMED_GROUP = Pattern.compile("\\(\\?<([a-zA-Z][a-zA-Z0-9]*)>");
+    private static final String DERIVED_SOURCE_THING_NAME = "thingName";
     public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
     public static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
     public static final String NUCLEUS_RECIPE_FILENAME = "recipe.yaml";
@@ -466,6 +473,44 @@ public class DeviceConfiguration {
 
     public Topic getInterpolateComponentConfiguration() {
         return getTopic(DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION).dflt(false);
+    }
+
+    /**
+     * Compute operator-defined derived recipe variables as a flat name -&gt; value map. Config is keyed by a
+     * source variable (today "thingName") whose value is a regex with named capture groups; each group becomes
+     * {derived:&lt;group&gt;}. A declared group that does not participate in its match resolves to "". Sources are
+     * processed in sorted order so a group declared by more than one pattern resolves first-wins. Empty (inert)
+     * when unset.
+     *
+     * @return map of derived variable name to resolved value
+     */
+    public Map<String, String> getDerivedRecipeVariableValues() {
+        Map<String, String> values = new HashMap<>();
+        Topics derived = getTopics(DEVICE_PARAM_DERIVED_RECIPE_VARIABLES);
+        if (derived == null || derived.isEmpty()) {
+            return values;
+        }
+        // Only the thingName source is supported today.
+        String patternStr = Coerce.toString(derived.find(DERIVED_SOURCE_THING_NAME));
+        if (Utils.isEmpty(patternStr)) {
+            return values;
+        }
+        Matcher matcher;
+        try {
+            matcher = Pattern.compile(patternStr).matcher(Coerce.toString(getThingName()));
+        } catch (PatternSyntaxException e) {
+            logger.atWarn().kv("pattern", patternStr)
+                    .log("Invalid regex in derivedRecipeVariables; skipping", e);
+            return values;
+        }
+        boolean matches = matcher.matches();
+        Matcher groupDecl = DERIVED_NAMED_GROUP.matcher(patternStr);
+        while (groupDecl.find()) {
+            String group = groupDecl.group(1);
+            String captured = matches ? matcher.group(group) : null;
+            values.put(group, captured == null ? "" : captured);
+        }
+        return values;
     }
 
     public Topic getDeploymentConfigurationTimeSource() {
