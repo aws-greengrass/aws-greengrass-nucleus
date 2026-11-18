@@ -11,6 +11,7 @@ import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.OrderedExecutorService;
+import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,7 +50,7 @@ public class PubSubIPCEventStreamAgent {
     private static final String MQTT_SINGLELEVEL_WILDCARD = "+";
     private static final String MQTT_MULTILEVEL_WILDCARD = "#";
     private static final String GLOB_WILDCARD = "*";
-    private static final ObjectMapper SERIALIZER = new ObjectMapper();
+    private static final ObjectMapper SERIALIZER = SerializerFactory.getJsonObjectMapper();
     @Getter(AccessLevel.PACKAGE)
     private final SubscriptionTrie<SubscriptionCallback> listeners = new SubscriptionTrie<>();
 
