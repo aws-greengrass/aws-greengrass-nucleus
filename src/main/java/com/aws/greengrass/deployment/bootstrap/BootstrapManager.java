@@ -24,6 +24,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableReader;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
+import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -262,7 +263,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters,
-                                           DeviceConfiguration currentDeviceConfiguration) {
+                                           DeviceConfiguration currentDeviceConfiguration)
+            throws ComponentConfigurationValidationException {
         Map<String, Object> newNetworkProxy =
                 (Map<String, Object>) newNucleusParameters.get(DEVICE_NETWORK_PROXY_NAMESPACE);
         if (newNetworkProxy == null) {
@@ -271,6 +273,16 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
 
         // deviceconfig defaults to empty string on null for network proxy parameters so we must do the same
         String newNoProxyAddresses = Coerce.toString(newNetworkProxy.getOrDefault(DEVICE_PARAM_NO_PROXY_ADDRESSES, ""));
+
+        // Reject the deployment early on entries the runtime matcher cannot process,
+        // instead of silently never matching them at connection time
+        List<String> invalidNoProxyEntries = ProxyUtils.validateNoProxyAddresses(newNoProxyAddresses);
+        if (!invalidNoProxyEntries.isEmpty()) {
+            throw new ComponentConfigurationValidationException(
+                    "Invalid noProxyAddresses entries: " + invalidNoProxyEntries
+                            + ". Each entry must be a hostname, IP address, or valid pattern without whitespace.");
+        }
+
         String currentNoProxyAddresses = Coerce.toString(currentDeviceConfiguration.getNoProxyAddresses());
         if (Utils.stringHasChanged(newNoProxyAddresses, currentNoProxyAddresses)) {
             logger.atInfo().kv(DEVICE_PARAM_NO_PROXY_ADDRESSES, newNoProxyAddresses).log(RESTART_REQUIRED_MESSAGE);
