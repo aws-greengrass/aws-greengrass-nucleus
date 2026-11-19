@@ -408,6 +408,9 @@ public final class ProxyUtils {
      *
      * <p>If auth info is provided in both the url and username/password fields, then the url value is used.</p>
      *
+     * <p>If the url has no port, the scheme default that the nucleus itself connects to is added (80 for http, 443
+     * for https, 1080 for socks5), so components see the same proxy endpoint as the nucleus.</p>
+     *
      * @param deviceConfiguration contains user specified system proxy values
      * @return the proxy url value or an empty string if no proxy is configured
      */
@@ -420,9 +423,29 @@ public final class ProxyUtils {
 
         String proxyUsername = deviceConfiguration.getProxyUsername();
         if (getAuthFromProxyUrl(proxyUrl) == null && Utils.isNotEmpty(proxyUsername)) {
-            return addAuthToProxyUrl(proxyUrl, proxyUsername, deviceConfiguration.getProxyPassword());
+            proxyUrl = addAuthToProxyUrl(proxyUrl, proxyUsername, deviceConfiguration.getProxyPassword());
         }
-        return proxyUrl;
+        return addDefaultPortToProxyUrl(proxyUrl);
+    }
+
+    private static String addDefaultPortToProxyUrl(String proxyUrl) {
+        URI uri = URI.create(proxyUrl);
+        // Leave the url unchanged if it already has a port, or if it has no parsable server authority (for example a
+        // host containing '_'), where getPort() is also -1 and a port cannot be added.
+        if (uri.getPort() != -1 || uri.getHost() == null) {
+            return proxyUrl;
+        }
+        int defaultPort = getDefaultPortForSchemeFromProxyUrl(proxyUrl);
+        if (defaultPort == -1) {
+            return proxyUrl;
+        }
+        try {
+            return new URIBuilder(uri, StandardCharsets.UTF_8).setPort(defaultPort).build().toString();
+        } catch (URISyntaxException e) {
+            // Do not log the url: it may contain proxy credentials.
+            logger.atWarn().log("Unable to add default port to proxy URL environment variable");
+            return proxyUrl;
+        }
     }
 
     /**
