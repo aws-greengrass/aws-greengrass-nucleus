@@ -430,7 +430,9 @@ public final class ProxyUtils {
 
     private static String addDefaultPortToProxyUrl(String proxyUrl) {
         URI uri = URI.create(proxyUrl);
-        if (uri.getPort() != -1) {
+        // Leave the url unchanged if it already has a port, or if it has no parsable server authority (for example a
+        // host containing '_'), where getPort() is also -1 and a port cannot be added.
+        if (uri.getPort() != -1 || uri.getHost() == null) {
             return proxyUrl;
         }
         int defaultPort = getDefaultPortForSchemeFromProxyUrl(proxyUrl);
